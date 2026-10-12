@@ -39,6 +39,8 @@ import {
   TabulationTopWidget,
 } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useIsMobile } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 
 import { AddDashboardCardDialog } from "@/features/dashboard-v2/components/add-dashboard-card-dialog";
 import { DashboardSearchFilterBar } from "@/features/dashboard-v2/components/dashboard-filters";
@@ -113,6 +115,7 @@ import {
   type ServiceSection,
 } from "@/features/dashboard-v2/visible-sections";
 import { useSeenIds } from "@/features/dashboard-v2/use-seen-widgets";
+import { DASHBOARD_TOUCH_TARGET_CLASS } from "@/features/dashboard-v2/layout-classes";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -376,6 +379,7 @@ function ManagerHome({
   useEffect(() => () => uiSaverRef.current.flush(), []);
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
+  const isMobile = useIsMobile();
 
   // Funis (com etapas) da lista do shell: resolve `?pipeline=7` → CUID e
   // alimenta o seletor/painel. As opções de filtro (`filter-options`, rota
@@ -687,11 +691,16 @@ function ManagerHome({
         </>
       }
       actions={
-        <HeaderTabs
-          tabs={DASHBOARD_TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
-          value={activeTab}
-          onChange={setActiveTab}
-        />
+        isMobile ? undefined : (
+          <HeaderTabs
+            tabs={DASHBOARD_TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
+            value={activeTab}
+            onChange={setActiveTab}
+          />
+        )
+      }
+      headerBelow={
+        isMobile ? <DashboardTabSwitch value={activeTab} onChange={setActiveTab} /> : undefined
       }
       menuSlot={
         <PageActionsMenu
@@ -1110,6 +1119,47 @@ function renderServiceWidget(
   );
 }
 
+/**
+ * Celular: Negócios/Atendimentos em linha própria abaixo do título, largura
+ * toda, metade para cada. No cabeçalho o trilho tinha 116 px e "Atendimentos"
+ * sumia atrás do botão de menu.
+ */
+function DashboardTabSwitch({
+  value,
+  onChange,
+}: {
+  value: DashboardTabKey;
+  onChange: (key: DashboardTabKey) => void;
+}) {
+  return (
+    <nav
+      aria-label="Abas do dashboard"
+      data-dashboard-tabs-mobile
+      className="grid w-full grid-cols-2 gap-1 rounded-full border border-border bg-card p-1"
+    >
+      {DASHBOARD_TABS.map((tab) => {
+        const active = value === tab.key;
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onChange(tab.key)}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "min-h-10 rounded-full px-3 text-sm font-semibold transition-colors",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function Shell({
   navRail,
   title,
@@ -1120,6 +1170,7 @@ function Shell({
   period,
   actions,
   menuSlot,
+  headerBelow,
   children,
 }: {
   navRail?: React.ReactNode;
@@ -1131,12 +1182,16 @@ function Shell({
   period?: React.ReactNode;
   actions?: React.ReactNode;
   menuSlot?: React.ReactNode;
+  /** Linha própria abaixo do título (ex.: abas no celular). */
+  headerBelow?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
       {navRail ?? <NavRail />}
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
+      <main
+        className={cn("flex min-w-0 flex-col gap-4 overflow-hidden", DASHBOARD_TOUCH_TARGET_CLASS)}
+      >
         <SectionHeader
           icon={LayoutDashboard}
           title={title}
@@ -1151,7 +1206,9 @@ function Shell({
           menu={Boolean(menuSlot)}
           menuSlot={menuSlot}
           stackSearchOnMobile
-        />
+        >
+          {headerBelow}
+        </SectionHeader>
         <div
           data-scroll-root
           className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"

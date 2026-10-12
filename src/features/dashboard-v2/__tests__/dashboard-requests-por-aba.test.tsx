@@ -217,6 +217,9 @@ function sectionsRequested(match: string): string[][] {
 beforeEach(() => {
   calls.length = 0;
   extraCards = [];
+  // Uma leitura pendente do teste anterior pode ter preenchido o cache.
+  resetDashboardRemoteForTests();
+  resetServiceAvailabilityForTests();
   vi.useFakeTimers();
   t0 = Date.now();
   window.localStorage.clear();
@@ -397,6 +400,36 @@ describe("Dashboard — requisições por aba (layout da auditoria)", () => {
     // Equipe já saiu com os 3 blocos visíveis; tabulações saem agora.
     expect(count("/api/painel/team")).toBe(1);
     expect(count("/api/analytics/tabulations")).toBe(1);
+  });
+
+  it("L7 — celular: Negócios e Atendimentos em linha própria, largura toda", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) => ({
+        matches: query.includes("max-width: 767px"),
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      }),
+    );
+    openTab = "deals";
+    mount();
+    await advance(1_000);
+    const nav = screen.getByRole("navigation", { name: "Abas do dashboard" });
+    expect(nav.className).toContain("w-full");
+    expect(nav.className).toContain("grid-cols-2");
+    const buttons = nav.querySelectorAll("button");
+    expect([...buttons].map((b) => b.textContent)).toEqual(["Negócios", "Atendimentos"]);
+    for (const b of buttons) expect(b.className).toContain("min-h-10");
+    // não há segundo seletor espremido no cabeçalho
+    expect(screen.getAllByRole("button", { name: "Atendimentos" })).toHaveLength(1);
+    fireEvent.click(buttons[1]!);
+    await advance(500);
+    expect(buttons[1]!.getAttribute("aria-current")).toBe("page");
   });
 
   it("trocar de aba e voltar não relê o layout", async () => {

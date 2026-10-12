@@ -50,7 +50,7 @@ export function CustomMetricCard({
         </div>
       </header>
       {rows.length > 0 ? (
-        <div data-dashboard-no-drag className="mt-4">
+        <div data-dashboard-no-drag className="mt-auto pt-4">
           <CategoricalChart
             type={chartType}
             rows={rows}
@@ -67,8 +67,17 @@ export function CustomMetricCard({
     </>
   );
 
+  // Na grade o card estica até a célula: com gráfico, número em cima e gráfico
+  // embaixo; só com o número, ele fica centralizado na altura.
   return (
-    <DashboardNavSurface href={href} className={cn(CARD_SURFACE_CLASS, "block p-4")}>
+    <DashboardNavSurface
+      href={href}
+      className={cn(
+        CARD_SURFACE_CLASS,
+        "flex flex-col p-4",
+        rows.length === 0 && "justify-center",
+      )}
+    >
       {inner}
     </DashboardNavSurface>
   );
