@@ -310,6 +310,7 @@ const MEDIA_ACTION_OPTIONS: Record<"audio" | "image" | "document", Array<{ value
     { value: "handoff", label: "Passar para a equipe" },
   ],
   document: [
+    { value: "describe", label: "Ler o documento e continuar o atendimento" },
     { value: "ask_text", label: "Pedir para o cliente escrever" },
     { value: "handoff", label: "Passar para a equipe" },
   ],
@@ -318,7 +319,7 @@ const MEDIA_KIND_LABEL = { audio: "Áudio", image: "Imagem", document: "Document
 const MEDIA_KIND_HINT = {
   audio: "Transcrito com a chave do próprio agente (a mesma conta que ele usa para responder).",
   image: "O modelo do agente descreve a imagem e copia o texto que aparece nela (print de erro, comprovante).",
-  document: "Leitura de documento enviado na conversa ainda não está disponível.",
+  document: "Lê o texto de PDF, DOCX e arquivo de texto (fatura, contrato, comprovante). PDF escaneado não tem texto: o agente pede um print ou que o cliente escreva.",
 } as const;
 
 const DEST_KIND_OPTIONS = [
@@ -3317,7 +3318,7 @@ function StepMedia({ config, onChange }: { config: Record<string, unknown>; onCh
   return (
       <SectionCard
         title="Se o cliente mandar áudio, imagem ou arquivo"
-        description="Áudio e imagem podem virar texto para ele seguir o atendimento. Se não der para entender, ele avisa e pede para o cliente escrever."
+        description="Áudio, imagem e documento podem virar texto para ele seguir o atendimento. Se não der para entender, ele avisa e pede para o cliente escrever."
       >
         {(["audio", "image", "document"] as const).map((kind) => {
           const options = MEDIA_ACTION_OPTIONS[kind];
