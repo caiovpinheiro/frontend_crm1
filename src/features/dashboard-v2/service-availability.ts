@@ -17,6 +17,34 @@ import type { PainelBlock } from "./painel-api";
 
 export const NO_REPLICA_MESSAGE = "Indisponível sem réplica de leitura";
 
+/**
+ * `reason: "primary_timeout"`: o bloco rodou no banco principal (sem réplica)
+ * e estourou o tempo. Não é "indisponível neste ambiente" — o card mostra o
+ * erro com "Tentar de novo" e a seção continua sendo pedida.
+ */
+export const PRIMARY_TIMEOUT_MESSAGE = "Demorou demais — tente de novo.";
+
+export function isBlockTimedOut(block: unknown): boolean {
+  if (!block || typeof block !== "object") return false;
+  const b = block as { ok?: unknown; reason?: unknown };
+  return b.ok === false && b.reason === "primary_timeout";
+}
+
+/**
+ * Troca a mensagem dos blocos `primary_timeout` (primeiro nível da resposta)
+ * por `PRIMARY_TIMEOUT_MESSAGE`. Devolve a mesma referência se nada mudou.
+ */
+export function withTimeoutMessages<T>(data: T): T {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+  let out: Record<string, unknown> | null = null;
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    if (!isBlockTimedOut(value)) continue;
+    out ??= { ...(data as Record<string, unknown>) };
+    out[key] = { ...(value as object), error: PRIMARY_TIMEOUT_MESSAGE };
+  }
+  return (out ?? data) as T;
+}
+
 /** Bloco sintético para uma seção pedida e indisponível. */
 export function unavailableBlock(): PainelBlock<never> {
   return { ok: false, error: NO_REPLICA_MESSAGE, reason: "no_replica" };
@@ -40,6 +68,7 @@ export function isBlockPending(block: PainelBlock<unknown> | undefined): boolean
 function requestedButSkipped(block: PainelBlock<unknown> | undefined): boolean {
   if (!block) return true;
   if (block.ok) return false;
+  if (block.reason === "primary_timeout") return false;
   return block.reason === "no_replica" || block.error === "omitido";
 }
 

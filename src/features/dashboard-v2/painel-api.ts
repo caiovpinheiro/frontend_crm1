@@ -6,6 +6,7 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 
 import type { DashboardFiltersState } from "./api";
+import { withTimeoutMessages } from "./service-availability";
 import {
   mockPainelAgora,
   mockPainelDeals,
@@ -22,9 +23,11 @@ export type PainelBlock<T> =
       error: string;
       /**
        * Aditivo do backend: `no_replica` = bloco pulado por falta de réplica de
-       * leitura (seção pedida, mas indisponível neste ambiente).
+       * leitura (seção pedida, mas indisponível neste ambiente);
+       * `primary_timeout` = rodou no banco principal e estourou o tempo
+       * (mostrar "demorou demais" com "Tentar de novo").
        */
-      reason?: "no_replica" | (string & {});
+      reason?: "no_replica" | "primary_timeout" | (string & {});
     };
 
 export type PainelKpi = {
@@ -337,7 +340,8 @@ async function getJson<T>(
     { credentials: "include", cache: "no-store", signal },
     timeoutMs,
   );
-  return parseApiResponse<T>(res, errLabel);
+  // Blocos que estouraram o tempo no banco principal: "demorou demais".
+  return withTimeoutMessages(await parseApiResponse<T>(res, errLabel));
 }
 
 function asIdList(value: unknown): string[] {
