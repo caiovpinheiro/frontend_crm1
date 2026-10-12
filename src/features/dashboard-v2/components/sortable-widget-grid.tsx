@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -27,7 +28,8 @@ import {
 } from "@/features/dashboard-v2/fluid-grid";
 import { fillRowGaps } from "@/features/dashboard-v2/grid-fill";
 import {
-  canFitToContent,
+  contentRowsForPx,
+  displayLayoutForContent,
   fitLayoutToContent,
   measureNaturalHeights,
 } from "@/features/dashboard-v2/grid-fit";
@@ -41,7 +43,6 @@ import {
   DASHBOARD_GRID_ROW_HEIGHT,
   compactNegociosLayout,
   gridCellHeightPx,
-  gridRowsForPx,
   sameLayout,
   type Layout,
 } from "@/features/dashboard-v2/use-negocios-grid";
@@ -76,11 +77,13 @@ export const DASHBOARD_GRID_COMPACTOR = verticalCompactor;
  */
 export const DASHBOARD_GRID_DRAG_THRESHOLD = 0;
 
-const shouldAutoSize = canFitToContent;
+export const AUTO_SIZE_DEBOUNCE_MS = 220;
 
-/** Teto alto para a lista caber no card sem rolagem interna. */
-const MAX_AUTO_ROWS = 120;
-const AUTO_SIZE_DEBOUNCE_MS = 220;
+function sameRows(a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [id, rows] of a) if (b.get(id) !== rows) return false;
+  return true;
+}
 
 const RAIL_ACTION_CLASS = cn(
   "flex size-7 shrink-0 items-center justify-center rounded-lg",
@@ -205,11 +208,23 @@ export function SortableWidgetGrid({
     [layout],
   );
   const ids = useMemo(() => visibleLayout.map((item) => item.i), [visibleLayout]);
-  // Só na exibição: cards crescem para as colunas vazias da linha (o salvo não
-  // muda; ao organizar, voltam às larguras reais).
+  /** Linhas que o conteúdo de cada card pede (medido no modo leitura). */
+  const [contentRows, setContentRows] = useState<ReadonlyMap<string, number>>(
+    () => new Map(),
+  );
+  // Só na exibição (o salvo não muda; ao organizar, voltam as larguras e
+  // alturas reais): cards crescem para as colunas vazias da linha e a altura
+  // segue o conteúdo, sem passar do `h` salvo (ver displayLayoutForContent).
   const shownLayout = useMemo(
-    () => (organizing ? visibleLayout : fillRowGaps(visibleLayout, DASHBOARD_GRID_COLS)),
-    [organizing, visibleLayout],
+    () =>
+      organizing
+        ? visibleLayout
+        : displayLayoutForContent(
+            fillRowGaps(visibleLayout, DASHBOARD_GRID_COLS),
+            contentRows,
+            DASHBOARD_GRID_COLS,
+          ),
+    [organizing, visibleLayout, contentRows],
   );
   const layoutRef = useRef(layout);
   const gridRootRef = useRef<HTMLDivElement | null>(null);
@@ -217,7 +232,6 @@ export function SortableWidgetGrid({
   const applyingRef = useRef(false);
   const persistEnabledRef = useRef(persistEnabled);
   const onLayoutChangeRef = useRef(onLayoutChange);
-  const pendingHeights = useRef(new Map<string, number>());
   const heightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   layoutRef.current = layout;
   persistEnabledRef.current = persistEnabled;
@@ -234,61 +248,61 @@ export function SortableWidgetGrid({
     });
   }, []);
 
-  const flushHeights = useCallback(() => {
+  /**
+   * Modo leitura: mede a altura natural de cada card (solta da célula por um
+   * instante — grid-fit.ts) e guarda as linhas que o conteúdo pede. Só a
+   * exibição usa isso; nada é gravado ao encolher. Conteúdo MAIOR que a célula
+   * salva continua crescendo o `h` como antes (`auto`: só localStorage, nunca
+   * PUT/PATCH), senão o card cortaria o conteúdo.
+   */
+  const measureContent = useCallback(() => {
+    heightTimer.current = null;
     if (interactingRef.current || applyingRef.current) return;
-    const current = layoutRef.current;
-    let next = current;
-    let changed = false;
-    pendingHeights.current.forEach((rows, id) => {
-      const item = next.find((entry) => entry.i === id);
-      if (!item || item.h === rows) return;
-      next = next.map((entry) => (entry.i === id ? { ...entry, h: rows } : entry));
-      changed = true;
+    const natural = measureNaturalHeights(gridRootRef.current);
+    const rows = new Map<string, number>();
+    let grown = layoutRef.current;
+    let grew = false;
+    natural.forEach((px, id) => {
+      if (!(px > 0)) return;
+      const item = layoutRef.current.find((entry) => entry.i === id);
+      if (!item) return;
+      const needed = contentRowsForPx(px);
+      rows.set(id, needed);
+      if (px > gridCellHeightPx(item.h) + 8) {
+        const next = Math.max(item.h, contentRowsForPx(px, item.minH ?? 2));
+        if (next !== item.h) {
+          grown = grown.map((entry) => (entry.i === id ? { ...entry, h: next } : entry));
+          grew = true;
+        }
+      }
     });
-    pendingHeights.current.clear();
-    // Auto-size: nunca vira PUT /dashboard/layout — só localStorage.
-    if (changed) commit(next, "auto");
+    setContentRows((prev) => (sameRows(prev, rows) ? prev : rows));
+    if (grew) commit(grown, "auto");
   }, [commit]);
 
-  const flushHeightsRef = useRef(flushHeights);
-  flushHeightsRef.current = flushHeights;
-
+  const hasWidth = width > 0;
   useEffect(() => {
-    if (disabled || organizing || !persistEnabled) return;
-    const observer = new ResizeObserver((entries) => {
-      if (interactingRef.current || applyingRef.current) return;
-      for (const entry of entries) {
-        const el = entry.target as HTMLElement;
-        const id = el.dataset.gridMeasure;
-        if (!id || !shouldAutoSize(id)) continue;
-        const item = layoutRef.current.find((row) => row.i === id);
-        if (!item) continue;
-        const contentPx = Math.max(el.scrollHeight, el.offsetHeight);
-        const cellPx = gridCellHeightPx(item.h);
-        const rows = Math.min(
-          MAX_AUTO_ROWS,
-          gridRowsForPx(contentPx, item.minH ?? 2),
-        );
-        if (rows === item.h) continue;
-        const overflows = contentPx > cellPx + 8;
-        const leftover = !overflows && item.h - rows >= 2;
-        if (!overflows && !leftover) continue;
-        pendingHeights.current.set(id, rows);
-      }
-      if (pendingHeights.current.size === 0) return;
-      if (heightTimer.current) clearTimeout(heightTimer.current);
-      heightTimer.current = setTimeout(() => flushHeightsRef.current(), AUTO_SIZE_DEBOUNCE_MS);
-    });
-    const root = containerRef.current;
+    if (disabled || organizing || !isDesktop || !mounted || !hasWidth) return undefined;
+    const root = gridRootRef.current;
     if (!root) return undefined;
-    root.querySelectorAll<HTMLElement>("[data-grid-measure]").forEach((el) => {
-      if (shouldAutoSize(el.dataset.gridMeasure ?? "")) observer.observe(el);
-    });
-    return () => {
-      observer.disconnect();
+    const schedule = () => {
       if (heightTimer.current) clearTimeout(heightTimer.current);
+      heightTimer.current = setTimeout(measureContent, AUTO_SIZE_DEBOUNCE_MS);
     };
-  }, [containerRef, disabled, ids, mounted, width, organizing, persistEnabled]);
+    // Tamanho da célula (largura muda a quebra de linha) e conteúdo (dados que
+    // chegam dentro de um card esticado não mudam o tamanho dele).
+    const resize = new ResizeObserver(schedule);
+    root.querySelectorAll<HTMLElement>("[data-grid-measure]").forEach((el) => resize.observe(el));
+    const mutation = new MutationObserver(schedule);
+    mutation.observe(root, { childList: true, subtree: true, characterData: true });
+    schedule();
+    return () => {
+      resize.disconnect();
+      mutation.disconnect();
+      if (heightTimer.current) clearTimeout(heightTimer.current);
+      heightTimer.current = null;
+    };
+  }, [disabled, organizing, isDesktop, mounted, hasWidth, ids, measureContent]);
 
   async function requestRemove(id: string) {
     if (!onRemove) return;
@@ -326,8 +340,8 @@ export function SortableWidgetGrid({
   /**
    * Célula da grade em pixels = o card. O card estica até a célula (largura e
    * altura) também no modo Organizar; a barra de edição fica por cima, dentro
-   * do card. A medida do auto-size é max(conteúdo, célula): conteúdo maior
-   * faz a linha crescer; menor não encolhe a célula salva (o card preenche).
+   * do card. No modo leitura a célula exibida já tem a altura do conteúdo
+   * (ou a da linha, para alinhar com o vizinho); no Organizar, a salva.
    */
   function gridCell(id: string) {
     const label = labels[id] ?? id;

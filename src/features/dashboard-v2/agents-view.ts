@@ -21,7 +21,7 @@ export function isInactiveAgent(row: PainelAgentRow): boolean {
 }
 
 /**
- * Receita ganha (maior primeiro); em empate — sobretudo os zeros — "Ativos hoje"
+ * Receita ganha (maior primeiro); em empate — sobretudo os zeros — "Em aberto"
  * (maior primeiro), depois ganhos e nome. Não muta a lista recebida.
  */
 export function sortAgents(rows: readonly PainelAgentRow[]): PainelAgentRow[] {

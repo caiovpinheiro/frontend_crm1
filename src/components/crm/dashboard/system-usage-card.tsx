@@ -1,6 +1,6 @@
 "use client";
 
-import { PainelCard, PainelEmpty } from "@/components/crm/dashboard/painel-block";
+import { PainelCard, PainelEmptyCard } from "@/components/crm/dashboard/painel-block";
 import { StatList } from "@/components/crm/dashboard/stat-list";
 import { SystemUsageBars } from "@/components/crm/dashboard/system-usage-bars";
 import { formatUsageHours } from "@/features/dashboard-v2/format";
@@ -15,13 +15,10 @@ import type { SystemUsageAggregateRow } from "@/features/system-usage/types";
 export function SystemUsageCard({ rows }: { rows: SystemUsageAggregateRow[] }) {
   if (rows.length === 0) {
     return (
-      <PainelCard title="Uso do sistema hoje" subtitle="Tempo ativo por usuário">
-        <PainelEmpty
-          embedded
-          title="Sem uso hoje"
-          description="Nenhuma sessão registrada neste dia."
-        />
-      </PainelCard>
+      <PainelEmptyCard
+        title="Uso do sistema hoje"
+        message="Sem uso hoje — nenhuma sessão registrada."
+      />
     );
   }
 

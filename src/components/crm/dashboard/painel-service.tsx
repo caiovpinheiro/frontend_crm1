@@ -41,6 +41,7 @@ import {
 } from "@/components/crm/sortable-header";
 import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import {
+  InfoHint,
   PainelAgoraSkeleton,
   PainelBlockError,
   PainelCard,
@@ -52,6 +53,7 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import { DASHBOARD_HELP_TEXT } from "@/features/dashboard-v2/help-texts";
 import { analyzeOutliers, outlierNote } from "@/features/dashboard-v2/outlier-axis";
 import { withClock, type DashboardClock } from "@/features/dashboard-v2/clock-label";
 import {
@@ -156,6 +158,7 @@ export function PainelAgoraWidget({
     <PainelCard
       title="Agora"
       subtitle={withClock(`agora · atualizado às ${formatAsOf(data.asOf)}`, clock)}
+      info={DASHBOARD_HELP_TEXT.serviceAgora}
     >
       <div className={KPI_CONTAINER_CLASS}>
       <div className={AGORA_GRID_CLASS}>
@@ -328,6 +331,7 @@ function ServiceVolume({
         <KpiCard
           icon={<MessageCircle className="size-5" />}
           label="Em aberto — Iniciados"
+          labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceOpen} />}
           badge="período"
           value={formatNumber(v.openStarted.value)}
           hint={deltaHint(v.openStarted.delta)}
@@ -336,6 +340,7 @@ function ServiceVolume({
         <KpiCard
           icon={<Hourglass className="size-5" />}
           label="Em aberto — Aguardando"
+          labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceOpen} />}
           badge="período"
           value={formatNumber(v.openWaiting.value)}
           hint={deltaHint(v.openWaiting.delta)}
@@ -384,6 +389,7 @@ function FinishedKpi({ volume }: { volume: PainelVolume }) {
       <KpiCard
         icon={<CheckCircle2 className="size-5" />}
         label="Atendimentos finalizados"
+        labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceFinished} />}
         badge="período"
         value={
           carry ? (
