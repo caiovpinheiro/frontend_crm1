@@ -38,6 +38,7 @@ import {
   PainelBlockError,
   PainelCard,
   PainelEmpty,
+  PainelEmptyCard,
   PainelKpiSkeleton,
   PainelSkeleton,
 } from "@/components/crm/dashboard/painel-block";
@@ -517,13 +518,31 @@ function DealAgents({
   const rows = visibleAgents(scoped, hideInactive);
   if (scoped.length === 0) {
     return (
-      <PainelCard title="Ganhos por agente">
-        <PainelEmpty
-          embedded
-          title="Não há dados no período"
-          description="Nenhum agente no recorte. Amplie o período."
-        />
-      </PainelCard>
+      <PainelEmptyCard
+        title="Ganhos por agente"
+        message="Nenhum agente no recorte. Amplie o período."
+      />
+    );
+  }
+  const toggle =
+    onHideInactive && (inactiveCount > 0 || hideInactive) ? (
+      <button
+        type="button"
+        aria-pressed={hideInactive}
+        onClick={() => onHideInactive(!hideInactive)}
+        className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-primary aria-pressed:text-primary"
+      >
+        {hideInactive ? "Mostrar" : "Ocultar"} sem atividade ({inactiveCount})
+      </button>
+    ) : undefined;
+  if (rows.length === 0) {
+    // Todos ocultos por "sem atividade": uma linha, com o botão para mostrar.
+    return (
+      <PainelEmptyCard
+        title="Ganhos por agente"
+        message="Nenhum agente com atividade"
+        action={toggle}
+      />
     );
   }
   return (
@@ -531,42 +550,21 @@ function DealAgents({
       title="Ganhos por agente"
       subtitle="Ordenado por receita ganha · em empate, por ativos hoje"
       wrapAction
-      action={
-        onHideInactive && (inactiveCount > 0 || hideInactive) ? (
-          <button
-            type="button"
-            aria-pressed={hideInactive}
-            onClick={() => onHideInactive(!hideInactive)}
-            className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-primary aria-pressed:text-primary"
-          >
-            {hideInactive ? "Mostrar" : "Ocultar"} sem atividade ({inactiveCount})
-          </button>
-        ) : undefined
-      }
+      action={toggle}
     >
-      {rows.length === 0 ? (
-        <PainelEmpty
-          embedded
-          title="Nenhum agente com atividade"
-          description="Todos os agentes do recorte estão sem atividade. Use “Mostrar sem atividade” para vê-los."
-        />
-      ) : (
-        <>
-          <div className={LIST_CARD_HEAD_STATIC_CLASS + " grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))]"}>
-            <ListColumnLabel>Agente</ListColumnLabel>
-            <ListColumnLabel align="right">Receita ganha</ListColumnLabel>
-            <ListColumnLabel align="right">Ganhos</ListColumnLabel>
-            <ListColumnLabel align="right">Conversão</ListColumnLabel>
-            <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
-            <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
-          </div>
-          <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
-            {rows.map((row) => (
-              <AgentRow key={row.id} row={row} />
-            ))}
-          </ul>
-        </>
-      )}
+      <div className={LIST_CARD_HEAD_STATIC_CLASS + " grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))]"}>
+        <ListColumnLabel>Agente</ListColumnLabel>
+        <ListColumnLabel align="right">Receita ganha</ListColumnLabel>
+        <ListColumnLabel align="right">Ganhos</ListColumnLabel>
+        <ListColumnLabel align="right">Conversão</ListColumnLabel>
+        <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
+        <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
+      </div>
+      <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
+        {rows.map((row) => (
+          <AgentRow key={row.id} row={row} />
+        ))}
+      </ul>
     </PainelCard>
   );
 }
@@ -608,13 +606,7 @@ function DealSources({
   const max = Math.max(1, ...rows.map((r) => r.wonValue));
   if (rows.length === 0) {
     return (
-      <PainelCard title="Origem">
-        <PainelEmpty
-          embedded
-          title="Não há dados no período"
-          description="Nenhum ganho com origem neste recorte."
-        />
-      </PainelCard>
+      <PainelEmptyCard title="Origem" message="Nenhum ganho com origem neste recorte." />
     );
   }
   return (
