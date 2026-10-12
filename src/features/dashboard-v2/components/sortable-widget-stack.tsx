@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import {
   DragDropContext,
   Draggable,
@@ -11,6 +11,7 @@ import { GripVertical } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { armSuppressClickAfterDrag } from "@/features/dashboard-v2/click-vs-drag";
+import { useReportSeen } from "@/features/dashboard-v2/use-seen-widgets";
 import { cn } from "@/lib/utils";
 
 import { WidgetOrganizeRail, WidgetOverflowMenu } from "./sortable-widget-grid";
@@ -26,6 +27,8 @@ export function SortableWidgetStack({
   canRemove,
   hiddenIds,
   droppableId = "dashboard-widgets",
+  onSeen,
+  placeholderPx,
 }: {
   ids: string[];
   labels: Record<string, string>;
@@ -42,8 +45,21 @@ export function SortableWidgetStack({
    */
   hiddenIds?: ReadonlySet<string>;
   droppableId?: string;
+  /**
+   * Avisa os widgets que entraram na tela (ou perto dela): a página só busca os
+   * dados deles. Ao organizar, todos contam como vistos.
+   */
+  onSeen?: (ids: string[]) => void;
+  /**
+   * Altura reservada enquanto o widget não tem dados (`null` = já tem). Mantém a
+   * primeira dobra parecida com a final, para a intersecção não puxar tudo.
+   */
+  placeholderPx?: (id: string) => number | null;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const stackRef = useRef<HTMLDivElement>(null);
+  const shownIds = ids.filter((id) => !hiddenIds?.has(id));
+  useReportSeen(stackRef, shownIds.join("\0"), onSeen, organizing && !disabled);
 
   function handleDragEnd(result: DropResult) {
     if (!result.destination) return;
@@ -86,14 +102,21 @@ export function SortableWidgetStack({
   if (disabled || !organizing) {
     return (
       <>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          {ids
-            .filter((id) => !hiddenIds?.has(id))
-            .map((id) => (
-              <div key={id} className="min-w-0">
+        <div ref={stackRef} className="flex min-w-0 flex-col gap-1.5">
+          {shownIds.map((id) => {
+            const reserve = placeholderPx?.(id) ?? null;
+            return (
+              <div
+                key={id}
+                data-seen-id={id}
+                // Reserva: grade de 1 trilho estica o esqueleto até a altura.
+                className={cn("min-w-0", reserve != null && "grid grid-cols-[minmax(0,1fr)]")}
+                style={reserve != null ? { minHeight: reserve } : undefined}
+              >
                 {render(id)}
               </div>
-            ))}
+            );
+          })}
         </div>
         {confirmDialog}
       </>
