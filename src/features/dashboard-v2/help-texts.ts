@@ -5,4 +5,8 @@
 export const DASHBOARD_HELP_TEXT = {
   /** "Ganhos por agente" → coluna "Ativos hoje". */
   agentsOpenToday: "Negócios abertos do agente agora",
+  /** Atendimentos → KPIs do período. */
+  serviceFinished: "Finalizados: conversas encerradas no período (inclui abertas antes)",
+  serviceOpenStarted: "Iniciados: conversas do período já atendidas por alguém",
+  serviceOpenWaiting: "Aguardando: conversas do período ainda sem primeiro atendimento",
 } as const;

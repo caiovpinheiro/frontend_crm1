@@ -26,6 +26,8 @@ type KpiCardProps = {
   hint?: string;
   /** Rótulo de estado presente ao lado do título (ex.: "hoje"). */
   badge?: string;
+  /** Ajuda ao lado do título (ex.: ícone ? com explicação). */
+  labelHint?: React.ReactNode;
   icon: React.ReactNode;
   tone?: KpiTone;
   /** Quando true, destaca o card (filtro/segmento ativo). */
@@ -51,6 +53,7 @@ export function KpiCard({
   value,
   hint,
   badge,
+  labelHint,
   icon,
   tone = "brand",
   active = false,
@@ -102,6 +105,7 @@ export function KpiCard({
           >
             {label}
           </span>
+          {labelHint ? <span className="inline-flex shrink-0 self-center">{labelHint}</span> : null}
           {badge ? (
             <span data-kpi-badge className="shrink-0 font-medium text-muted-foreground/80">
               {badge}
