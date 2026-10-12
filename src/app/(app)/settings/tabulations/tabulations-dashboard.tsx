@@ -19,7 +19,6 @@ import { AppLoading } from "@/components/crm/app-loading";
 import { GlassCard } from "@/components/crm/glass-card";
 import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { KpiCard } from "@/components/crm/kpi-card";
-import { KpiStrip } from "@/components/crm/kpi-strip";
 import { DateRangePicker, type DateRange } from "@/components/crm/date-range-picker";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
@@ -42,6 +41,8 @@ import {
   summarizeTabulations,
   tabulationActorLabel,
   tabulationDetail,
+  tabulationWhoSummary,
+  tabulationWhoText,
 } from "@/features/dashboard-v2/tabulation-view";
 import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
 import {
@@ -100,13 +101,11 @@ export function TabulationKpiWidget({
   data?: TabulationAnalyticsResponse;
   loadingValue: string;
 }) {
+  const who = data ? tabulationWhoText(tabulationWhoSummary(data)) : null;
+  // Grade 2×2 também no celular (era carrossel lateral), como os KPIs do período.
   return (
-    <KpiStrip
-      aria-label="Indicadores de tabulações"
-      cardMinWidth={168}
-      className="@container min-w-0"
-      gridClassName={TABULATION_KPI_GRID_CLASS}
-    >
+    <section aria-label="Indicadores de tabulações" className="@container min-w-0">
+      <div className={TABULATION_KPI_GRID_CLASS}>
       <KpiCard
         label="Tabulações no período"
         value={data?.total ?? loadingValue}
@@ -118,8 +117,10 @@ export function TabulationKpiWidget({
         icon={<IconChartBar size={20} stroke={2.2} />}
       />
       <KpiCard
-        label="Agentes que tabularam"
-        value={data?.distinctUsers ?? loadingValue}
+        label="Quem tabulou"
+        wrapValue
+        value={who?.value ?? loadingValue}
+        hint={who?.hint}
         icon={<IconUsers size={20} stroke={2.2} />}
       />
       <KpiCard
@@ -135,7 +136,8 @@ export function TabulationKpiWidget({
         }
         icon={<IconTrophy size={20} stroke={2.2} />}
       />
-    </KpiStrip>
+      </div>
+    </section>
   );
 }
 
@@ -310,22 +312,39 @@ export function TabulationTopWidget({
   );
 }
 
+/**
+ * Vazio: uma linha (~56 px; era um estado de 130–218 px). A frase depende de
+ * haver filtro de usuário — sem filtro, "Nenhum usuário no filtro" confundia
+ * (as tabulações do período podem ter sido todas da IA/automação).
+ */
+export function tabulationByUserEmptyText(filtered: boolean): string {
+  return filtered
+    ? "Nenhum usuário no filtro — ajuste o período ou remova o filtro de usuário."
+    : "Nenhuma tabulação feita por pessoas no período.";
+}
+
 export function TabulationByUserWidget({
   rows,
+  filtered = false,
 }: {
   rows: TabulationAnalyticsResponse["byUser"];
+  /** Há filtro de usuário aplicado (muda a frase do estado vazio). */
+  filtered?: boolean;
 }) {
+  if (!rows.length) {
+    const message = tabulationByUserEmptyText(filtered);
+    return (
+      <GlassCard className="flex min-h-14 min-w-0 items-center gap-3 overflow-hidden px-4 py-2.5">
+        <h3 className="shrink-0 text-[13px] font-semibold text-foreground">Por usuário</h3>
+        <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={message}>
+          {message}
+        </p>
+      </GlassCard>
+    );
+  }
   return (
     <GlassCard className="min-w-0 overflow-hidden p-4">
       <h3 className="mb-3 text-[13px] font-semibold text-foreground">Por usuário</h3>
-      {!rows.length ? (
-        <EmptyState
-          icon={<IconUsers size={22} />}
-          title="Nenhum usuário no filtro"
-          description="Ajuste o período ou remova o filtro de usuário."
-          className="py-6"
-        />
-      ) : (
         <RankBarList
           variant="rank"
           ariaLabel="Tabulações por usuário"
@@ -338,7 +357,6 @@ export function TabulationByUserWidget({
             display: formatNumber(row.count),
           }))}
         />
-      )}
     </GlassCard>
   );
 }
@@ -653,7 +671,7 @@ export function TabulationsDashboard({
       );
     }
     if (id === "byUser") {
-      return <TabulationByUserWidget rows={byUser} />;
+      return <TabulationByUserWidget rows={byUser} filtered={Boolean(actorUserId)} />;
     }
     if (id === "log") {
       return (
