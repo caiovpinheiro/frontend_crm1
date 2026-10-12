@@ -85,12 +85,27 @@ export function KpiCard({
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="flex min-w-0 items-baseline gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
-          <span className="line-clamp-2 min-w-0 break-words" title={label}>
+        {/*
+         * Rótulo em até 2 linhas, quebrando só entre palavras (sem cortar
+         * "Atendime/ntos"). Abaixo de `md` o selo ("período", "hoje") desce
+         * para baixo do título em vez de espremê-lo nos cards 2×2.
+         */}
+        <p
+          className={cn(
+            "flex min-w-0 items-baseline gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground",
+            badge && "max-md:flex-col max-md:items-start max-md:gap-0",
+          )}
+        >
+          <span
+            className="line-clamp-2 min-w-0 text-balance break-normal"
+            title={label}
+          >
             {label}
           </span>
           {badge ? (
-            <span className="font-medium text-muted-foreground/80">{badge}</span>
+            <span data-kpi-badge className="shrink-0 font-medium text-muted-foreground/80">
+              {badge}
+            </span>
           ) : null}
         </p>
         {wrapValue ? (

@@ -330,8 +330,14 @@ export function useDashboardFilters(
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [pipelines, filters.pipelineIds, searchParams, pathname, router]);
 
-  const setFilters = useCallback(
-    (next: DashboardFiltersState) => {
+  /**
+   * Aplica filtros na tela/URL e no cache local. `remote` grava no backend
+   * (PATCH, com debounce): só para mudança feita pelo usuário. Normalizar a
+   * URL (funil padrão) ou aplicar o que acabou de vir do backend não grava —
+   * antes cada abertura de `/dashboard` sem query saía GET → PATCH do layout.
+   */
+  const applyFilters = useCallback(
+    (next: DashboardFiltersState, opts: { remote: boolean }) => {
       const pipelineIds = next.pipelineIds ?? [];
       const normalized: DashboardFiltersState = {
         ...next,
@@ -347,7 +353,7 @@ export function useDashboardFilters(
       if (keyPart) {
         const storageKey = scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart);
         writeJson(storageKey, normalized);
-        if (allowRemoteRef.current) {
+        if (opts.remote && allowRemoteRef.current) {
           saverRef.current.schedule({ storageKey, value: normalized });
         }
       }
@@ -361,8 +367,17 @@ export function useDashboardFilters(
     [keyPart, pathname, pipelines, router, searchParams],
   );
 
+  /** Mudança de filtro feita pelo usuário: aplica e grava no backend. */
+  const setFilters = useCallback(
+    (next: DashboardFiltersState) => applyFilters(next, { remote: true }),
+    [applyFilters],
+  );
+
+  // Funil padrão (um de cada vez): só normaliza a URL, não grava. Espera o
+  // restore — senão `?pipeline=N` entrava na URL antes do backend responder e
+  // o restore, vendo filtro na URL, descartava os filtros salvos.
   useEffect(() => {
-    if (!pipelines?.length) return;
+    if (!restored || !pipelines?.length) return;
     const valid = filters.pipelineIds.filter((id) =>
       pipelines.some((p) => p.id === id),
     );
@@ -370,13 +385,16 @@ export function useDashboardFilters(
     if (filters.pipelineIds.length === 1 && filters.pipelineIds[0] === nextId) {
       return;
     }
-    setFilters({
-      ...filters,
-      pipelineIds: [nextId],
-      pipelineId: nextId,
-      stageIds: valid.length ? filters.stageIds : [],
-    });
-  }, [pipelines, filters.pipelineIds, filters.stageIds, setFilters]);
+    applyFilters(
+      {
+        ...filters,
+        pipelineIds: [nextId],
+        pipelineId: nextId,
+        stageIds: valid.length ? filters.stageIds : [],
+      },
+      { remote: false },
+    );
+  }, [restored, pipelines, filters.pipelineIds, filters.stageIds, applyFilters]);
 
   useEffect(() => {
     if (!ready || !keyPart || !userId || restoredRef.current) return;
@@ -407,16 +425,19 @@ export function useDashboardFilters(
       restoredRef.current = true;
       allowRemoteRef.current = true;
       const picked = resolveDashboardSlice(remote, "filters", local);
+      // Aplicar o que o backend (ou a migração) já tem não é mudança do
+      // usuário: não reagenda PATCH (o JSON volta do jsonb com outra ordem de
+      // chaves e a deduplicação de `patchRemoteDashboardMeta` não pegava).
       if (picked.source === "remote" && isFiltersState(picked.value)) {
         writeJson(storageKey, picked.value);
-        setFilters(picked.value);
+        applyFilters(picked.value, { remote: false });
       } else if (picked.migrate && local) {
         await saveDashboardSlice({
           storageKey,
           metaKey: "filters",
           value: local,
         });
-        if (!cancelled) setFilters(local);
+        if (!cancelled) applyFilters(local, { remote: false });
       }
       // Restore concluído (também quando nada foi escolhido): libera o gate
       // `settled`. `restoredRef` já é true e o efeito não roda de novo, por
@@ -427,7 +448,7 @@ export function useDashboardFilters(
     return () => {
       cancelled = true;
     };
-  }, [ready, keyPart, userId, searchParams, urlFilters, setFilters]);
+  }, [ready, keyPart, userId, searchParams, urlFilters, applyFilters]);
 
   // Painéis só disparam com os filtros assentados (funil resolvido para
   // CUID, restore feito) — senão 6–7 GETs saem, abortam e refazem.
