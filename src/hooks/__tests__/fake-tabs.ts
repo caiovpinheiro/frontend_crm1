@@ -5,6 +5,8 @@
  * fechar/travar a aba libera o lock). Cada `FakeTab` tem os seus
  * `EventSource`s, visibilidade e ciclo de vida (`pagehide`).
  */
+import type { SessionIdleStorage } from "@/lib/session-idle";
+
 import type { PresenceEnv } from "../presence-sync";
 import type { PresenceTickerEnv } from "../presence-ticker";
 import {
@@ -154,9 +156,13 @@ class FakeLockManager {
   }
 }
 
+type StorageListener = { tabId: string; fn: (key: string | null, value: string | null) => void };
+
 export class FakeTabHub {
   /** `localStorage` do navegador (compartilhado entre as abas). */
   readonly storage = new Map<string, string>();
+  /** Evento `storage`: entregue (assíncrono) às OUTRAS abas, como no browser. */
+  private readonly storageListeners = new Set<StorageListener>();
   readonly channels = new Set<FakeChannel>();
   readonly locks = new FakeLockManager();
   readonly tabs = new Map<string, FakeTab>();
@@ -183,6 +189,27 @@ export class FakeTabHub {
         if (!ch.closed) ch.onmessage?.({ data });
       }, 0);
     }
+  }
+
+  /** `localStorage` visto pela aba `tabId`, com evento `storage` para as outras. */
+  storageFor(tabId: string): SessionIdleStorage {
+    return {
+      get: (key) => this.storage.get(key) ?? null,
+      set: (key, value) => {
+        this.storage.set(key, value);
+        for (const l of [...this.storageListeners]) {
+          if (l.tabId === tabId) continue;
+          setTimeout(() => {
+            if (this.storageListeners.has(l)) l.fn(key, value);
+          }, 0);
+        }
+      },
+      subscribe: (fn) => {
+        const l: StorageListener = { tabId, fn };
+        this.storageListeners.add(l);
+        return () => this.storageListeners.delete(l);
+      },
+    };
   }
 
   tab(id: string, opts: { locks?: boolean } = {}): FakeTab {
@@ -281,21 +308,30 @@ export class FakeTab {
   presenceTickerEnv(
     tabs: TabCoordinator | null,
     io: Pick<PresenceTickerEnv, "ping" | "activity"> &
-      Partial<Pick<PresenceTickerEnv, "onUnauthorized" | "isSessionEnded">>,
+      Partial<Pick<PresenceTickerEnv, "onUnauthorized" | "isSessionEnded" | "idle">>,
   ): PresenceTickerEnv {
     const key = "bwipo:presence:last-tick";
+    const holdKey = "bwipo:presence:hold-until";
     return {
       tabs,
       ping: io.ping,
       activity: io.activity,
       onUnauthorized: io.onUnauthorized,
       isSessionEnded: io.isSessionEnded,
+      idle: io.idle,
       readLastTick: () => {
         const raw = this.hub.storage.get(key);
         return raw ? Number(raw) : null;
       },
       writeLastTick: (at) => {
         this.hub.storage.set(key, String(at));
+      },
+      readHoldUntil: () => {
+        const raw = this.hub.storage.get(holdKey);
+        return raw ? Number(raw) : null;
+      },
+      writeHoldUntil: (at) => {
+        this.hub.storage.set(holdKey, String(at));
       },
       isVisible: () => !this.hidden,
       onVisibilityChange: (fn) => {

@@ -1,3 +1,5 @@
+import { markAutoReload } from "@/lib/session-idle";
+
 /** Chunk/CSS velho após deploy — o SW ou o cache do browser serviu hash antigo. */
 export function isStaleChunkError(error: { name?: string; message?: string } | null | undefined) {
   if (!error) return false;
@@ -24,6 +26,8 @@ export function reloadOnceForStaleChunk(error: { name?: string; message?: string
   } catch {
     // sessionStorage bloqueado — recarrega mesmo assim.
   }
+  // Recarga automática: a página nova não conta como interação do usuário.
+  markAutoReload();
   window.location.reload();
   return true;
 }
