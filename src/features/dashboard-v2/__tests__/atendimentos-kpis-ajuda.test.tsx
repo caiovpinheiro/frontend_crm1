@@ -1,16 +1,16 @@
 /** @vitest-environment jsdom */
 /**
- * Atendimentos → KPIs do período: "Atendimentos finalizados", "Em aberto —
- * Iniciados" e "Em aberto — Aguardando" ganham o ícone (?) com a explicação.
- * Textos provisórios, centralizados em help-texts.ts (o backend vai sugerir os
- * finais).
+ * Atendimentos: "Atendimentos finalizados", "Em aberto — Iniciados" e "Em
+ * aberto — Aguardando" ganham o ícone (?) com a explicação, e o bloco "Agora"
+ * diz que conta todas as conversas abertas. Textos do backend (be #187),
+ * centralizados em help-texts.ts.
  */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { PainelServiceWidget } from "@/components/crm/dashboard/painel-service";
+import { PainelAgoraWidget, PainelServiceWidget } from "@/components/crm/dashboard/painel-service";
 import { DASHBOARD_HELP_TEXT } from "@/features/dashboard-v2/help-texts";
-import type { PainelServiceResult } from "@/features/dashboard-v2/painel-api";
+import type { PainelAgora, PainelServiceResult } from "@/features/dashboard-v2/painel-api";
 
 afterEach(cleanup);
 
@@ -62,18 +62,50 @@ describe("KPIs do período de Atendimentos com (?)", () => {
       />,
     );
     expect(hintFor("Atendimentos finalizados")).toBe(DASHBOARD_HELP_TEXT.serviceFinished);
-    expect(hintFor("Em aberto — Iniciados")).toBe(DASHBOARD_HELP_TEXT.serviceOpenStarted);
-    expect(hintFor("Em aberto — Aguardando")).toBe(DASHBOARD_HELP_TEXT.serviceOpenWaiting);
+    expect(hintFor("Em aberto — Iniciados")).toBe(DASHBOARD_HELP_TEXT.serviceOpen);
+    expect(hintFor("Em aberto — Aguardando")).toBe(DASHBOARD_HELP_TEXT.serviceOpen);
     expect(DASHBOARD_HELP_TEXT.serviceFinished).toBe(
-      "Finalizados: conversas encerradas no período (inclui abertas antes)",
+      "Finalizados: encerrados no período, de qualquer data de criação. Conversa encerrada só em outro app não aparece aqui.",
     );
-    expect(DASHBOARD_HELP_TEXT.serviceOpenStarted).toBe(
-      "Iniciados: conversas do período já atendidas por alguém",
-    );
-    expect(DASHBOARD_HELP_TEXT.serviceOpenWaiting).toBe(
-      "Aguardando: conversas do período ainda sem primeiro atendimento",
+    expect(DASHBOARD_HELP_TEXT.serviceOpen).toContain(
+      "Aguardando: abertas sem nenhuma resposta humana ainda, mesmo que a IA tenha respondido.",
     );
     // "Total de atendimentos" não ganhou ícone.
     expect(hintFor("Total de atendimentos")).toBeNull();
+  });
+});
+
+const AGORA: PainelAgora = {
+  asOf: "2026-10-12T13:00:00.000Z",
+  awaitingReply: 3,
+  inService: 5,
+  longestWait: {
+    ms: 60_000,
+    contactName: "Ana",
+    agentName: null,
+    conversationId: null,
+    overSla: false,
+    slaMinutes: 10,
+  },
+  agents: { online: 2, total: 4 },
+};
+
+describe("bloco Agora com (?)", () => {
+  it("explica que conta todas as conversas abertas, não só as do período", () => {
+    render(
+      <PainelAgoraWidget
+        data={AGORA}
+        error={null}
+        clock="business"
+        onRetry={() => {}}
+      />,
+    );
+    const help = document.querySelector<HTMLElement>(
+      `[title="${DASHBOARD_HELP_TEXT.serviceAgora}"]`,
+    );
+    expect(help).not.toBeNull();
+    expect(DASHBOARD_HELP_TEXT.serviceAgora).toBe(
+      "Todas as conversas abertas agora, de qualquer data — não só as do período.",
+    );
   });
 });

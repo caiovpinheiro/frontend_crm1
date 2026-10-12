@@ -120,13 +120,16 @@ describe("card Ganhos por agente", () => {
     expect(screen.getByRole("button", { name: "Mostrar sem atividade (2)" })).toBeTruthy();
   });
 
-  it("'Ativos hoje' tem (?) com a explicação (texto provisório centralizado)", () => {
+  it("coluna 'Em aberto' (ex-'Ativos hoje') tem (?) com a explicação do backend", () => {
     render(<Harness rows={ROWS} />);
     const hint = document.querySelector<HTMLElement>("[data-info-hint]")!;
     expect(hint).not.toBeNull();
     expect(hint.title).toBe(DASHBOARD_HELP_TEXT.agentsOpenToday);
-    expect(hint.title).toBe("Negócios abertos do agente agora");
-    expect(hint.parentElement!.textContent).toContain("Ativos hoje");
+    expect(hint.title).toBe(
+      "Negócios abertos agora em que o agente é o dono, neste funil e filtros. Não depende do período escolhido.",
+    );
+    expect(hint.parentElement!.textContent).toContain("Em aberto");
+    expect(screen.queryByText("Ativos hoje")).toBeNull();
   });
 
   it("sem ninguém inativo não mostra o botão", () => {
