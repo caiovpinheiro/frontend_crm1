@@ -1,0 +1,23 @@
+/* Grade de Negócios (react-grid-layout) — só o que é do modo Organizar.
+   O restante da grade continua em styles/globals-v2.css. */
+
+.negocios-grid {
+  /* Faixas das 12 colunas no fundo da grade, só no modo Organizar. */
+  --negocios-grid-guide: color-mix(in oklab, var(--color-primary) 6%, transparent);
+}
+
+/* Canto de redimensionar visível (acima do contorno do card) e com alvo maior. */
+.negocios-grid.is-organizing .react-grid-item > .react-resizable-handle {
+  z-index: 30;
+  width: 24px;
+  height: 24px;
+  opacity: 1;
+}
+
+.negocios-grid.is-organizing .react-grid-item > .react-resizable-handle::after {
+  right: 5px;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+  border-color: var(--color-primary);
+}
