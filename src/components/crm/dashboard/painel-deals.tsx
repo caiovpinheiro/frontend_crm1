@@ -148,7 +148,13 @@ export function PainelDealWidget({
         />
       );
     case "evolution":
-      return <DealEvolution block={data.evolution} onRetry={() => onRetry("evolution")} />;
+      return (
+        <DealEvolution
+          block={data.evolution}
+          period={period}
+          onRetry={() => onRetry("evolution")}
+        />
+      );
     case "agents":
       return (
         <DealAgents
@@ -384,11 +390,38 @@ function DealStageCards({
   );
 }
 
+/** Largura máxima da barra: com 1 dia ela ocupava ~60% do card. */
+export const EVOLUTION_MAX_BAR_SIZE = 48;
+/** Abaixo disto a série ainda está se formando (aviso + barras). */
+export const EVOLUTION_FORMING_MIN_DAYS = 3;
+const DAY_MS = 86_400_000;
+
+/**
+ * "Série em formação — N dia(s) gravado(s)" quando há menos de 3 dias gravados
+ * e o período pede mais dias do que isso (no "Hoje", 1 dia é a série inteira).
+ */
+export function evolutionFormingText(
+  recordedDays: number,
+  period?: { from: string; to: string },
+): string | null {
+  if (recordedDays <= 0 || recordedDays >= EVOLUTION_FORMING_MIN_DAYS) return null;
+  if (period) {
+    const span = Date.parse(period.to) - Date.parse(period.from);
+    if (Number.isFinite(span) && Math.max(1, Math.round(span / DAY_MS)) <= recordedDays) {
+      return null;
+    }
+  }
+  const days = recordedDays === 1 ? "1 dia gravado" : `${recordedDays} dias gravados`;
+  return `Série em formação — ${days}`;
+}
+
 function DealEvolution({
   block,
+  period,
   onRetry,
 }: {
   block: PainelDealsResult["evolution"];
+  period?: { from: string; to: string };
   onRetry: () => void;
 }) {
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
@@ -420,12 +453,15 @@ function DealEvolution({
     incomplete: p.incomplete,
     ...p.byStage,
   }));
+  // Área com 1–2 pontos quase não aparece: poucos dias gravados = barras.
+  const useBars = evo.useBars || evo.points.length < EVOLUTION_FORMING_MIN_DAYS;
+  const forming = evolutionFormingText(evo.points.length, period);
 
   return (
     <PainelCard
       title="Evolução diária"
       subtitle={
-        evo.useBars
+        useBars
           ? "Barras empilhadas · estoque aberto por etapa"
           : "Área empilhada · estoque aberto por etapa"
       }
@@ -439,8 +475,13 @@ function DealEvolution({
     >
       <div className="h-[280px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          {evo.useBars ? (
-            <BarChart data={chartData} barGap={2}>
+          {useBars ? (
+            <BarChart
+              data={chartData}
+              barGap={2}
+              barCategoryGap="30%"
+              maxBarSize={EVOLUTION_MAX_BAR_SIZE}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
               <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={32} />
@@ -487,6 +528,11 @@ function DealEvolution({
           )}
         </ResponsiveContainer>
       </div>
+      {forming ? (
+        <p data-evolution-forming="" className="mt-2 text-xs text-muted-foreground">
+          {forming}
+        </p>
+      ) : null}
       {evo.incompleteLast ? (
         <p className="mt-2 text-xs text-muted-foreground">
           O último ponto (hoje) está incompleto.
