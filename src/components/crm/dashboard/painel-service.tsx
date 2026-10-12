@@ -158,6 +158,7 @@ export function PainelAgoraWidget({
     <PainelCard
       title="Agora"
       subtitle={withClock(`agora · atualizado às ${formatAsOf(data.asOf)}`, clock)}
+      info={DASHBOARD_HELP_TEXT.serviceAgora}
     >
       <div className={KPI_CONTAINER_CLASS}>
       <div className={AGORA_GRID_CLASS}>
@@ -330,7 +331,7 @@ function ServiceVolume({
         <KpiCard
           icon={<MessageCircle className="size-5" />}
           label="Em aberto — Iniciados"
-          labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceOpenStarted} />}
+          labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceOpen} />}
           badge="período"
           value={formatNumber(v.openStarted.value)}
           hint={deltaHint(v.openStarted.delta)}
@@ -339,7 +340,7 @@ function ServiceVolume({
         <KpiCard
           icon={<Hourglass className="size-5" />}
           label="Em aberto — Aguardando"
-          labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceOpenWaiting} />}
+          labelHint={<InfoHint text={DASHBOARD_HELP_TEXT.serviceOpen} />}
           badge="período"
           value={formatNumber(v.openWaiting.value)}
           hint={deltaHint(v.openWaiting.delta)}

@@ -596,7 +596,7 @@ function DealAgents({
   return (
     <PainelCard
       title="Ganhos por agente"
-      subtitle="Ordenado por receita ganha · em empate, por ativos hoje"
+      subtitle="Ordenado por receita ganha · em empate, por negócios em aberto"
       wrapAction
       action={toggle}
     >
@@ -607,7 +607,7 @@ function DealAgents({
         <ListColumnLabel align="right">Conversão</ListColumnLabel>
         <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
         <ListColumnLabel align="right" className="gap-1">
-          Ativos hoje
+          Em aberto
           <InfoHint text={DASHBOARD_HELP_TEXT.agentsOpenToday} />
         </ListColumnLabel>
       </div>
