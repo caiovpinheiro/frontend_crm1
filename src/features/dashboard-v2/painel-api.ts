@@ -63,6 +63,39 @@ export type PainelFunnelStage = {
   lost: number;
   todayDelta: number;
   byUser: PainelFunnelUserRow[];
+  /**
+   * Fluxo do período (aditivo do backend; ausente em backends antigos).
+   * `exited`: negócios que saíram da etapa (inclui Perdido/Ganho e outros
+   * funis). `inflow` soma `entered`; `outflow` soma `exited`. Até 8 linhas
+   * por count desc + "other" agregado.
+   */
+  exited?: number;
+  inflow?: PainelFunnelInflow[];
+  outflow?: PainelFunnelOutflow[];
+};
+
+/**
+ * Origem de quem entrou na etapa. `fromStageId` null = criado direto nela;
+ * "other" = agregado (o que passou de 8 itens e eventos antigos sem origem).
+ * `fromPipelineId` só vem quando a etapa de origem é de OUTRO funil.
+ * `*StageName`: nome atual (ou o gravado no evento, se a etapa foi apagada).
+ */
+export type PainelFunnelInflow = {
+  fromStageId: string | null;
+  fromStageName?: string;
+  fromPipelineId?: string;
+  count: number;
+};
+
+/**
+ * Destino de quem saiu da etapa (Ganho/Perdido entram como destinos normais).
+ * `toStageId` "other" = agregado; `toPipelineId` só vem para OUTRO funil.
+ */
+export type PainelFunnelOutflow = {
+  toStageId: string;
+  toStageName?: string;
+  toPipelineId?: string;
+  count: number;
 };
 
 export type PainelFunnel = {

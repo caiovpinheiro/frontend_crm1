@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import {
   useCallback,
   useEffect,
@@ -31,7 +32,23 @@ export type PipelineProgressStage = {
   /** Coorte Painel: % que avançou para a próxima etapa. */
   passThrough?: number | null;
   href?: string;
+  /**
+   * Saíram da etapa no período (inclui Perdido/Ganho e outros funis).
+   * Presente = mostra entraram/saíram/saldo no lugar de "+N entraram" e
+   * "N perdas"; ausente (backend antigo) = coluna como antes.
+   */
+  exited?: number;
+  /** Origens de quem entrou, já com rótulo ("de Qualificação", "criados aqui"). */
+  inflow?: PipelineProgressFlowRow[];
+  /** Destinos de quem saiu ("para Proposta", "para Perdido"). */
+  outflow?: PipelineProgressFlowRow[];
 };
+
+export type PipelineProgressFlowRow = { key: string; label: string; count: number };
+
+const ENTERED_TITLE =
+  "Negócios que chegaram a esta etapa no período — criados nela ou movidos de outra.";
+const CREATED_TITLE = "Negócios criados no período, em qualquer etapa.";
 
 export type PipelineProgressSummary = {
   wonCount: number;
@@ -128,6 +145,268 @@ function MetricLink({
   );
 }
 
+function signed(value: number) {
+  if (value > 0) return `+${formatCount(value)}`;
+  if (value < 0) return `−${formatCount(Math.abs(value))}`;
+  return "0";
+}
+
+function FlowList({
+  title,
+  total,
+  rows,
+  hint,
+  empty,
+}: {
+  title: string;
+  total: number;
+  rows: PipelineProgressFlowRow[];
+  hint?: string;
+  empty: string;
+}) {
+  return (
+    <section>
+      <h4 className="font-display text-[12px] font-bold text-[var(--pipeline-text)]">
+        {`${title} (${formatCount(total)})`}
+      </h4>
+      {hint ? (
+        <p className="mt-0.5 font-body text-[11px] leading-snug text-[var(--pipeline-text-muted)]">
+          {hint}
+        </p>
+      ) : null}
+      {rows.length > 0 ? (
+        <ul className="mt-1.5 flex flex-col gap-1">
+          {rows.map((row) => (
+            <li
+              key={row.key}
+              className="flex items-baseline justify-between gap-3 font-body text-[12px] text-[var(--pipeline-text-secondary)]"
+            >
+              <span className="min-w-0 break-words">{row.label}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-[var(--pipeline-text)]">
+                {formatCount(row.count)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : total === 0 ? (
+        <p className="mt-1 font-body text-[12px] text-[var(--pipeline-text-muted)]">{empty}</p>
+      ) : null}
+    </section>
+  );
+}
+
+type FlowOpen = false | "hover" | "pinned";
+
+const POPOVER_WIDTH = 264;
+const POPOVER_GAP = 6;
+
+/**
+ * "+N entraram · −M saíram · saldo" com o detalhe de origens e destinos:
+ * passar o mouse mostra; clicar/tocar/Enter fixa e leva o foco ao popover;
+ * Esc fecha e devolve o foco ao botão. O popover vai para o `body` porque o
+ * trilho do funil corta o que passa da altura da coluna.
+ */
+function StageFlow({ stage }: { stage: PipelineProgressStage }) {
+  const entered = Math.max(0, stage.entered);
+  const exited = Math.max(0, stage.exited ?? 0);
+  const balance = entered - exited;
+  const popoverId = useId();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState<FlowOpen>(false);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number }>({
+    left: 0,
+    top: 0,
+  });
+
+  const place = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn || typeof window === "undefined") return;
+    const rect = btn.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const left = Math.max(8, Math.min(rect.left, vw - POPOVER_WIDTH - 8));
+    const below = vh - rect.bottom;
+    if (below < 200 && rect.top > below) {
+      setPos({ left, bottom: vh - rect.top + POPOVER_GAP });
+    } else {
+      setPos({ left, top: rect.bottom + POPOVER_GAP });
+    }
+  }, []);
+
+  const close = useCallback((returnFocus: boolean) => {
+    setOpen(false);
+    if (returnFocus) buttonRef.current?.focus();
+  }, []);
+
+  const pin = useCallback(() => {
+    place();
+    setOpen("pinned");
+  }, [place]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const inside =
+        popoverRef.current?.contains(document.activeElement) ||
+        buttonRef.current === document.activeElement;
+      close(Boolean(inside));
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (buttonRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onMove = () => place();
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open, close, place]);
+
+  useEffect(() => {
+    if (open === "pinned") popoverRef.current?.focus();
+  }, [open]);
+
+  const toggle = () => {
+    if (open === "pinned") close(true);
+    else pin();
+  };
+
+  const summary = `${formatCount(entered)} ${entered === 1 ? "entrou" : "entraram"}, ${formatCount(exited)} ${exited === 1 ? "saiu" : "saíram"}, saldo ${signed(balance)}`;
+
+  return (
+    <div className="mt-auto">
+      <button
+        ref={buttonRef}
+        type="button"
+        data-funnel-flow={stage.id}
+        aria-expanded={open !== false}
+        aria-haspopup="dialog"
+        aria-controls={open ? popoverId : undefined}
+        aria-label={`${stage.name}: ${summary}. Ver origens e destinos`}
+        onPointerEnter={(e) => {
+          if (e.pointerType !== "mouse" || open === "pinned") return;
+          place();
+          setOpen("hover");
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType === "mouse" && open === "hover") setOpen(false);
+        }}
+        onKeyDown={(e) => {
+          // Enter tratado aqui (o navegador também dispararia `click`).
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          toggle();
+        }}
+        onClick={toggle}
+        className="w-full rounded-[var(--radius-md)] border border-[var(--pipeline-border)] bg-[var(--pipeline-surface)] px-2.5 py-2 text-left outline-none hover:border-[var(--pipeline-control-hover)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+      >
+        <span className="flex flex-wrap items-end gap-x-3 gap-y-1.5">
+          <span className="flex min-w-0 flex-col">
+            <span
+              className={cn(
+                "font-display text-[16px] font-bold leading-tight tabular-nums",
+                entered > 0
+                  ? "text-[var(--pipeline-success)]"
+                  : "text-[var(--pipeline-text-muted)]",
+              )}
+            >
+              {entered > 0 ? `+${formatCount(entered)}` : "0"}
+            </span>
+            <span
+              className="font-body text-[11px] text-[var(--pipeline-text-muted)]"
+              title={ENTERED_TITLE}
+            >
+              {entered === 1 ? "entrou" : "entraram"}
+            </span>
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span
+              className={cn(
+                "font-display text-[16px] font-bold leading-tight tabular-nums",
+                exited > 0
+                  ? "text-[var(--pipeline-text-secondary)]"
+                  : "text-[var(--pipeline-text-muted)]",
+              )}
+            >
+              {exited > 0 ? `−${formatCount(exited)}` : "0"}
+            </span>
+            <span className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+              {exited === 1 ? "saiu" : "saíram"}
+            </span>
+          </span>
+        </span>
+        <span
+          data-funnel-balance
+          className={cn(
+            "mt-1 block font-body text-[11px] tabular-nums",
+            balance > 0
+              ? "text-[var(--pipeline-success)]"
+              : balance < 0
+                ? "text-[var(--pipeline-danger)]"
+                : "text-[var(--pipeline-text-muted)]",
+          )}
+        >
+          {`saldo ${signed(balance)}`}
+        </span>
+      </button>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              id={popoverId}
+              role="dialog"
+              aria-label={`Entradas e saídas: ${stage.name}`}
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                // Popover fica no fim do `body`: Tab volta ao botão em vez de
+                // pular para fora da página.
+                if (e.key !== "Tab") return;
+                e.preventDefault();
+                close(true);
+              }}
+              className={cn(
+                "fixed z-[100] flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--pipeline-border)] bg-[var(--pipeline-surface)] p-3 text-[var(--pipeline-text)] shadow-[var(--pipeline-shadow)] outline-none",
+                open === "hover" && "pointer-events-none",
+              )}
+              style={{
+                width: POPOVER_WIDTH,
+                maxWidth: "calc(100vw - 16px)",
+                left: pos.left,
+                top: pos.top,
+                bottom: pos.bottom,
+              }}
+            >
+              <FlowList
+                title="Entraram"
+                total={entered}
+                rows={stage.inflow ?? []}
+                hint={ENTERED_TITLE}
+                empty="Nenhuma entrada no período."
+              />
+              <FlowList
+                title="Saíram"
+                total={exited}
+                rows={stage.outflow ?? []}
+                empty="Nenhuma saída no período."
+              />
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 function StageColumn({ stage }: { stage: PipelineProgressStage }) {
   return (
     <article className="pipeline-progress-col">
@@ -152,49 +431,57 @@ function StageColumn({ stage }: { stage: PipelineProgressStage }) {
           {formatMoney(stage.value)}
         </p>
       </MetricLink>
-      <div className="mt-auto rounded-[var(--radius-md)] border border-[var(--pipeline-border)] bg-[var(--pipeline-surface)] px-2.5 py-2">
-        {stage.entered > 0 ? (
-          <>
-            <p className="font-display text-[16px] font-bold tabular-nums text-[var(--pipeline-success)]">
-              {`+${formatCount(stage.entered)}`}
-            </p>
-            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
-              {stage.entered === 1 ? "entrou" : "entraram"}
-            </p>
-          </>
-        ) : stage.passThrough != null ? (
-          <>
-            <p className="font-display text-[16px] font-bold tabular-nums text-foreground">
-              {`${stage.passThrough.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
-            </p>
-            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
-              passagem
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="font-display text-[16px] font-bold tabular-nums text-[var(--pipeline-text-muted)]">
-              0
-            </p>
-            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
-              entraram
-            </p>
-          </>
-        )}
-      </div>
-      <MetricLink
-        href={stage.href}
-        className={cn(
-          "font-body text-[12px] tabular-nums",
-          stage.lost > 0
-            ? "font-semibold text-[var(--pipeline-danger)]"
-            : "text-[var(--pipeline-text-muted)]",
-        )}
-      >
-        {stage.lost > 0
-          ? `${formatCount(stage.lost)} ${stage.lost === 1 ? "perda" : "perdas"}`
-          : "0 perdas"}
-      </MetricLink>
+      {/* Com o fluxo do backend: entraram/saíram/saldo (as perdas viram destino
+          no detalhe). Sem ele: bloco "+N entraram" e "N perdas" como antes. */}
+      {stage.exited != null ? (
+        <StageFlow stage={stage} />
+      ) : (
+        <>
+          <div className="mt-auto rounded-[var(--radius-md)] border border-[var(--pipeline-border)] bg-[var(--pipeline-surface)] px-2.5 py-2">
+            {stage.entered > 0 ? (
+              <>
+                <p className="font-display text-[16px] font-bold tabular-nums text-[var(--pipeline-success)]">
+                  {`+${formatCount(stage.entered)}`}
+                </p>
+                <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+                  {stage.entered === 1 ? "entrou" : "entraram"}
+                </p>
+              </>
+            ) : stage.passThrough != null ? (
+              <>
+                <p className="font-display text-[16px] font-bold tabular-nums text-foreground">
+                  {`${stage.passThrough.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                </p>
+                <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+                  passagem
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-display text-[16px] font-bold tabular-nums text-[var(--pipeline-text-muted)]">
+                  0
+                </p>
+                <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+                  entraram
+                </p>
+              </>
+            )}
+          </div>
+          <MetricLink
+            href={stage.href}
+            className={cn(
+              "font-body text-[12px] tabular-nums",
+              stage.lost > 0
+                ? "font-semibold text-[var(--pipeline-danger)]"
+                : "text-[var(--pipeline-text-muted)]",
+            )}
+          >
+            {stage.lost > 0
+              ? `${formatCount(stage.lost)} ${stage.lost === 1 ? "perda" : "perdas"}`
+              : "0 perdas"}
+          </MetricLink>
+        </>
+      )}
     </article>
   );
 }
@@ -202,36 +489,41 @@ function StageColumn({ stage }: { stage: PipelineProgressStage }) {
 function FunnelSausage({
   stages,
   novosCount,
+  showNovos = true,
 }: {
   stages: PipelineProgressStage[];
   novosCount?: number;
+  /** Falso com o fluxo do backend: os criados viram chip no cabeçalho. */
+  showNovos?: boolean;
 }) {
   const weights = stages.map((s) => Math.max(0, s.count));
   const total = weights.reduce((sum, n) => sum + n, 0);
   const label = stages
     .map((s) => `${s.name}: ${formatCount(s.count)}`)
     .join(", ");
-  const novos = Math.max(0, novosCount ?? 0);
+  const novos = showNovos ? Math.max(0, novosCount ?? 0) : 0;
 
   return (
     <div className="flex items-center gap-3 px-4 pt-3">
-      <div
-        className="shrink-0 rounded-xl border border-border bg-card px-3 py-1.5 text-center"
-        aria-label={`${formatCount(novos)} clientes novos no período`}
-      >
-        <p className="font-display text-[18px] font-bold leading-none tabular-nums text-[var(--pipeline-success)]">
-          {novos > 0 ? `+${formatCount(novos)}` : "0"}
-        </p>
-        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Novo
-        </p>
-      </div>
+      {showNovos ? (
+        <div
+          className="shrink-0 rounded-xl border border-border bg-card px-3 py-1.5 text-center"
+          aria-label={`${formatCount(novos)} clientes novos no período`}
+        >
+          <p className="font-display text-[18px] font-bold leading-none tabular-nums text-[var(--pipeline-success)]">
+            {novos > 0 ? `+${formatCount(novos)}` : "0"}
+          </p>
+          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Novo
+          </p>
+        </div>
+      ) : null}
       <div
         className="flex h-3.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary"
         role="img"
         aria-label={
           total > 0
-            ? `Distribuição do funil: ${label}. Novos: ${formatCount(novos)}`
+            ? `Distribuição do funil: ${label}${showNovos ? `. Novos: ${formatCount(novos)}` : ""}`
             : "Funil sem negócios no período"
         }
       >
@@ -291,6 +583,40 @@ function NovosColumn({
         {caption}
       </p>
     </article>
+  );
+}
+
+/**
+ * Criados no período: não é etapa (podem ter nascido em qualquer uma), por
+ * isso fica no cabeçalho, sem a barra colorida das colunas.
+ */
+function CreatedChip({
+  count,
+  value,
+  today,
+}: {
+  count: number;
+  value: number;
+  today: boolean;
+}) {
+  const label = today ? "Criados hoje" : "Criados no período";
+  return (
+    <p
+      data-funnel-created
+      title={CREATED_TITLE}
+      className="inline-flex shrink-0 items-baseline gap-1.5 rounded-full border border-[var(--pipeline-border)] bg-[var(--pipeline-surface-summary)] px-2.5 py-0.5 font-body text-[11px] text-[var(--pipeline-text-secondary)]"
+    >
+      <span className="font-display text-[12px] font-bold tabular-nums text-[var(--pipeline-success)]">
+        {count > 0 ? `+${formatCount(count)}` : "0"}
+      </span>
+      <span>{label}</span>
+      {value > 0 ? (
+        <span className="tabular-nums text-[var(--pipeline-text-muted)]">
+          {`· ${formatMoney(value)}`}
+        </span>
+      ) : null}
+      <span className="sr-only">{`. ${CREATED_TITLE}`}</span>
+    </p>
   );
 }
 
@@ -463,6 +789,9 @@ export function PipelineProgress({
     }
   };
 
+  // Backend com o fluxo por etapa: "Criados" sai das colunas e vai para o
+  // cabeçalho. Sem o fluxo (backend antigo), o card fica como antes.
+  const hasFlow = stages.some((s) => s.exited != null);
   const fromLabel = period ? formatDay(period.from) : "";
   const toLabel = period ? formatDay(period.to) : "";
 
@@ -481,14 +810,32 @@ export function PipelineProgress({
       <div className="min-w-0 flex-1">
       <header className="flex items-start justify-between gap-3 border-b border-[var(--pipeline-border)] px-3.5 py-2.5">
         <div className="min-w-0">
-          <h2
-            id={labelId}
-            className="font-display text-[14px] font-bold tracking-tight text-[var(--pipeline-text)]"
-          >
-            Funil e progresso
-          </h2>
+          {hasFlow && novos ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h2
+                id={labelId}
+                className="font-display text-[14px] font-bold tracking-tight text-[var(--pipeline-text)]"
+              >
+                Funil e progresso
+              </h2>
+              <CreatedChip
+                count={novos.count}
+                value={novos.value}
+                today={period?.label === "Hoje"}
+              />
+            </div>
+          ) : (
+            <h2
+              id={labelId}
+              className="font-display text-[14px] font-bold tracking-tight text-[var(--pipeline-text)]"
+            >
+              Funil e progresso
+            </h2>
+          )}
           <p className="mt-0.5 font-body text-[11px] text-[var(--pipeline-text-muted)]">
-            Estoque aberto, entradas e perdas por etapa
+            {hasFlow
+              ? "Estoque aberto, entradas e saídas por etapa"
+              : "Estoque aberto, entradas e perdas por etapa"}
             {period?.label ? (
               <>
                 {" · "}
@@ -515,7 +862,9 @@ export function PipelineProgress({
         </div>
       </header>
 
-      {stages.length > 0 ? <FunnelSausage stages={stages} novosCount={novos?.count} /> : null}
+      {stages.length > 0 ? (
+        <FunnelSausage stages={stages} novosCount={novos?.count} showNovos={!hasFlow} />
+      ) : null}
 
       {stages.length === 0 ? (
         <EmptyState
@@ -548,7 +897,7 @@ export function PipelineProgress({
             }}
           >
             <div className="pipeline-progress-track">
-              {novos ? (
+              {novos && !hasFlow ? (
                 <NovosColumn
                   count={novos.count}
                   value={novos.value}

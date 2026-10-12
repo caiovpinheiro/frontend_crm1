@@ -46,6 +46,7 @@ import { AddDashboardCardDialog } from "@/features/dashboard-v2/components/add-d
 import { DashboardSearchFilterBar } from "@/features/dashboard-v2/components/dashboard-filters";
 import { DashboardPeriodPanel } from "@/features/dashboard-v2/components/dashboard-period-panel";
 import { FunnelPipelinePicker } from "@/features/dashboard-v2/components/funnel-pipeline-picker";
+import type { FunnelFlowPipeline } from "@/features/dashboard-v2/funnel-flow";
 import { SortableWidgetGrid } from "@/features/dashboard-v2/components/sortable-widget-grid";
 import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
 import {
@@ -857,6 +858,7 @@ function ManagerHome({
                 />,
                 hideInactiveAgents,
                 setHideInactiveAgents,
+                pipelines,
               );
             }}
           />
@@ -1026,6 +1028,7 @@ function renderDealWidget(
   funnelPicker?: ReactNode,
   hideInactiveAgents?: boolean,
   onHideInactiveAgents?: (next: boolean) => void,
+  pipelines?: ReadonlyArray<FunnelFlowPipeline>,
 ) {
   if (id === "usage") return null;
   if (query.error && !query.data) {
@@ -1049,6 +1052,7 @@ function renderDealWidget(
       funnelPicker={funnelPicker}
       hideInactiveAgents={hideInactiveAgents}
       onHideInactiveAgents={onHideInactiveAgents}
+      pipelines={pipelines}
       onRetry={(section) => void query.retrySection(section)}
     />
   );
