@@ -39,6 +39,8 @@ import {
   TabulationTopWidget,
 } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useIsMobile } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 
 import { AddDashboardCardDialog } from "@/features/dashboard-v2/components/add-dashboard-card-dialog";
 import { DashboardSearchFilterBar } from "@/features/dashboard-v2/components/dashboard-filters";
@@ -99,14 +101,21 @@ import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-a
 import { tabulationActorLabel } from "@/features/dashboard-v2/tabulation-view";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
 import { rangeClampedNotice } from "@/features/dashboard-v2/team-rankings";
-import { isBlockUnavailable } from "@/features/dashboard-v2/service-availability";
+import {
+  isBlockPending,
+  isBlockUnavailable,
+} from "@/features/dashboard-v2/service-availability";
 import {
   countUnavailableSections,
+  dealSectionsFor,
   serviceSectionsFor,
   teamSectionsFor,
   unavailableServiceWidgets,
+  widgetPlaceholderPx,
   type ServiceSection,
 } from "@/features/dashboard-v2/visible-sections";
+import { useSeenIds } from "@/features/dashboard-v2/use-seen-widgets";
+import { DASHBOARD_TOUCH_TARGET_CLASS } from "@/features/dashboard-v2/layout-classes";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -168,20 +177,6 @@ interface DashboardV2ClientPageProps {
 
 function querySettled(query: { isFetched: boolean; isError: boolean }) {
   return query.isFetched || query.isError;
-}
-
-/** Liga uma vez (sucesso, erro ou timeout) e não desliga no refetch. */
-function useArmedAfter(ok: boolean, delayMs: number) {
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!ok) {
-      setArmed(false);
-      return;
-    }
-    const id = window.setTimeout(() => setArmed(true), delayMs);
-    return () => window.clearTimeout(id);
-  }, [ok, delayMs]);
-  return armed;
 }
 
 function useLatchedReady(ready: boolean, timeoutMs = STUCK_TIMEOUT_MS) {
@@ -384,6 +379,7 @@ function ManagerHome({
   useEffect(() => () => uiSaverRef.current.flush(), []);
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
+  const isMobile = useIsMobile();
 
   // Funis (com etapas) da lista do shell: resolve `?pipeline=7` → CUID e
   // alimenta o seletor/painel. As opções de filtro (`filter-options`, rota
@@ -397,19 +393,52 @@ function ManagerHome({
   // funil padrão reescrevia os filtros → 7 GETs abortados e refeitos.
   // Se a lista de funis falhar, libera mesmo assim (backend usa o padrão).
   const tabReady = canFetch && (filtersSettled || pipelinesQuery.isError);
-  const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
+  const grid = useNegociosGrid();
+  // Grade salva de Negócios: só as seções dos widgets visíveis. Espera a grade
+  // chegar (senão pediria tudo pela grade padrão); se demorar, segue com ela.
+  const dealsLayoutReady = useLatchedReady(grid.hydrated, 3_000);
+  const dealSections = useMemo(
+    () => (dealsLayoutReady ? dealSectionsFor(grid.widgetIds) : []),
+    [dealsLayoutReady, grid.widgetIds],
+  );
+  const dealsQuery = usePainelDeals(filters, tabReady && isDeals, dealSections);
   // Ordem/visibilidade salva da aba Atendimentos: só se busca o que está visível.
   const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
     allowHide: true,
   });
   // Espera o layout salvo chegar (senão buscaria tudo pela ordem padrão); se
-  // demorar, segue com o padrão.
+  // demorar, segue com o padrão. Antes da hora as listas ficam vazias: elas só
+  // crescem, e a ordem padrão (tudo visível) entrava nelas no 1º render.
   const serviceLayoutReady = useLatchedReady(serviceOrder.hydrated, 3_000);
   const serviceFetch = tabReady && isService && serviceLayoutReady;
-  const serviceSections = useMemo(() => serviceSectionsFor(serviceOrder.order), [serviceOrder.order]);
-  const teamSections = useMemo(() => teamSectionsFor(serviceOrder.order), [serviceOrder.order]);
+  const serviceSections = useMemo(
+    () => (serviceLayoutReady ? serviceSectionsFor(serviceOrder.order) : []),
+    [serviceLayoutReady, serviceOrder.order],
+  );
+  const teamSections = useMemo(
+    () => (serviceLayoutReady ? teamSectionsFor(serviceOrder.order) : []),
+    [serviceLayoutReady, serviceOrder.order],
+  );
+  // Widgets que já entraram na tela: os da 1ª dobra pedem tudo junto na
+  // abertura; os de baixo, quando chegam perto (sem temporizador fixo).
+  const { seen: serviceSeen, markSeen: markServiceSeen } = useSeenIds();
+  const seenServiceIds = useMemo(
+    () => serviceOrder.order.filter((id) => serviceSeen.has(id)),
+    [serviceOrder.order, serviceSeen],
+  );
+  const wantedServiceSections = useMemo(
+    () => serviceSectionsFor(seenServiceIds),
+    [seenServiceIds],
+  );
   const agoraQuery = usePainelAgora(clock, serviceFetch && serviceOrder.order.includes("agora"));
-  const serviceQuery = usePainelService(filters, clock, serviceFetch, "full", serviceSections);
+  const serviceQuery = usePainelService(
+    filters,
+    clock,
+    serviceFetch,
+    "full",
+    serviceSections,
+    wantedServiceSections,
+  );
   // Seções que o ambiente não serve (sem réplica de leitura): o card some e um
   // aviso único conta quantas ficaram de fora.
   const serviceData = serviceQuery.data;
@@ -434,14 +463,19 @@ function ManagerHome({
   const { data: options } = useDashboardFilterOptions(canFetch && addCardOpen && isDeals);
   const [organizing, setOrganizing] = useState(false);
   const [tabLogPage, setTabLogPage] = useState(1);
-  const grid = useNegociosGrid();
+  // Cards personalizados que estão na grade (um card fora dela não busca nada).
+  const visibleCards = useMemo(() => {
+    if (!grid.hydrated) return [];
+    const onGrid = new Set(grid.widgetIds);
+    return grid.cards.filter((c) => onGrid.has(`card:${c.id}`));
+  }, [grid.hydrated, grid.widgetIds, grid.cards]);
   const fieldIds = useMemo(
-    () => grid.cards.filter((c) => c.type === "customField" && c.fieldId).map((c) => c.fieldId!),
-    [grid.cards],
+    () => visibleCards.filter((c) => c.type === "customField" && c.fieldId).map((c) => c.fieldId!),
+    [visibleCards],
   );
   const customFieldsQuery = usePainelCustomFields(filters, fieldIds, tabReady && isDeals);
-  const eventCards = usePainelEventCards(filters, grid.cards, tabReady && isDeals);
-  const insightsQuery = usePainelInsights(filters, grid.cards, tabReady && isDeals);
+  const eventCards = usePainelEventCards(filters, visibleCards, tabReady && isDeals);
+  const insightsQuery = usePainelInsights(filters, visibleCards, tabReady && isDeals);
   // O card de uso do sistema pode estar oculto: sem ele, sem GET.
   const usageVisible = grid.hydrated && grid.widgetIds.includes("usage");
   const usageQuery = useSystemUsageToday(tabReady && isDeals && usageVisible);
@@ -450,13 +484,15 @@ function ManagerHome({
     tabReady && isService,
   );
 
-  const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
-  const tabulationsArmed = useArmedAfter(serviceFetch && serviceQuery.volumeReady, 2_500);
+  // Equipe e tabulações saem quando um widget delas entra na tela. Antes
+  // esperavam o volume responder + 2,5 s fixos (e nunca saíam se ele falhasse).
+  const teamSeen = teamSectionsFor(seenServiceIds).length > 0;
+  const tabulationsSeen = seenServiceIds.some((id) => isTabulationWidgetId(id));
   const teamQuery = usePainelTeam(
     filters,
     clock,
     teamScope,
-    tabulationsArmed && teamSections.length > 0,
+    serviceFetch && teamSeen && teamSections.length > 0,
     teamSections,
   );
   const tabAnalyticsQuery = useTabulationAnalytics({
@@ -465,12 +501,31 @@ function ManagerHome({
     actorUserIds: tabActorUserIds,
     departmentIds: tabDepartmentIds,
     page: tabLogPage,
-    enabled: tabReady && isService && hasServiceTabWidgets && tabulationsArmed,
+    enabled: serviceFetch && tabulationsSeen,
   });
 
   useEffect(() => {
     setTabLogPage(1);
   }, [period.from, period.to, tabActorUserIds, tabDepartmentIds]);
+
+  /** Altura reservada do widget de Atendimentos enquanto os dados dele não chegam. */
+  const servicePlaceholderPx = (id: string): number | null => {
+    let waiting: boolean;
+    if (id === "agora") {
+      waiting = !agoraQuery.data && !agoraQuery.error;
+    } else if (isTabulationWidgetId(id)) {
+      waiting = !tabAnalyticsQuery.data && !tabAnalyticsQuery.error;
+    } else if (isTeamWidgetId(id)) {
+      waiting = !teamQuery.data && !teamQuery.error;
+    } else {
+      const sections = serviceSectionsFor([id]);
+      waiting =
+        !serviceQuery.error &&
+        sections.length > 0 &&
+        sections.every((s) => isBlockPending(serviceData?.[s]));
+    }
+    return waiting ? widgetPlaceholderPx(id) : null;
+  };
 
   useEffect(() => {
     if (!uiScope.ready || !uiScope.keyPart || !uiScope.userId) return;
@@ -636,11 +691,16 @@ function ManagerHome({
         </>
       }
       actions={
-        <HeaderTabs
-          tabs={DASHBOARD_TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
-          value={activeTab}
-          onChange={setActiveTab}
-        />
+        isMobile ? undefined : (
+          <HeaderTabs
+            tabs={DASHBOARD_TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
+            value={activeTab}
+            onChange={setActiveTab}
+          />
+        )
+      }
+      headerBelow={
+        isMobile ? <DashboardTabSwitch value={activeTab} onChange={setActiveTab} /> : undefined
       }
       menuSlot={
         <PageActionsMenu
@@ -805,6 +865,8 @@ function ManagerHome({
             organizing={organizing}
             droppableId="dashboard-atendimento"
             onRemove={serviceOrder.hide}
+            onSeen={markServiceSeen}
+            placeholderPx={servicePlaceholderPx}
             render={(id) =>
               isTabulationWidgetId(id)
                 ? renderTabBoardWidget(
@@ -862,7 +924,7 @@ function renderTabBoardWidget(
   id: string,
   query: ReturnType<typeof useTabulationAnalytics>,
   search: string,
-  _actorUserIds: string[],
+  actorUserIds: string[],
   departmentIds: string[],
   setDepartmentIds: (ids: string[]) => void,
   page: number,
@@ -904,7 +966,9 @@ function renderTabBoardWidget(
       />
     );
   }
-  if (id === "byUser") return <TabulationByUserWidget rows={byUser} />;
+  if (id === "byUser") {
+    return <TabulationByUserWidget rows={byUser} filtered={actorUserIds.length > 0} />;
+  }
   if (id === "log") {
     return (
       <TabulationLogWidget
@@ -1057,6 +1121,47 @@ function renderServiceWidget(
   );
 }
 
+/**
+ * Celular: Negócios/Atendimentos em linha própria abaixo do título, largura
+ * toda, metade para cada. No cabeçalho o trilho tinha 116 px e "Atendimentos"
+ * sumia atrás do botão de menu.
+ */
+function DashboardTabSwitch({
+  value,
+  onChange,
+}: {
+  value: DashboardTabKey;
+  onChange: (key: DashboardTabKey) => void;
+}) {
+  return (
+    <nav
+      aria-label="Abas do dashboard"
+      data-dashboard-tabs-mobile
+      className="grid w-full grid-cols-2 gap-1 rounded-full border border-border bg-card p-1"
+    >
+      {DASHBOARD_TABS.map((tab) => {
+        const active = value === tab.key;
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onChange(tab.key)}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "min-h-10 rounded-full px-3 text-sm font-semibold transition-colors",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function Shell({
   navRail,
   title,
@@ -1067,6 +1172,7 @@ function Shell({
   period,
   actions,
   menuSlot,
+  headerBelow,
   children,
 }: {
   navRail?: React.ReactNode;
@@ -1078,12 +1184,16 @@ function Shell({
   period?: React.ReactNode;
   actions?: React.ReactNode;
   menuSlot?: React.ReactNode;
+  /** Linha própria abaixo do título (ex.: abas no celular). */
+  headerBelow?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
       {navRail ?? <NavRail />}
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
+      <main
+        className={cn("flex min-w-0 flex-col gap-4 overflow-hidden", DASHBOARD_TOUCH_TARGET_CLASS)}
+      >
         <SectionHeader
           icon={LayoutDashboard}
           title={title}
@@ -1098,8 +1208,15 @@ function Shell({
           menu={Boolean(menuSlot)}
           menuSlot={menuSlot}
           stackSearchOnMobile
-        />
-        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">{children}</div>
+        >
+          {headerBelow}
+        </SectionHeader>
+        <div
+          data-scroll-root
+          className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

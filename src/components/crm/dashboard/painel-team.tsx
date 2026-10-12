@@ -15,6 +15,7 @@ import {
   PainelBlockError,
   PainelCard,
   PainelEmpty,
+  PainelEmptyCard,
   PainelSkeleton,
 } from "@/components/crm/dashboard/painel-block";
 import { TipScope, tipText } from "@/components/crm/dashboard/chart-tip";
@@ -378,8 +379,9 @@ export function TeamRankingsWidget({
     );
   }
   if (!block!.ok) return <PainelBlockError message={block!.error} onRetry={onRetry} />;
+  // Lado a lado com a mesma altura (antes `items-start`: 130 × 152 px).
   return (
-    <div className="grid grid-cols-1 items-start gap-1.5 lg:grid-cols-2">
+    <div data-team-rankings className="grid grid-cols-1 items-stretch gap-1.5 lg:grid-cols-2">
       <AttendedRanking
         rows={block!.data.rows}
         search={search}
@@ -417,18 +419,23 @@ function AttendedRanking({
   const total = ranked.reduce((acc, r) => acc + r.attended, 0);
   const rows = ranked.filter((r) => textMatchesQuery(r.name, search));
 
+  if (rows.length === 0) {
+    return (
+      <PainelEmptyCard
+        title="Ranking de atendimentos"
+        message={attendedEmptyTitle({ total: periodTotal, attributed: total, filtered })}
+        className="h-full"
+      />
+    );
+  }
+
   return (
     <PainelCard
+      className="h-full"
       title="Ranking de atendimentos"
       subtitle={teamSubtitle("Conversas do período que passaram pelo atendente", { filtered, notice })}
       info="Conta a conversa para todo atendente que a recebeu (responsável atual + distribuições). Uma conversa transferida aparece para os dois, então a soma pode passar do total de conversas. 'Encerradas no período' são as conversas que o atendente encerrou dentro do período (podem ter começado antes): nunca passam do total da barra. 'Sem encerramento no período' = total − encerradas; não é o estoque atual de conversas abertas."
     >
-      {rows.length === 0 ? (
-        <PainelEmpty
-          embedded
-          title={attendedEmptyTitle({ total: periodTotal, attributed: total, filtered })}
-        />
-      ) : (
         <RankBarList
           variant="rank"
           ariaLabel="Ranking de atendimentos por atendente"
@@ -466,7 +473,6 @@ function AttendedRanking({
             </>
           }
         />
-      )}
     </PainelCard>
   );
 }
@@ -498,8 +504,19 @@ function ServiceTimeRanking({
   const x = (ms: number) => Math.max(0, Math.min(100, (ms / axis.maxMs) * 100));
   const fasterCount = teamMean == null ? 0 : rows.filter((r) => (r.serviceMeanMs ?? 0) < teamMean).length;
 
+  if (status.state === "empty" || rows.length === 0) {
+    return (
+      <PainelEmptyCard
+        title="Ranking de tempo médio de atendimento"
+        message={`Sem encerramentos suficientes: ninguém encerrou ${MIN_SERVICE_SAMPLE}+ conversas no período.`}
+        className="h-full"
+      />
+    );
+  }
+
   return (
     <PainelCard
+      className="h-full"
       wrapAction
       action={
         <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -521,13 +538,6 @@ function ServiceTimeRanking({
       )}
       info={`Tempo médio entre abrir e encerrar as conversas encerradas no período, creditado a quem estava responsável no encerramento. Entra quem encerrou ao menos ${MIN_SERVICE_SAMPLE} conversas. Ponto cheio = média, ponto vazado = mediana; a linha vertical marca a média da equipe.`}
     >
-      {status.state === "empty" || rows.length === 0 ? (
-        <PainelEmpty
-          embedded
-          title="Sem encerramentos suficientes"
-          description={`Ninguém encerrou ${MIN_SERVICE_SAMPLE}+ conversas neste recorte.`}
-        />
-      ) : (
         <RankBarList
           variant="rank"
           ariaLabel="Ranking de tempo médio de atendimento por atendente"
@@ -646,7 +656,6 @@ function ServiceTimeRanking({
             </>
           }
         />
-      )}
     </PainelCard>
   );
 }

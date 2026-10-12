@@ -384,11 +384,15 @@ export function useDashboardFilters(
     const storageKey = scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart);
     const sp = new URLSearchParams(searchParams.toString());
     if (urlHasDashboardFilters(sp)) {
+      // A URL descreve a visão (o próprio dashboard grava `?pipeline=N` nela):
+      // abrir/recarregar não regrava os filtros no backend. Antes cada abertura
+      // com `?pipeline=` agendava um PATCH /api/dashboard/layout (800 ms depois)
+      // — às vezes com o funil ainda não resolvido para CUID. Mudar um filtro
+      // continua salvando (`setFilters`).
       restoredRef.current = true;
       allowRemoteRef.current = true;
       setRestored(true);
       writeJson(storageKey, urlFilters);
-      saverRef.current.schedule({ storageKey, value: urlFilters });
       return;
     }
     void (async () => {

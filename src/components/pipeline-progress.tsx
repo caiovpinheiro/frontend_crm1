@@ -136,7 +136,12 @@ function StageColumn({ stage }: { stage: PipelineProgressStage }) {
         style={{ background: stage.color || "var(--brand-primary)" }}
         aria-hidden
       />
-      <h3 className="truncate font-display text-[11px] font-bold uppercase tracking-wide text-[var(--pipeline-text-muted)]">
+      {/* Até 2 linhas (nomes longos como "Sem rematrícula" não viram "SEM REMATRÍCU…");
+          o nome inteiro fica no title. */}
+      <h3
+        className="line-clamp-2 min-h-[2lh] break-words font-display text-[11px] font-bold uppercase leading-tight tracking-wide text-[var(--pipeline-text-muted)]"
+        title={stage.name}
+      >
         {stage.name}
       </h3>
       <MetricLink href={stage.href}>
@@ -273,7 +278,7 @@ function NovosColumn({
   return (
     <article className="pipeline-progress-col">
       <span className="h-1.5 w-full rounded-full bg-[var(--pipeline-success)]" aria-hidden />
-      <h3 className="truncate font-display text-[11px] font-bold uppercase tracking-wide text-[var(--pipeline-text-muted)]">
+      <h3 className="min-h-[2lh] truncate font-display text-[11px] font-bold uppercase leading-tight tracking-wide text-[var(--pipeline-text-muted)]">
         Novos
       </h3>
       <p className="font-display text-[26px] font-bold leading-none tabular-nums text-[var(--pipeline-success)]">
@@ -557,12 +562,28 @@ export function PipelineProgress({
             </div>
           </div>
 
+          {/* Indica que há mais etapas para os lados (a barra de rolagem fina
+              passava despercebida e a última etapa parecia cortada). */}
+          {canPrev ? (
+            <span
+              aria-hidden
+              data-funnel-fade="start"
+              className="pointer-events-none absolute inset-y-0 left-0 z-[1] w-12 bg-gradient-to-r from-[var(--pipeline-surface)] via-[var(--pipeline-surface)]/70 to-transparent"
+            />
+          ) : null}
+          {canNext ? (
+            <span
+              aria-hidden
+              data-funnel-fade="end"
+              className="pointer-events-none absolute inset-y-0 right-0 z-[1] w-12 bg-gradient-to-l from-[var(--pipeline-surface)] via-[var(--pipeline-surface)]/70 to-transparent"
+            />
+          ) : null}
           {canPrev ? (
             <button
               type="button"
               aria-label="Ver etapas anteriores"
               onClick={() => scrollByDir(-1)}
-              className="absolute left-2 top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--pipeline-control)] text-[var(--pipeline-text)] opacity-0 shadow-[var(--pipeline-shadow)] outline-none transition-opacity hover:bg-[var(--pipeline-control-hover)] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] group-hover/pipeline:opacity-100 group-focus-within/pipeline:opacity-100 motion-reduce:transition-none md:flex"
+              className="absolute left-2 top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--pipeline-control)] text-[var(--pipeline-text)] opacity-80 shadow-[var(--pipeline-shadow)] outline-none transition-opacity hover:bg-[var(--pipeline-control-hover)] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] group-hover/pipeline:opacity-100 group-focus-within/pipeline:opacity-100 motion-reduce:transition-none md:flex"
             >
               <IconChevronLeft size={18} stroke={2.2} />
             </button>
@@ -572,7 +593,7 @@ export function PipelineProgress({
               type="button"
               aria-label="Ver próximas etapas"
               onClick={() => scrollByDir(1)}
-              className="absolute right-2 top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--pipeline-control)] text-[var(--pipeline-text)] opacity-0 shadow-[var(--pipeline-shadow)] outline-none transition-opacity hover:bg-[var(--pipeline-control-hover)] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] group-hover/pipeline:opacity-100 group-focus-within/pipeline:opacity-100 motion-reduce:transition-none md:flex"
+              className="absolute right-2 top-1/2 z-10 hidden size-9 -translate-y-1/2 items-center justify-center rounded-full bg-[var(--pipeline-control)] text-[var(--pipeline-text)] opacity-80 shadow-[var(--pipeline-shadow)] outline-none transition-opacity hover:bg-[var(--pipeline-control-hover)] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] group-hover/pipeline:opacity-100 group-focus-within/pipeline:opacity-100 motion-reduce:transition-none md:flex"
             >
               <IconChevronRight size={18} stroke={2.2} />
             </button>

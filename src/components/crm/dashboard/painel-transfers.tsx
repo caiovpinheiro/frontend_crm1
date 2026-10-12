@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import {
   PainelBlockError,
   PainelCard,
-  PainelEmpty,
+  PainelEmptyCard,
   PainelSkeleton,
 } from "@/components/crm/dashboard/painel-block";
 import { TipScope, tipText } from "@/components/crm/dashboard/chart-tip";
@@ -92,6 +92,36 @@ export function TransfersWidget({
   if (!block!.ok) return <PainelBlockError message={block!.error} onRetry={onRetry} />;
 
   const total = flows.reduce((acc, f) => acc + f.count, 0);
+
+  const modeToggle = (
+    <SegmentedToggle
+      label="Ver por"
+      value={mode}
+      onChange={(next) => {
+        setMode(next);
+        setHover(null);
+      }}
+      options={[
+        { value: "people", label: "Pessoas" },
+        { value: "departments", label: "Departamentos" },
+      ]}
+    />
+  );
+
+  if (total === 0) {
+    // Uma linha (o "Ver por" fica: o outro modo pode ter transferências).
+    return (
+      <PainelEmptyCard
+        title="Transferências de conversas"
+        message={
+          mode === "people"
+            ? "Nenhuma conversa mudou de atendente no período."
+            : "Nenhuma conversa mudou de departamento no período."
+        }
+        action={modeToggle}
+      />
+    );
+  }
   // Com busca, a soma por rota é o melhor que dá (uma conversa pode estar em 2 rotas).
   const conversations = search.trim()
     ? Math.min(total, flows.reduce((acc, f) => acc + f.conversations, 0))
@@ -130,32 +160,8 @@ export function TransfersWidget({
           : "Troca de departamento da conversa feita pela ação Transferir. Com filtro de departamento, entra a rota que sai ou chega nele; com filtro de usuário, quem fez a transferência."
       }
       wrapAction
-      action={
-        <SegmentedToggle
-          label="Ver por"
-          value={mode}
-          onChange={(next) => {
-            setMode(next);
-            setHover(null);
-          }}
-          options={[
-            { value: "people", label: "Pessoas" },
-            { value: "departments", label: "Departamentos" },
-          ]}
-        />
-      }
+      action={modeToggle}
     >
-      {total === 0 ? (
-        <PainelEmpty
-          embedded
-          title="Nenhuma transferência no período"
-          description={
-            mode === "people"
-              ? "Nenhuma conversa mudou de atendente neste recorte."
-              : "Nenhuma conversa mudou de departamento neste recorte."
-          }
-        />
-      ) : (
         <TipScope>
           <StatList
             ariaLabel="Totais de transferências"
@@ -320,7 +326,6 @@ export function TransfersWidget({
             </div>
           </div>
         </TipScope>
-      )}
     </PainelCard>
   );
 }
