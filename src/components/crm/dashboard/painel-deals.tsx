@@ -56,6 +56,12 @@ import type {
 } from "@/features/dashboard-v2/painel-api";
 import { isInactiveAgent, visibleAgents } from "@/features/dashboard-v2/agents-view";
 import {
+  funnelStageLookup,
+  inflowRows,
+  outflowRows,
+  type FunnelFlowPipeline,
+} from "@/features/dashboard-v2/funnel-flow";
+import {
   DEAL_KPI_GRID_CLASS,
   EXCEPTIONS_GRID_CLASS,
   KPI_CONTAINER_CLASS,
@@ -87,6 +93,7 @@ export function PainelDealWidget({
   pipelineIds,
   userIds,
   funnelPicker,
+  pipelines,
   hideInactiveAgents = false,
   onHideInactiveAgents,
   onRetry,
@@ -99,6 +106,8 @@ export function PainelDealWidget({
   pipelineIds?: string[];
   userIds?: string[];
   funnelPicker?: ReactNode;
+  /** Funis em cache: nomeiam as etapas de origem/destino do fluxo do funil. */
+  pipelines?: ReadonlyArray<FunnelFlowPipeline>;
   /** "Ganhos por agente": ocultar quem não tem atividade (preferência persistida). */
   hideInactiveAgents?: boolean;
   onHideInactiveAgents?: (next: boolean) => void;
@@ -122,6 +131,7 @@ export function PainelDealWidget({
           pipelineId={pipelineId}
           pipelineIds={pipelineIds}
           funnelPicker={funnelPicker}
+          pipelines={pipelines}
           onRetry={() => onRetry("funnel")}
         />
       );
@@ -218,6 +228,7 @@ function DealFunnel({
   pipelineId,
   pipelineIds,
   funnelPicker,
+  pipelines,
   onRetry,
 }: {
   block: PainelDealsResult["funnel"];
@@ -227,6 +238,7 @@ function DealFunnel({
   pipelineId?: string;
   pipelineIds?: string[];
   funnelPicker?: ReactNode;
+  pipelines?: ReadonlyArray<FunnelFlowPipeline>;
   onRetry: () => void;
 }) {
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
@@ -247,6 +259,10 @@ function DealFunnel({
     single
       ? `/pipeline?${new URLSearchParams({ pipeline: single, stage: stageId }).toString()}`
       : "/pipeline";
+
+  // Fluxo por etapa (backend novo): rótulos de origem/destino resolvidos aqui.
+  const lookup = funnelStageLookup(funnel.stages, pipelines);
+  const currentPipelineIds = pipelineIds?.length ? pipelineIds : pipelineId ? [pipelineId] : [];
 
   if (funnel.empty) {
     return (
@@ -292,6 +308,13 @@ function DealFunnel({
         lost: stage.lost ?? 0,
         passThrough: stage.passThrough,
         href: stageHref(stage.id),
+        ...(stage.exited != null
+          ? {
+              exited: stage.exited,
+              inflow: inflowRows(stage.inflow ?? [], lookup, currentPipelineIds),
+              outflow: outflowRows(stage.outflow ?? [], lookup, currentPipelineIds),
+            }
+          : null),
       }))}
       summary={{
         wonCount,
