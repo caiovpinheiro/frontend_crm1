@@ -116,6 +116,7 @@ import {
 } from "@/features/dashboard-v2/visible-sections";
 import { useSeenIds } from "@/features/dashboard-v2/use-seen-widgets";
 import { DASHBOARD_TOUCH_TARGET_CLASS } from "@/features/dashboard-v2/layout-classes";
+import { cardQueryWaiting, queryWaiting } from "@/features/dashboard-v2/query-waiting";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -479,6 +480,9 @@ function ManagerHome({
   // O card de uso do sistema pode estar oculto: sem ele, sem GET.
   const usageVisible = grid.hydrated && grid.widgetIds.includes("usage");
   const usageQuery = useSystemUsageToday(tabReady && isDeals && usageVisible);
+  // Card de Negócios sem resposta: esqueleto, não o estado vazio.
+  const dealCardWaiting = (q: { data?: unknown; error?: unknown; isEnabled: boolean }) =>
+    cardQueryWaiting(q, tabReady);
 
   const { departments: departmentsQuery, users: usersQuery } = useDashboardReferenceData(
     tabReady && isService,
@@ -735,6 +739,8 @@ function ManagerHome({
             onRemove={grid.removeWidget}
             render={(id) => {
               if (id === "usage") {
+                // Sem resposta ainda: esqueleto, não "Sem uso hoje".
+                if (dealCardWaiting(usageQuery)) return <PainelSkeleton className="min-h-48" />;
                 return (
                   <SystemUsageCard rows={usageRows} />
                 );
@@ -755,6 +761,15 @@ function ManagerHome({
                 const cardId = id.slice(5);
                 const def = grid.cards.find((c) => c.id === cardId);
                 if (!def) return <PainelSkeleton className="min-h-32" />;
+                // Cards de insights (entradas/tarefas) sem resposta: esqueleto
+                // em vez de "—"/"0" e lista vazia.
+                const insightsCard =
+                  def.type === "inboundOwners" ||
+                  def.type === "inboundStage" ||
+                  def.type === "tasks";
+                if (insightsCard && dealCardWaiting(insightsQuery)) {
+                  return <PainelSkeleton className="min-h-32" />;
+                }
                 if (def.type === "inboundOwners" || def.type === "inboundStage") {
                   const data = insightsQuery.data;
                   const block =
@@ -801,6 +816,9 @@ function ManagerHome({
                       href={data?.href}
                     />
                   );
+                }
+                if (def.fieldId && dealCardWaiting(customFieldsQuery)) {
+                  return <PainelSkeleton className="min-h-32" />;
                 }
                 const field = customFieldsQuery.data?.find((f) => f.fieldId === def.fieldId);
                 const unit = def.agg === "sum" ? "money" : "count";
@@ -920,7 +938,7 @@ function ManagerHome({
   );
 }
 
-function renderTabBoardWidget(
+export function renderTabBoardWidget(
   id: string,
   query: ReturnType<typeof useTabulationAnalytics>,
   search: string,
@@ -931,7 +949,15 @@ function renderTabBoardWidget(
   setPage: (page: number) => void,
 ) {
   const data = query.data;
-  const loadingValue = query.isLoading ? "…" : "—";
+  // Pendente OU ainda não disparada (intersecção): esqueleto, nunca o vazio.
+  // `isLoading` era false antes do disparo e "Principais tabulações" dizia
+  // "Sem tabulações no período" enquanto os KPIs ao lado mostravam "…".
+  const waiting = queryWaiting(query);
+  const loadingValue = waiting ? "…" : "—";
+  const retry = () => void query.refetch();
+  const failed = !data && query.error;
+  const errorMessage =
+    query.error instanceof Error ? query.error.message : "Erro ao carregar tabulações.";
   const byTabulation = (data?.byTabulation ?? []).filter(
     (row) =>
       textMatchesQuery(row.path, search) ||
@@ -950,6 +976,10 @@ function renderTabBoardWidget(
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.perPage)) : 1;
 
   if (id === "kpis") return <TabulationKpiWidget data={data} loadingValue={loadingValue} />;
+  if (id === "top" || id === "byUser") {
+    if (waiting) return <PainelSkeleton className="min-h-48" />;
+    if (failed) return <PainelBlockError message={errorMessage} onRetry={retry} />;
+  }
   if (id === "top") {
     return (
       <TabulationTopWidget
@@ -970,13 +1000,14 @@ function renderTabBoardWidget(
     return <TabulationByUserWidget rows={byUser} filtered={actorUserIds.length > 0} />;
   }
   if (id === "log") {
+    if (failed) return <PainelBlockError message={errorMessage} onRetry={retry} />;
     return (
       <TabulationLogWidget
         data={data}
         items={logItems}
         page={page}
         totalPages={totalPages}
-        isLoading={query.isLoading}
+        isLoading={waiting}
         onPage={setPage}
       />
     );
