@@ -305,3 +305,64 @@ describe("sem card órfão na última linha", () => {
     expect(merged).not.toContain("gap-1.5");
   });
 });
+
+describe("celular: título do KPI com selo de período", () => {
+  it("abaixo de md o selo desce para baixo do título; o título quebra só entre palavras", () => {
+    render(
+      <KpiCard icon={<span />} label="Total de atendimentos" badge="período" value="12" />,
+    );
+    const label = screen.getByText("Total de atendimentos");
+    const badge = screen.getByText("período");
+    const row = label.parentElement!;
+    // mesmo bloco, selo depois do título
+    expect(badge.parentElement).toBe(row);
+    expect(row.lastElementChild).toBe(badge);
+    expect(tokens(row.className)).toEqual(
+      expect.arrayContaining(["flex", "max-md:flex-col", "max-md:items-start"]),
+    );
+    const t = tokens(label.className);
+    expect(t).toEqual(expect.arrayContaining(["line-clamp-2", "text-balance", "break-normal"]));
+    expect(t).not.toContain("break-words");
+    expect(t.some((c) => c.startsWith("hyphens"))).toBe(false);
+    expect(label.getAttribute("title")).toBe("Total de atendimentos");
+    expect(tokens(badge.className)).toContain("shrink-0");
+  });
+
+  it("sem selo, a linha do título não muda de direção", () => {
+    render(<KpiCard icon={<span />} label="Receita ganha" value="R$ 10" />);
+    const row = screen.getByText("Receita ganha").parentElement!;
+    expect(tokens(row.className)).not.toContain("max-md:flex-col");
+  });
+
+  it("cards de período do Volume usam o título completo no title e o selo abaixo no celular", () => {
+    const delta = { value: 0, hidden: true };
+    const data = {
+      volume: {
+        ok: true,
+        data: {
+          started: { value: 1, delta },
+          finished: { value: 1, delta },
+          stillOpen: { value: 1, delta },
+          openStarted: { value: 1, delta },
+          openWaiting: { value: 1, delta },
+          messagesIn: 0,
+          messagesOut: 0,
+          byDay: [],
+          empty: false,
+        },
+      },
+    } as unknown as PainelServiceResult;
+    const { container } = render(
+      <PainelServiceWidget id="volume" data={data} search="" clock="business" onRetry={() => {}} />,
+    );
+    const badges = [...container.querySelectorAll("[data-kpi-badge]")];
+    expect(badges.length).toBeGreaterThanOrEqual(3);
+    for (const b of badges) {
+      expect(b.textContent).toBe("período");
+      expect(tokens(b.parentElement!.className)).toContain("max-md:flex-col");
+      const title = b.parentElement!.firstElementChild!;
+      expect(title.getAttribute("title")).toBe(title.textContent);
+      expect(tokens(title.className)).not.toContain("break-words");
+    }
+  });
+});
