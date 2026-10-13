@@ -64,7 +64,10 @@ async function saveFieldValue(
   const res = await fetch(apiUrl(path), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ values: [{ fieldId, value }] }),
+    body: JSON.stringify({
+      values: [{ fieldId, value }],
+      ...(value.trim() === "" ? { allowBlank: true } : {}),
+    }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
