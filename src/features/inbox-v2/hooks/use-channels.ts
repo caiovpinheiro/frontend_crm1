@@ -37,12 +37,17 @@ interface ChannelsResponse {
   channels?: ApiChannel[];
 }
 
-async function fetchOutboundMessagingChannels(): Promise<OutboundChannelOption[]> {
+export async function fetchOutboundMessagingChannels(): Promise<OutboundChannelOption[]> {
   const res = await fetch(apiUrl("/api/channels"));
   if (!res.ok) {
     throw new Error("Erro ao carregar canais.");
   }
-  const data = (await res.json().catch(() => ({}))) as ChannelsResponse;
+  return parseOutboundMessagingChannels(await res.json().catch(() => ({})));
+}
+
+/** Corpo de `GET /api/channels` → canais de envio (também usado pelo bootstrap). */
+export function parseOutboundMessagingChannels(body: unknown): OutboundChannelOption[] {
+  const data = (body ?? {}) as ChannelsResponse;
   const list = Array.isArray(data.channels) ? data.channels : [];
   return list
     .filter(

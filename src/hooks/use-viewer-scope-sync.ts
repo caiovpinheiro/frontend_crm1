@@ -12,7 +12,7 @@ type VisibilityMode = "all" | "own";
 type VisibilitySettings = Partial<Record<string, VisibilityMode>>;
 
 /** `GET /api/settings/visibility` — modo por papel (`{ ADMIN, MANAGER, MEMBER }`). */
-async function fetchVisibilitySettings(): Promise<VisibilitySettings> {
+export async function fetchVisibilitySettings(): Promise<VisibilitySettings> {
   const res = await fetch(apiUrl("/api/settings/visibility"));
   if (!res.ok) throw new Error("Falha ao carregar a visibilidade.");
   return (await res.json()) as VisibilitySettings;
