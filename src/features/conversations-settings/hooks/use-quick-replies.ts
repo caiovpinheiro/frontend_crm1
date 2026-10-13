@@ -23,9 +23,10 @@ export type QuickReply = {
 const GROUPS_QK = ["settings", "quick-reply-groups"];
 const REPLIES_QK = ["settings", "quick-replies"];
 
-export function useQuickReplyGroups() {
+export function useQuickReplyGroups(enabled = true) {
   return useQuery<QuickReplyGroup[]>({
     queryKey: GROUPS_QK,
+    enabled,
     queryFn: async () => {
       const res = await fetch("/api/settings/quick-replies/groups", { credentials: "include" });
       if (!res.ok) throw new Error("Falha ao carregar grupos");
@@ -34,9 +35,10 @@ export function useQuickReplyGroups() {
   });
 }
 
-export function useQuickReplies(search = "") {
+export function useQuickReplies(search = "", enabled = true) {
   return useQuery<QuickReply[]>({
     queryKey: [...REPLIES_QK, search],
+    enabled,
     queryFn: async () => {
       const url = `/api/settings/quick-replies${search ? `?q=${encodeURIComponent(search)}` : ""}`;
       const res = await fetch(url, { credentials: "include" });

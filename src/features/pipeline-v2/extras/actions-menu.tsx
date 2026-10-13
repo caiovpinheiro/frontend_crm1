@@ -55,8 +55,15 @@ export function DealActionsMenu({
   const deleteDealMut = useDeleteDeal(pipelineId, statusFilter);
   const { confirm, dialog } = useConfirm();
 
-  const { data: lossMeta } = usePipelineLossReasons(pipelineId);
+  // Só com o menu (ou o diálogo de perda) aberto: no mount do painel o
+  // GET /loss-reasons saía em toda abertura de negócio, sem uso.
+  const lossQuery = usePipelineLossReasons(pipelineId, {
+    enabled: open || lostDialogOpen,
+  });
+  const lossMeta = lossQuery.data;
   const lossReasonsActive = Boolean(lossMeta?.lossReasonRequired);
+  // Sem a resposta ainda, "perdido" esperaria a tabulação errada.
+  const lossMetaLoading = !!pipelineId && lossQuery.isLoading;
 
   useEffect(() => {
     if (!open) return;
@@ -124,7 +131,7 @@ export function DealActionsMenu({
           {currentStatus !== "LOST" && (
             <button
               type="button"
-              disabled={setStatus.isPending}
+              disabled={setStatus.isPending || lossMetaLoading}
               onClick={() => {
                 setOpen(false);
                 if (lossReasonsActive) setLostDialogOpen(true);

@@ -202,8 +202,15 @@ export function BulkActionsBar({
     "selected",
   );
 
-  const { data: lossMeta } = usePipelineLossReasons(pipelineId);
+  // Só com seleção (a barra visível): no mount do board o GET
+  // /loss-reasons saía em toda abertura, sem uso.
+  const lossQuery = usePipelineLossReasons(pipelineId, {
+    enabled: selectedCount > 0,
+  });
+  const lossMeta = lossQuery.data;
   const lossReasonsActive = Boolean(lossMeta?.lossReasonRequired);
+  // Sem a resposta ainda, "perdido" sairia sem pedir o motivo.
+  const lossMetaLoading = !!pipelineId && selectedCount > 0 && lossQuery.isLoading;
 
   // ID e total da BulkOperation atualmente acompanhada. Quando setado,
   // o `BulkOperationProgressDialog` abre e faz polling no backend.
@@ -482,7 +489,7 @@ export function BulkActionsBar({
             type="button"
             size="sm"
             className="h-8 gap-1.5 rounded-xl border border-[var(--color-danger)]/40 bg-[var(--color-danger-bg)] text-[12px] text-[var(--color-danger-text)] shadow-none hover:bg-[var(--color-danger-bg)] dark:border-[var(--color-danger)]/40 dark:bg-[var(--color-danger)]/15 dark:text-[var(--color-danger)] dark:hover:bg-[var(--color-danger)]/25"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || lossMetaLoading}
             onClick={() => {
               if (lossReasonsActive) setLostOpen(true);
               else mutation.mutate({ dealIds, action: "mark_lost" });
