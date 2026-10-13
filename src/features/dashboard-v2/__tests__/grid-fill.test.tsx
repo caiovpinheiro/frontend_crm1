@@ -121,12 +121,15 @@ describe("SortableWidgetGrid (desktop)", () => {
     const card = view.container.querySelector('[data-card="card:in"]')!;
     const fill = card.parentElement!;
     expect(fill.hasAttribute("data-grid-fill")).toBe(true);
+    expect(fill.dataset.gridMeasure).toBe("card:in");
     expect(fill.className).toContain("[&>*]:flex-1");
-    const measure = fill.parentElement!;
-    expect(measure.dataset.gridMeasure).toBe("card:in");
-    expect(measure.className).toContain("flex-1");
-    expect(measure.className).toContain("items-stretch");
-    expect(measure.className).not.toContain("h-fit");
+    expect(fill.className).toContain("flex-1");
+    expect(fill.className).not.toContain("h-fit");
+    const cell = fill.parentElement!;
+    expect(cell.dataset.gridCell).toBe("card:in");
+    expect(cell.className).toContain("h-full");
+    // Fora do modo Organizar: sem barra de edição.
+    expect(cell.querySelector("[data-grid-toolbar]")).toBeNull();
   });
 
   it("organizando: a grade mostra as larguras salvas (o arraste grava o real)", () => {

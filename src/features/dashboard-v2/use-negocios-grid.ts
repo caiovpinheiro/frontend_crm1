@@ -106,6 +106,20 @@ const DEFAULT_SIZES: Record<DealCoreWidgetId, { w: number; h: number; minW: numb
 
 const STAGE_DEFAULT = { w: 4, h: 8, minW: 3, minH: 4 };
 const CUSTOM_DEFAULT = { w: 4, h: 12, minW: 3, minH: 6 };
+/**
+ * Altura mínima por tipo de card personalizado. Cards de métrica (evento,
+ * campo, entradas) são título + número: 4 linhas (92 px) já cabem — com
+ * `minH: 6` (140 px) a célula ficava ~2× maior que o conteúdo e não dava para
+ * diminuir. Tarefas listam itens: mantém 6. Só o mínimo muda: o `h` salvo é
+ * respeitado ao carregar.
+ */
+export const CUSTOM_MIN_H: Record<NegociosCustomCard["type"], number> = {
+  event: 4,
+  customField: 4,
+  inboundOwners: 4,
+  inboundStage: 4,
+  tasks: 6,
+};
 const STAGE_PER_ROW = 3;
 
 export function isStageWidgetId(id: string): boolean {
@@ -120,6 +134,10 @@ export function parseStageWidgetId(id: string): string | null {
   return isStageWidgetId(id) ? id.slice(STAGE_WIDGET_PREFIX.length) : null;
 }
 
+/**
+ * Linhas para caber `px` (layout): o react-grid-layout desenha
+ * rowHeight·h + marginY·(h − 1), então h = ceil((px + marginY) / (rowHeight + marginY)).
+ */
 export function gridRowsForPx(px: number, minH = 2): number {
   const unit = DASHBOARD_GRID_ROW_HEIGHT + DASHBOARD_GRID_MARGIN[1];
   return Math.max(minH, Math.ceil((px + DASHBOARD_GRID_MARGIN[1]) / unit));
@@ -278,13 +296,15 @@ function resetBloated(layout: Layout): Layout {
   });
 }
 
-function defaultItemForId(id: string): LayoutItem {
+function defaultItemForId(id: string, cards: readonly NegociosCustomCard[] = []): LayoutItem {
   const core = DEFAULT_SIZES[id as DealCoreWidgetId];
   if (core) return { i: id, x: 0, y: 0, ...core };
   if (isStageWidgetId(id)) {
     return { i: id, x: 0, y: 0, ...STAGE_DEFAULT, isResizable: false };
   }
-  return { i: id, x: 0, y: 0, ...CUSTOM_DEFAULT };
+  const card = id.startsWith("card:") ? cards.find((c) => `card:${c.id}` === id) : undefined;
+  const minH = card ? CUSTOM_MIN_H[card.type] : CUSTOM_DEFAULT.minH;
+  return { i: id, x: 0, y: 0, ...CUSTOM_DEFAULT, minH };
 }
 
 /**
@@ -310,7 +330,7 @@ export function adoptSavedLayout(
   const kept: Layout = [];
   for (const item of saved ?? []) {
     if (!isLayoutItem(item) || item.i === "stages" || !expectedSet.has(item.i)) continue;
-    const base = defaultItemForId(item.i);
+    const base = defaultItemForId(item.i, cards);
     kept.push({
       ...base,
       x: item.x,
@@ -322,7 +342,7 @@ export function adoptSavedLayout(
   let maxY = kept.reduce((m, item) => Math.max(m, item.y + item.h), 0);
   for (const id of expected) {
     if (byId.has(id)) continue;
-    const item = defaultItemForId(id);
+    const item = defaultItemForId(id, cards);
     kept.push({ ...item, y: maxY });
     maxY += item.h;
   }

@@ -6,6 +6,7 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 
 import type { DashboardFiltersState } from "./api";
+import { withTimeoutMessages } from "./service-availability";
 import {
   mockPainelAgora,
   mockPainelDeals,
@@ -22,9 +23,11 @@ export type PainelBlock<T> =
       error: string;
       /**
        * Aditivo do backend: `no_replica` = bloco pulado por falta de réplica de
-       * leitura (seção pedida, mas indisponível neste ambiente).
+       * leitura (seção pedida, mas indisponível neste ambiente);
+       * `primary_timeout` = rodou no banco principal e estourou o tempo
+       * (mostrar "demorou demais" com "Tentar de novo").
        */
-      reason?: "no_replica" | (string & {});
+      reason?: "no_replica" | "primary_timeout" | (string & {});
     };
 
 export type PainelKpi = {
@@ -63,6 +66,39 @@ export type PainelFunnelStage = {
   lost: number;
   todayDelta: number;
   byUser: PainelFunnelUserRow[];
+  /**
+   * Fluxo do período (aditivo do backend; ausente em backends antigos).
+   * `exited`: negócios que saíram da etapa (inclui Perdido/Ganho e outros
+   * funis). `inflow` soma `entered`; `outflow` soma `exited`. Até 8 linhas
+   * por count desc + "other" agregado.
+   */
+  exited?: number;
+  inflow?: PainelFunnelInflow[];
+  outflow?: PainelFunnelOutflow[];
+};
+
+/**
+ * Origem de quem entrou na etapa. `fromStageId` null = criado direto nela;
+ * "other" = agregado (o que passou de 8 itens e eventos antigos sem origem).
+ * `fromPipelineId` só vem quando a etapa de origem é de OUTRO funil.
+ * `*StageName`: nome atual (ou o gravado no evento, se a etapa foi apagada).
+ */
+export type PainelFunnelInflow = {
+  fromStageId: string | null;
+  fromStageName?: string;
+  fromPipelineId?: string;
+  count: number;
+};
+
+/**
+ * Destino de quem saiu da etapa (Ganho/Perdido entram como destinos normais).
+ * `toStageId` "other" = agregado; `toPipelineId` só vem para OUTRO funil.
+ */
+export type PainelFunnelOutflow = {
+  toStageId: string;
+  toStageName?: string;
+  toPipelineId?: string;
+  count: number;
 };
 
 export type PainelFunnel = {
@@ -304,7 +340,8 @@ async function getJson<T>(
     { credentials: "include", cache: "no-store", signal },
     timeoutMs,
   );
-  return parseApiResponse<T>(res, errLabel);
+  // Blocos que estouraram o tempo no banco principal: "demorou demais".
+  return withTimeoutMessages(await parseApiResponse<T>(res, errLabel));
 }
 
 function asIdList(value: unknown): string[] {
