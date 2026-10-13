@@ -4607,11 +4607,32 @@ function SummarySettings({ config, onChange }: { config: Record<string, unknown>
 }
 
 /** "Começo e fim › Cliente sem responder". */
+type FollowUpStep = { after: number; mode?: "fixed" | "by_reply" | "generated"; message?: string; procedureMessage?: string; questionMessage?: string };
+
+const FOLLOWUP_MODES = [
+  { value: "fixed", label: "Texto fixo" },
+  { value: "by_reply", label: "Conforme a última mensagem" },
+  { value: "generated", label: "Escrito pelo agente" },
+];
+const FOLLOWUP_DEFAULTS = {
+  message: "Ainda está por aí? Se precisar de algo, é só me responder.",
+  procedureMessage: "Conseguiu fazer? Se travou em algum passo, me conta qual que eu te ajudo.",
+  questionMessage: "Ainda está por aí? Fico no aguardo da sua resposta para continuar.",
+};
+
 function InactivitySettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
   const inactivity = (getPath(config, "inactivity", {}) ?? {}) as Record<string, unknown>;
   const enabled = !!inactivity.enabled;
   const nudgeAfter = typeof inactivity.nudgeAfter === "number" ? inactivity.nudgeAfter : 0;
   const closeAfter = typeof inactivity.closeAfter === "number" ? inactivity.closeAfter : 0;
+  // Sem lista, o aviso único antigo aparece como o primeiro lembrete; editar
+  // grava a lista (e zera o aviso antigo, que ela substitui).
+  const saved = Array.isArray(inactivity.followUps) ? (inactivity.followUps as FollowUpStep[]) : [];
+  const steps: FollowUpStep[] = saved.length > 0
+    ? saved
+    : nudgeAfter > 0 ? [{ after: nudgeAfter, mode: "fixed", ...(inactivity.nudgeMessage ? { message: String(inactivity.nudgeMessage) } : {}) }] : [];
+  const setSteps = (next: FollowUpStep[]) => onChange("inactivity", { ...inactivity, followUps: next, nudgeAfter: 0 });
+  const update = (i: number, patch: Partial<FollowUpStep>) => setSteps(steps.map((st, j) => (j === i ? { ...st, ...patch } : st)));
   return (
     <SectionCard
       title="Cliente sem responder"
@@ -4621,37 +4642,89 @@ function InactivitySettings({ config, onChange }: { config: Record<string, unkno
         <Switch
           checked={enabled}
           onCheckedChange={(v) => onChange("inactivity", { nudgeAfter: 0, closeAfter: 30, ...inactivity, enabled: v })}
-          aria-label="Avisar e encerrar por falta de resposta"
+          aria-label="Lembrar e encerrar por falta de resposta"
         />
-        <span className="text-sm">Avisar e encerrar por falta de resposta</span>
+        <span className="text-sm">Lembrar e encerrar por falta de resposta</span>
       </label>
       {enabled && (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <NumberField
-              label="Encerrar depois de (minutos)"
-              value={closeAfter || undefined}
-              min={1}
-              placeholder="30"
-              onChange={(v) => onChange("inactivity.closeAfter", Math.max(0, Math.round(v ?? 0)))}
-            />
-            <NumberField
-              label="Avisar antes, depois de (minutos)"
-              hint="0: sem aviso."
-              value={nudgeAfter || undefined}
-              min={0}
-              placeholder="0"
-              onChange={(v) => onChange("inactivity.nudgeAfter", Math.max(0, Math.round(v ?? 0)))}
-            />
+          <NumberField
+            label="Encerrar depois de (minutos)"
+            value={closeAfter || undefined}
+            min={1}
+            placeholder="30"
+            onChange={(v) => onChange("inactivity.closeAfter", Math.max(0, Math.round(v ?? 0)))}
+          />
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-0.5">
+              <Label>Lembretes antes de encerrar</Label>
+              <p className="text-xs text-muted-foreground">
+                Até 3, cada um com o próprio prazo desde a última mensagem do agente. Fora da janela de 24 h do WhatsApp o lembrete não sai, só o encerramento.
+              </p>
+            </div>
+            {steps.map((st, i) => {
+              const mode = st.mode ?? "fixed";
+              const late = closeAfter > 0 && st.after >= closeAfter;
+              return (
+                <div key={i} className="space-y-2 rounded-md border p-3">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="w-40">
+                      <NumberField
+                        label={`Lembrete ${i + 1} depois de (min)`}
+                        value={st.after || undefined}
+                        min={1}
+                        placeholder="15"
+                        onChange={(v) => update(i, { after: Math.max(1, Math.round(v ?? 1)) })}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <Segmented value={mode} onChange={(v) => update(i, { mode: v as FollowUpStep["mode"] })} options={FOLLOWUP_MODES} />
+                    </div>
+                    <Button variant="ghost" size="icon" aria-label={`Remover lembrete ${i + 1}`} onClick={() => setSteps(steps.filter((_, j) => j !== i))}>
+                      <IconTrash className="size-4" />
+                    </Button>
+                  </div>
+                  {late && <p className="text-xs text-amber-700 v2-dark:text-amber-400">Este lembrete sai depois do encerramento; do jeito que está, ele não é enviado.</p>}
+                  {mode === "fixed" && (
+                    <Field label="Texto" hint={`Vazio: “${FOLLOWUP_DEFAULTS.message}”`}>
+                      <Textarea value={st.message ?? ""} onChange={(e) => update(i, { message: e.target.value })} />
+                    </Field>
+                  )}
+                  {mode !== "fixed" && (
+                    <>
+                      {mode === "generated" && (
+                        <p className="text-xs text-muted-foreground">
+                          O agente escreve o lembrete a partir da conversa, sem trazer informação nova (sem número, data, valor ou link). Se não conseguir, sai o texto abaixo.
+                        </p>
+                      )}
+                      <Field label="Depois de um passo a passo" hint={`Vazio: “${FOLLOWUP_DEFAULTS.procedureMessage}”`}>
+                        <Textarea value={st.procedureMessage ?? ""} onChange={(e) => update(i, { procedureMessage: e.target.value })} />
+                      </Field>
+                      <Field label="Depois de uma pergunta do agente" hint={`Vazio: “${FOLLOWUP_DEFAULTS.questionMessage}”`}>
+                        <Textarea value={st.questionMessage ?? ""} onChange={(e) => update(i, { questionMessage: e.target.value })} />
+                      </Field>
+                      <Field label="Nos outros casos" hint={`Vazio: “${FOLLOWUP_DEFAULTS.message}”`}>
+                        <Textarea value={st.message ?? ""} onChange={(e) => update(i, { message: e.target.value })} />
+                      </Field>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            {steps.length < 3 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const last = steps[steps.length - 1]?.after ?? 0;
+                  const suggested = Math.max(1, Math.min(closeAfter > 0 ? closeAfter - 1 : last + 15, last + 15));
+                  setSteps([...steps, { after: suggested, mode: "by_reply" }]);
+                }}
+              >
+                <IconPlus className="size-4" /> Adicionar lembrete
+              </Button>
+            )}
           </div>
-          {nudgeAfter > 0 && closeAfter > 0 && nudgeAfter >= closeAfter && (
-            <p className="text-xs text-amber-700 v2-dark:text-amber-400">O aviso precisa vir antes do encerramento; do jeito que está, ele não é enviado.</p>
-          )}
-          {nudgeAfter > 0 && (
-            <Field label="Aviso" hint="Vazio: “Ainda está por aí? Se precisar de algo, é só me responder.”">
-              <Textarea value={(inactivity.nudgeMessage as string) ?? ""} onChange={(e) => onChange("inactivity.nudgeMessage", e.target.value)} />
-            </Field>
-          )}
           <Field label="Mensagem ao encerrar" hint="Vazio: encerra sem mensagem.">
             <Textarea value={(inactivity.closeMessage as string) ?? ""} onChange={(e) => onChange("inactivity.closeMessage", e.target.value)} />
           </Field>

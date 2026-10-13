@@ -154,6 +154,7 @@ const PATH_LABEL: Record<string, string> = {
 
   "businessHours.timezone": "Fuso horário",
   "businessHours.weekdays": "Dias e horários",
+  "inactivity.followUps": "Lembretes antes de encerrar",
   "businessHours.offHoursMessage": "Aviso fora do horário",
   "businessHours.holidaysClosed": "Feriados nacionais sem expediente",
   "businessHours.closures": "Pausas da equipe",
@@ -343,6 +344,7 @@ function itemName(path: string, v: unknown, c: NameCatalogs): string {
     const d = (s: unknown) => (typeof s === "string" ? s.slice(0, 10).split("-").reverse().join("/") : "");
     return `${d(v.start)}${v.end && v.end !== v.start ? ` a ${d(v.end)}` : ""} · ${String(v.title ?? "")}`;
   }
+  if (path === "inactivity.followUps") return `${String(v.after ?? "")} min · ${v.mode === "by_reply" ? "conforme a última mensagem" : v.mode === "generated" ? "escrito pelo agente" : "texto fixo"}`;
   if (path === "businessHours.weekdays") return `${WEEKDAYS[Number(v.day)] ?? v.day} ${v.start ?? ""}–${v.end ?? ""}`;
   if (path === "businessHours.closures") {
     const dt = (s: unknown) => (typeof s === "string" && s.length >= 16 ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : "");
