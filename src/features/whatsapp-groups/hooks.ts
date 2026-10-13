@@ -15,6 +15,9 @@ import {
 
 export const whatsappGroupsKey = ["whatsapp-groups"] as const;
 
+/** O POST só enfileira. O worker grava os grupos uns segundos depois. */
+const SYNC_REFRESH_DELAYS_MS = [3_000, 8_000, 15_000, 30_000];
+
 /**
  * Mensagens do grupo não têm evento SSE: é poll puro. 6 s era um GET a cada
  * 6 s por grupo aberto, aba oculta inclusive. 30 s visível, nada oculto.
@@ -61,11 +64,17 @@ export function useWhatsAppGroupMessages(id: string | null) {
 export function useWhatsAppGroupMutations() {
   const qc = useQueryClient();
   const invalidate = () => void qc.invalidateQueries({ queryKey: whatsappGroupsKey });
+  const refreshAfterSync = () => {
+    invalidate();
+    for (const delay of SYNC_REFRESH_DELAYS_MS) {
+      setTimeout(invalidate, delay);
+    }
+  };
 
   return {
     sync: useMutation({
       mutationFn: syncWhatsAppGroups,
-      onSuccess: invalidate,
+      onSuccess: refreshAfterSync,
     }),
     send: useMutation({
       mutationFn: ({ id, text }: { id: string; text: string }) =>
