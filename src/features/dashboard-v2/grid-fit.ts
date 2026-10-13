@@ -28,13 +28,6 @@ export function contentRowsForPx(px: number, minRows = 2): number {
   return Math.min(FIT_MAX_ROWS, gridRowsForPx(px, minRows));
 }
 
-/** Cards cuja altura não acompanha o conteúdo (gráfico com altura própria). */
-const FIXED_HEIGHT_IDS = new Set(["evolution"]);
-
-export function canFitToContent(id: string): boolean {
-  return !FIXED_HEIGHT_IDS.has(id);
-}
-
 /**
  * Novo layout com `h` = linhas necessárias para a altura medida (px). Cards
  * sem medida (ou com medida 0, ainda sem conteúdo) mantêm o `h`. Nunca abaixo
@@ -46,7 +39,7 @@ export function fitLayoutToContent(
 ): Layout {
   return layout.map((item) => {
     const px = heightsPx.get(item.i);
-    if (px == null || !Number.isFinite(px) || px <= 0 || !canFitToContent(item.i)) {
+    if (px == null || !Number.isFinite(px) || px <= 0) {
       return { ...item };
     }
     return { ...item, h: contentRowsForPx(px, item.minH ?? 2) };
@@ -82,7 +75,7 @@ export function measureNaturalHeights(root: HTMLElement | null): Map<string, num
   const nodes = root.querySelectorAll<HTMLElement>("[data-grid-measure]");
   nodes.forEach((el) => {
     const id = el.dataset.gridMeasure;
-    if (!id || !canFitToContent(id)) return;
+    if (!id) return;
     const previous = el.style.cssText;
     el.style.flex = "none";
     el.style.height = "auto";
@@ -100,13 +93,16 @@ export function measureNaturalHeights(root: HTMLElement | null): Map<string, num
  * O card estica até a célula (`h-full`); com um layout salvo antigo (ex.: "Uso
  * do sistema" com h enorme) isso virava um bloco branco de 1.000 px com 200 px
  * de conteúdo. Aqui só a exibição muda — o layout salvo não é tocado:
- *  - altura de cada card = linhas do conteúdo medido, nunca acima do `h` salvo
- *    (cards de altura fixa, como "Evolução diária", ficam com o `h` salvo);
+ *  - altura de cada card = linhas do card inteiro medido (inclusive "Evolução
+ *    diária", com o aviso "Série em formação"). O conteúdo é o piso: card
+ *    maior que o `h` salvo também aparece inteiro — antes o `h` salvo era o
+ *    teto e o card (overflow hidden) cortava a base do gráfico;
+ *  - sem medida ainda, o card fica com o `h` salvo;
  *  - a grade é dividida em faixas (linhas horizontais que nenhum card cruza no
  *    layout salvo). Em cada faixa os cards sobem (compactação vertical) e os
  *    que terminam a faixa — sem card abaixo na mesma coluna — esticam até o fim
  *    do mais alto dela: cards lado a lado terminam alinhados, sem vão embaixo
- *    do mais baixo. A faixa nunca fica mais alta que no layout salvo;
+ *    do mais baixo. Se um card cresce, os de baixo descem (sem sobrepor);
  *  - as faixas são empilhadas sem buracos.
  */
 export function displayLayoutForContent(
@@ -133,8 +129,8 @@ export function displayLayoutForContent(
     const top = Math.min(...band.map((item) => item.y));
     const shrunk = band.map((item) => {
       const rows = contentRows.get(item.i);
-      const fits = rows != null && Number.isFinite(rows) && rows > 0 && canFitToContent(item.i);
-      return { ...item, y: item.y - top, h: fits ? Math.min(item.h, rows) : item.h };
+      const fits = rows != null && Number.isFinite(rows) && rows > 0;
+      return { ...item, y: item.y - top, h: fits ? rows : item.h };
     });
     const compacted = verticalCompactor.compact(shrunk, cols) as Layout;
     const bandHeight = Math.max(...compacted.map((item) => item.y + item.h));

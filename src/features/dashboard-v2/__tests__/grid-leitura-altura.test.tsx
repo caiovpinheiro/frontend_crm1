@@ -43,7 +43,7 @@ import { gridCellHeightPx, type Layout } from "@/features/dashboard-v2/use-negoc
 const COLS = 12;
 
 // Layout salvo da evidência: "Uso do sistema" w6 com h enorme ao lado da
-// "Evolução diária" (altura própria), KPIs com célula maior que o conteúdo.
+// "Evolução diária", KPIs com célula maior que o conteúdo.
 const SAVED: Layout = [
   { i: "kpis", x: 0, y: 0, w: 12, h: 6, minH: 3 },
   { i: "funnel", x: 0, y: 6, w: 12, h: 8, minH: 5 },
@@ -58,9 +58,14 @@ const NATURAL: Record<string, number> = {
   kpis: 76,
   funnel: 180,
   usage: 200,
+  // Card inteiro da Evolução (cabeçalho + gráfico de 280 px + padding).
+  evolution: 332,
   sources: 56,
   agents: 230,
 };
+
+/** Alturas trocadas por um teste (limpas no afterEach). */
+const override: Record<string, number> = {};
 
 function byId(layout: Layout) {
   return Object.fromEntries(layout.map((item) => [item.i, item]));
@@ -93,22 +98,28 @@ beforeEach(() => {
     this: HTMLElement,
   ) {
     const id = this.dataset.gridMeasure;
-    const height = id ? (NATURAL[id] ?? 0) : 0;
+    const height = id ? (override[id] ?? NATURAL[id] ?? 0) : 0;
     return { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: height, width: 0, height } as DOMRect;
   });
 });
 
 afterEach(() => {
+  for (const key of Object.keys(override)) delete override[key];
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
-function mount(organizing: boolean, onLayoutChange = vi.fn()) {
+function mount(
+  organizing: boolean,
+  onLayoutChange = vi.fn(),
+  { layout = SAVED, persistEnabled = true }: { layout?: Layout; persistEnabled?: boolean } = {},
+) {
   const view = render(
     <SortableWidgetGrid
-      layout={SAVED}
+      layout={layout}
+      persistEnabled={persistEnabled}
       onLayoutChange={onLayoutChange}
       labels={{}}
       organizing={organizing}
@@ -135,7 +146,7 @@ describe("modo leitura: altura exibida pelo conteúdo", () => {
     expect(h.kpis!.h).toBe(4);
     expect(h.funnel!.y).toBe(4);
     // "Uso do sistema": 200 px pediriam 9 linhas, mas a "Evolução diária" ao
-    // lado tem 14 (altura própria) → os dois terminam juntos em 14, não 42.
+    // lado mede 332 px (14 linhas) → os dois terminam juntos em 14, não 42.
     expect(h.usage!.h).toBe(14);
     expect(h.evolution!.h).toBe(14);
     expect(h.usage!.y).toBe(h.evolution!.y);
@@ -145,6 +156,44 @@ describe("modo leitura: altura exibida pelo conteúdo", () => {
     expect(h.agents!.y).toBe(h.sources!.y + h.sources!.h);
     // Nada vai para o servidor nem para o layout salvo.
     expect(onLayoutChange).not.toHaveBeenCalled();
+  });
+
+  it("Evolução maior que o h salvo (357 px × 309 px): aparece inteira, sem gravar", async () => {
+    // Conferência na DEV: h 13 (308 px) salvo, card de 357 px → eixo X cortado.
+    override.evolution = 357;
+    const layout = SAVED.map((item) => (item.i === "evolution" ? { ...item, h: 13 } : item));
+    const { view, onLayoutChange } = mount(false, vi.fn(), { layout, persistEnabled: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTO_SIZE_DEBOUNCE_MS + 10);
+    });
+    const h = byId(shown(view));
+    expect(gridCellHeightPx(h.evolution!.h)).toBeGreaterThanOrEqual(357);
+    // Alinhado com o vizinho e quem está embaixo desce (sem sobrepor).
+    expect(h.usage!.h).toBe(h.evolution!.h);
+    expect(h.sources!.y).toBeGreaterThanOrEqual(h.evolution!.y + h.evolution!.h);
+    expect(onLayoutChange).not.toHaveBeenCalled();
+  });
+
+  it("Evolução com o aviso 'Série em formação': o aviso entra na medida", async () => {
+    // Mesmo card + a linha do aviso (mt-2 + 16 px de texto).
+    override.evolution = 357 + 24;
+    const layout = SAVED.map((item) => (item.i === "evolution" ? { ...item, h: 13 } : item));
+    const { view } = mount(false, vi.fn(), { layout, persistEnabled: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTO_SIZE_DEBOUNCE_MS + 10);
+    });
+    const h = byId(shown(view));
+    expect(gridCellHeightPx(h.evolution!.h)).toBeGreaterThanOrEqual(381);
+  });
+
+  it("com o salvo habilitado, o crescimento da Evolução só vai ao localStorage (auto)", async () => {
+    override.evolution = 357;
+    const layout = SAVED.map((item) => (item.i === "evolution" ? { ...item, h: 13 } : item));
+    const { onLayoutChange } = mount(false, vi.fn(), { layout });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(AUTO_SIZE_DEBOUNCE_MS + 10);
+    });
+    for (const call of onLayoutChange.mock.calls) expect(call[1]).toBe("auto");
   });
 
   it("modo Organizar: alturas salvas intactas", async () => {
@@ -181,14 +230,14 @@ describe("displayLayoutForContent", () => {
     expect(out.c).toMatchObject({ y: 8, h: 3 });
   });
 
-  it("nunca passa do h salvo; sem medida mantém o salvo", () => {
+  it("conteúdo maior que o salvo aparece inteiro (piso = conteúdo); sem medida mantém o salvo", () => {
     const layout: Layout = [
       { i: "a", x: 0, y: 0, w: 12, h: 4 },
       { i: "b", x: 0, y: 4, w: 12, h: 6 },
     ];
     const out = byId(displayLayoutForContent(layout, new Map([["a", 30]]), COLS));
-    expect(out.a).toMatchObject({ y: 0, h: 4 });
-    expect(out.b).toMatchObject({ y: 4, h: 6 });
+    expect(out.a).toMatchObject({ y: 0, h: 30 });
+    expect(out.b).toMatchObject({ y: 30, h: 6 });
   });
 
   it("coluna empilhada ao lado de um card alto: o fim da faixa alinha", () => {
