@@ -49,12 +49,12 @@ export default function GruposWhatsAppClientPage() {
   }, [filtered, selectedId]);
 
   useEffect(() => {
-    if (!connected || autoSynced || list.isLoading || groups.length > 0) return;
+    if (!connected || autoSynced || list.isLoading) return;
     setAutoSynced(true);
     mut.sync.mutate(undefined, {
       onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao sincronizar"),
     });
-  }, [autoSynced, connected, groups.length, list.isLoading, mut.sync]);
+  }, [autoSynced, connected, list.isLoading, mut.sync]);
 
   const detail = useWhatsAppGroup(connected ? selectedId : null);
   const thread = useWhatsAppGroupMessages(connected ? selectedId : null);
