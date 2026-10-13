@@ -166,9 +166,29 @@ export function backendApiPathOf(href: string): string | null {
 }
 
 /**
+ * GET da API que pode ser atendido sem rede (blocos do
+ * `/api/me/bootstrap` — `lib/shell-bootstrap.ts`). Devolve `null` quando
+ * não se aplica (aí o fetch segue normal); uma `Promise` quando a
+ * resposta depende do bootstrap em voo (`null` resolvido = vai à rede).
+ */
+export type ApiGetResolver = (apiPath: string) => Promise<Response | null> | null;
+
+let apiGetResolver: ApiGetResolver | null = null;
+
+export function setApiGetResolver(fn: ApiGetResolver | null): void {
+  apiGetResolver = fn;
+}
+
+function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
+  const m = init?.method ?? (input instanceof Request ? input.method : "GET");
+  return m.toUpperCase();
+}
+
+/**
  * O `fetch` do app (instalado em `window.fetch`), em volta do original:
- *  1. reescrita same-origin → host da API (cookie de `.bwipo.com`);
- *  2. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
+ *  1. GET da API servido pelo bootstrap em voo, quando houver bloco;
+ *  2. reescrita same-origin → host da API (cookie de `.bwipo.com`);
+ *  3. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
  *     devolver, para o `retryDelay` das queries esperar o prazo.
  */
 export function createAppFetch(original: typeof fetch): typeof fetch {
@@ -176,6 +196,13 @@ export function createAppFetch(original: typeof fetch): typeof fetch {
     const href = requestHref(input);
     const apiPath = backendApiPathOf(href);
     const nextInit = init;
+    if (apiPath && requestMethod(input, init) === "GET") {
+      const pending = apiGetResolver?.(apiPath) ?? null;
+      if (pending) {
+        const served = await pending.catch(() => null);
+        if (served) return served;
+      }
+    }
     const dest = rewriteToDirectApi(href);
     let res: Response;
     if (!dest) {

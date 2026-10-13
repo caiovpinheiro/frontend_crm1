@@ -17,6 +17,13 @@ import type {
   StatusFilter,
 } from "./types";
 
+/** Corpo de `GET /api/pipelines` → lista (também usado pelo bootstrap). */
+export function normalizePipelineList(data: unknown): PipelineListItemDto[] {
+  if (Array.isArray(data)) return data as PipelineListItemDto[];
+  const rec = (data ?? {}) as { pipelines?: PipelineListItemDto[]; items?: PipelineListItemDto[] };
+  return rec.pipelines ?? rec.items ?? [];
+}
+
 /** GET /api/pipelines */
 export async function listPipelines(): Promise<PipelineListItemDto[]> {
   const res = await fetch(apiUrl("/api/pipelines"));
@@ -26,7 +33,7 @@ export async function listPipelines(): Promise<PipelineListItemDto[]> {
       typeof data?.message === "string" ? data.message : "Erro ao carregar pipelines",
     );
   }
-  return Array.isArray(data) ? data : data.pipelines ?? data.items ?? [];
+  return normalizePipelineList(data);
 }
 
 /**
