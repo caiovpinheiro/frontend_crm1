@@ -1,13 +1,36 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { ConfirmProvider } from "@/hooks/use-confirm";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "@/lib/api";
+import {
+  isRateLimitError,
+  queryRetry,
+  queryRetryDelay,
+  rateLimitMutationMessage,
+} from "@/lib/rate-limit";
+
+/**
+ * Mutação que recebeu 429/503 com prazo e não tem `onError` próprio:
+ * toast (uma vez por vez — `id` fixo). Nada de recarregar nem deslogar; o
+ * formulário de quem chamou fica como estava.
+ */
+export function notifyRateLimitedMutation(
+  error: unknown,
+  hasOwnOnError: boolean,
+  show: (message: string) => void = (message) =>
+    toast.error(message, { id: "rate-limited-mutation" }),
+): boolean {
+  if (hasOwnOnError || !isRateLimitError(error)) return false;
+  show(rateLimitMutationMessage(error));
+  return true;
+}
 
 export function Providers({
   children,
@@ -19,13 +42,20 @@ export function Providers({
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        mutationCache: new MutationCache({
+          onError: (error, _vars, _ctx, mutation) => {
+            notifyRateLimitedMutation(error, !!mutation.options.onError);
+          },
+        }),
         defaultOptions: {
           queries: {
             staleTime: 2 * 60 * 1000,
             gcTime: 10 * 60 * 1000,
             refetchOnWindowFocus: false,
-            retry: 1,
-            retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+            // Uma nova tentativa, como antes; num 429/503 com prazo, só
+            // depois do prazo (+ jitter) — `lib/rate-limit.ts`.
+            retry: queryRetry,
+            retryDelay: queryRetryDelay,
           },
           mutations: {
             retry: 0,
