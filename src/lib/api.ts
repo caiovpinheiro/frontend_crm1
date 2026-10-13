@@ -1,3 +1,9 @@
+import {
+  isRateLimitStatus,
+  noteRateLimited,
+  readRetryAfter,
+  retryAfterFrom,
+} from "@/lib/rate-limit";
 import { handleSessionRevoked, isSessionRevoked } from "@/lib/session-revoked";
 import { getTenantBaseDomain } from "@/lib/tenant-url";
 
@@ -134,24 +140,69 @@ function rewriteToDirectApi(url: string): string | null {
   }
 }
 
+/**
+ * `path+query` de uma chamada à API do backend (relativa `/api/...` no
+ * origin da página ou absoluta no host da API); `null` para o resto
+ * (rotas locais do Next, assets, outros hosts).
+ */
+export function backendApiPathOf(href: string): string | null {
+  let parsed: URL;
+  try {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    parsed = new URL(href, origin);
+  } catch {
+    return null;
+  }
+  const base = getApiBaseUrl();
+  const sameOrigin =
+    typeof window !== "undefined" && parsed.origin === window.location.origin;
+  const onApiHost = !!base && (parsed.origin === base || parsed.href.startsWith(`${base}/`));
+  if (!sameOrigin && !onApiHost && typeof window !== "undefined") return null;
+  const path = `${parsed.pathname}${parsed.search}`;
+  if (!path.startsWith("/api/")) return null;
+  if (isSameOriginFrontendApi(path)) return null;
+  return path;
+}
+
+/**
+ * O `fetch` do app (instalado em `window.fetch`), em volta do original:
+ *  1. reescrita same-origin → host da API (cookie de `.bwipo.com`);
+ *  2. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
+ *     devolver, para o `retryDelay` das queries esperar o prazo.
+ */
+export function createAppFetch(original: typeof fetch): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const href = requestHref(input);
+    const apiPath = backendApiPathOf(href);
+    const nextInit = init;
+    const dest = rewriteToDirectApi(href);
+    let res: Response;
+    if (!dest) {
+      res = await original(input, nextInit);
+    } else if (input instanceof Request) {
+      res = await original(new Request(dest, input), {
+        ...nextInit,
+        credentials: "include",
+        mode: "cors",
+      });
+    } else {
+      res = await original(dest, { ...nextInit, credentials: "include", mode: "cors" });
+    }
+    if (apiPath && isRateLimitStatus(res.status)) {
+      const info = await readRetryAfter(res).catch(() => null);
+      if (info) noteRateLimited(info.retryAfterMs);
+    }
+    return res;
+  };
+}
+
 function ensureDirectApiFetchCredentials(): void {
   if (typeof window === "undefined") return;
   const w = window as Window & { __crmDirectApiFetch?: boolean };
   if (w.__crmDirectApiFetch) return;
   w.__crmDirectApiFetch = true;
-  const original = window.fetch.bind(window);
-  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    const dest = rewriteToDirectApi(requestHref(input));
-    if (!dest) return original(input, init);
-    if (input instanceof Request) {
-      return original(new Request(dest, input), {
-        ...init,
-        credentials: "include",
-        mode: "cors",
-      });
-    }
-    return original(dest, { ...init, credentials: "include", mode: "cors" });
-  };
+  window.fetch = createAppFetch(window.fetch.bind(window));
 }
 
 ensureDirectApiFetchCredentials();
@@ -163,11 +214,24 @@ ensureDirectApiFetchCredentials();
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
-  constructor(message: string, status: number, code?: string) {
+  /** 429/503 com prazo do backend (`retryAfterMs`/`Retry-After`). */
+  readonly retryAfterMs?: number;
+  /** Classe do limite (`class` do corpo do 429/503). */
+  readonly limitClass?: string;
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    retry?: { retryAfterMs: number; limitClass?: string },
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    if (retry) {
+      this.retryAfterMs = retry.retryAfterMs;
+      this.limitClass = retry.limitClass;
+    }
   }
 }
 
@@ -260,6 +324,23 @@ export async function parseApiResponse<T>(
         : "Sua sessão expirou. Faça login novamente.",
       401,
       payloadCode ?? "AUTH_REQUIRED",
+    );
+  }
+
+  // Limite por classe (429) ou sobrecarga (503 com prazo): erro tipado
+  // com `retryAfterMs` — a query espera o prazo e tenta uma vez
+  // (`lib/rate-limit.ts`); nada de recarregar nem deslogar.
+  const retry = isRateLimitStatus(res.status)
+    ? retryAfterFrom(res.status, data, res.headers.get("Retry-After"))
+    : null;
+  if (retry) {
+    throw new ApiError(
+      res.status === 429 || !payloadMessage
+        ? "Muitas requisições agora. Tentando de novo em instantes."
+        : payloadMessage,
+      res.status,
+      payloadCode ?? (res.status === 429 ? "RATE_LIMITED" : "OVERLOADED"),
+      retry,
     );
   }
 
