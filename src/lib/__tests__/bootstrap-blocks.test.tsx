@@ -4,7 +4,8 @@
  *  - o mapa `url → queryKey` bate com as chaves e o formato dos hooks;
  *  - com blocos, as rotas semeadas NÃO vão à rede ao montar (nem quem
  *    dispara com o bootstrap em voo, nem quem monta depois);
- *  - sem `blocks` (backend antigo), tudo como antes.
+ *  - sem `blocks` (backend antigo), tudo como antes;
+ *  - o `fetch` do app manda `cache: "no-cache"` nas rotas com ETag.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, waitFor } from "@testing-library/react";
@@ -23,6 +24,7 @@ import { createAppFetch } from "@/lib/api";
 import {
   BOOTSTRAP_BLOCKS,
   findBootstrapBlock,
+  isRevalidatedApiPath,
   resolveBlockUrl,
   type BootstrapBlockContext,
 } from "@/lib/bootstrap-blocks";
@@ -158,6 +160,12 @@ describe("mapa url → queryKey", () => {
     expect(client.getQueryState(BLOCK_FIXTURES[first].queryKey)?.dataUpdatedAt).toBe(1234);
     expect(client.getQueryState(BLOCK_FIXTURES[second].queryKey)).toBeUndefined();
   });
+
+  it("rotas do mapa e o bootstrap revalidam (ETag); o resto não", () => {
+    expect(isRevalidatedApiPath(SHELL_BOOTSTRAP_PATH)).toBe(true);
+    for (const url of Object.keys(BLOCK_FIXTURES)) expect(isRevalidatedApiPath(url), url).toBe(true);
+    expect(isRevalidatedApiPath("/api/deals/abc")).toBe(false);
+  });
 });
 
 describe("abertura com blocos", () => {
@@ -194,10 +202,29 @@ describe("abertura com blocos", () => {
     expect(await res.json()).toEqual(BLOCK_FIXTURES[url].body);
     expect(netPaths()).not.toContain(url);
   });
+
+  it("bootstrap pedido com `cache: \"no-cache\"` (revalida com If-None-Match)", async () => {
+    bootstrapAnswer = () => json(payload(allBlocks()));
+    renderApp(newClient());
+    await waitFor(() => expect(netPaths()).toContain(SHELL_BOOTSTRAP_PATH));
+    const init = network.mock.calls.find(([i]) => pathOf(i) === SHELL_BOOTSTRAP_PATH)?.[1];
+    expect(init?.cache).toBe("no-cache");
+  });
+});
+
+describe("ETag / 304 pelo cache HTTP do navegador", () => {
+  it("rota com ETag vai com `no-cache`; modo explícito e outras rotas ficam como estão", async () => {
+    // O matcher é registrado ao carregar `lib/shell-bootstrap.ts` (importado acima).
+    await window.fetch("/api/channels");
+    await window.fetch("/api/channels", { cache: "no-store" });
+    await window.fetch("/api/deals/abc");
+    const modes = network.mock.calls.map(([, init]) => init?.cache);
+    expect(modes).toEqual(["no-cache", "no-store", undefined]);
+  });
 });
 
 describe("compat: backend sem `blocks`", () => {
-  it("cada rota faz o GET de sempre e a dica evita esperar da próxima vez", async () => {
+  it("cada rota faz o GET de sempre (com revalidação) e a dica evita esperar da próxima vez", async () => {
     bootstrapAnswer = () => json(payload());
     const client = newClient();
     renderApp(client);
@@ -207,6 +234,9 @@ describe("compat: backend sem `blocks`", () => {
       }
     });
     for (const url of Object.keys(BLOCK_FIXTURES)) expect(netPaths()).toContain(url);
+    for (const [input, init] of network.mock.calls) {
+      if (BLOCK_FIXTURES[pathOf(input)]) expect(init?.cache).toBe("no-cache");
+    }
     expect(window.localStorage.getItem(BOOTSTRAP_BLOCKS_HINT_KEY)).toBe("0");
   });
 

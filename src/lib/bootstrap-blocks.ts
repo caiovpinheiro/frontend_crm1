@@ -14,9 +14,11 @@
  *     bootstrap em voo) recebe o corpo do bloco pelo `fetch` do app
  *     (`lib/api.ts`, `setApiGetResolver`), sem ir à rede — vale também
  *     para chamadas fora do React Query ou com outra chave;
+ *  3. estas URLs (e o próprio bootstrap) usam o cache HTTP do navegador
+ *     com revalidação (`cache: "no-cache"` → `If-None-Match` → 304).
  *
  * `parse` replica a transformação que o `queryFn` da chave aplica ao
- * corpo (quase sempre nenhuma). O teste `bootstrap-blocks.test.ts` confere
+ * corpo (quase sempre nenhuma). O teste `__tests__/bootstrap-blocks.test.tsx` confere
  * chave e formato contra os hooks reais.
  *
  * Para incluir uma rota: a URL tem de ser a que o código chama (sem
@@ -144,3 +146,25 @@ export function findBootstrapBlock(
   return BOOTSTRAP_BLOCKS.find((entry) => resolveBlockUrl(entry, ctx) === path);
 }
 
+/**
+ * Rotas com `ETag` + `Cache-Control: private, no-cache` no backend: o
+ * `fetch` do app manda `cache: "no-cache"` (revalida com `If-None-Match`).
+ * Casamento por `pathname` (sem a query) — os parâmetros não mudam o
+ * fato de a rota ter ETag. Rotas com id (`/api/users/:id/...`) por padrão.
+ */
+const REVALIDATED_PATTERNS: readonly RegExp[] = [
+  /^\/api\/me\/bootstrap$/,
+];
+
+function pathnameOf(path: string): string {
+  const q = path.indexOf("?");
+  return q === -1 ? path : path.slice(0, q);
+}
+
+export function isRevalidatedApiPath(path: string): boolean {
+  const pathname = pathnameOf(path);
+  if (REVALIDATED_PATTERNS.some((re) => re.test(pathname))) return true;
+  return BOOTSTRAP_BLOCKS.some(
+    (entry) => typeof entry.url === "string" && pathnameOf(entry.url) === pathname,
+  );
+}

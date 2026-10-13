@@ -54,8 +54,9 @@ async function fetchCustomFieldsByEntity(
  */
 async function fetchPipelinesFallback(): Promise<FilterOptionsResponse["pipelines"]> {
   try {
+    // Rota com ETag: sem `no-store`, o `fetch` do app revalida
+    // (`cache: "no-cache"` → If-None-Match → 304).
     const res = await fetch(apiUrl("/api/pipelines"), {
-      cache: "no-store",
       credentials: "include",
     });
     if (!res.ok) return [];
@@ -84,8 +85,9 @@ async function fetchPipelinesFallback(): Promise<FilterOptionsResponse["pipeline
 
 async function fetchUsersFallback(): Promise<FilterOptionsResponse["users"]> {
   try {
+    // Rota com ETag: sem `no-store`, o `fetch` do app revalida
+    // (`cache: "no-cache"` → If-None-Match → 304).
     const res = await fetch(apiUrl("/api/users"), {
-      cache: "no-store",
       credentials: "include",
     });
     if (!res.ok) return [];

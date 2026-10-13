@@ -48,18 +48,20 @@
  * toa a cada abertura, a página lembra (localStorage) que o backend não
  * manda blocos e, da próxima vez, não espera.
  *
- * ETag: o backend devolve `ETag` + `Cache-Control: private, no-store` e
- * aceita `If-None-Match` → 304. Como só há uma chamada por carga e o
- * payload (permissões, e-mails) não deve ficar em storage persistente,
- * o cliente não revalida — fica como evolução.
+ * ETag: o backend devolve `ETag` + `Cache-Control: private, no-cache` e
+ * responde 304 a `If-None-Match`. O pedido vai com `cache: "no-cache"`: o
+ * cache HTTP do navegador guarda o corpo e revalida sozinho (o 304 chega
+ * ao JS como o 200 guardado) — sem storage próprio e sem precisar do
+ * `ETag` exposto no CORS.
  */
 
 import type { QueryClient } from "@tanstack/react-query";
 
-import { apiFetch, setApiGetResolver } from "@/lib/api";
+import { apiFetch, setApiGetResolver, setRevalidatedApiPathMatcher } from "@/lib/api";
 import {
   BOOTSTRAP_BLOCKS,
   findBootstrapBlock,
+  isRevalidatedApiPath,
   resolveBlockUrl,
   type BootstrapBlockContext,
 } from "@/lib/bootstrap-blocks";
@@ -385,6 +387,7 @@ export function resolveFromBootstrap(path: string): Promise<Response | null> | n
 }
 
 setApiGetResolver(resolveFromBootstrap);
+setRevalidatedApiPathMatcher(isRevalidatedApiPath);
 
 function identityKey(id: ShellBootstrapIdentity): string {
   return `${id.userId}|${id.organizationId ?? ""}`;
@@ -410,6 +413,8 @@ async function fetchShellBootstrap(
   try {
     const res = await apiFetch(SHELL_BOOTSTRAP_PATH, {
       headers: { Accept: "application/json" },
+      // ETag: o navegador revalida com `If-None-Match` (304 → corpo guardado).
+      cache: "no-cache",
     });
     if (res.status === 404 || res.status === 501) {
       unsupportedThisPage = true;

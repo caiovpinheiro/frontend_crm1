@@ -179,6 +179,17 @@ export function setApiGetResolver(fn: ApiGetResolver | null): void {
   apiGetResolver = fn;
 }
 
+/**
+ * Rotas com `ETag` (`lib/bootstrap-blocks.ts`, registrado por
+ * `lib/shell-bootstrap.ts` — sem import daqui para não criar ciclo com os
+ * módulos de feature que o mapa usa).
+ */
+let revalidatedApiPath: (apiPath: string) => boolean = () => false;
+
+export function setRevalidatedApiPathMatcher(fn: (apiPath: string) => boolean): void {
+  revalidatedApiPath = fn;
+}
+
 function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   const m = init?.method ?? (input instanceof Request ? input.method : "GET");
   return m.toUpperCase();
@@ -187,20 +198,31 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
 /**
  * O `fetch` do app (instalado em `window.fetch`), em volta do original:
  *  1. GET da API servido pelo bootstrap em voo, quando houver bloco;
- *  2. reescrita same-origin → host da API (cookie de `.bwipo.com`);
- *  3. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
+ *  2. rotas com ETag (`setRevalidatedApiPathMatcher`) sem modo de cache explícito
+ *     vão com `cache: "no-cache"`: o cache HTTP do navegador guarda o
+ *     corpo e revalida com `If-None-Match` — 304 vira o 200 guardado
+ *     sem o JS ver (funciona cross-origin sem expor o `ETag`);
+ *  3. reescrita same-origin → host da API (cookie de `.bwipo.com`);
+ *  4. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
  *     devolver, para o `retryDelay` das queries esperar o prazo.
  */
 export function createAppFetch(original: typeof fetch): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const href = requestHref(input);
     const apiPath = backendApiPathOf(href);
-    const nextInit = init;
+    let nextInit = init;
     if (apiPath && requestMethod(input, init) === "GET") {
       const pending = apiGetResolver?.(apiPath) ?? null;
       if (pending) {
         const served = await pending.catch(() => null);
         if (served) return served;
+      }
+      if (
+        !(input instanceof Request) &&
+        init?.cache === undefined &&
+        revalidatedApiPath(apiPath)
+      ) {
+        nextInit = { ...init, cache: "no-cache" };
       }
     }
     const dest = rewriteToDirectApi(href);
