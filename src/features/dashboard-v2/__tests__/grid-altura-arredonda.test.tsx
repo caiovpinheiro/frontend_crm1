@@ -130,7 +130,8 @@ describe("exibição sem sobreposição", () => {
   it("layouts e alturas arbitrários: cada item ≥ card e nenhum par sobreposto", () => {
     const next = rng(1308);
     for (let round = 0; round < 200; round++) {
-      // Linhas com 1–3 cards; h salvo sempre ≥ conteúdo (o teto não corta).
+      // Linhas com 1–3 cards; h salvo ora maior, ora menor que o conteúdo
+      // (piso = conteúdo: quem cresce empurra os de baixo).
       const layout: Layout = [];
       const content = new Map<string, number>();
       let y = 0;
@@ -141,7 +142,7 @@ describe("exibição sem sobreposição", () => {
         for (let c = 0; c < count; c++) {
           const id = `r${row}c${c}`;
           const px = 44 + next() * 600;
-          const h = contentRowsForPx(px) + Math.floor(next() * 30);
+          const h = Math.max(1, contentRowsForPx(px) + Math.floor(next() * 40) - 12);
           content.set(id, px);
           layout.push({ i: id, x: c * w, y, w, h });
           rowH = Math.max(rowH, h);

@@ -172,13 +172,14 @@ describe("organizar: config da grade", () => {
 });
 
 describe("Ajustar alturas ao conteúdo", () => {
-  it("h pelas alturas medidas (mínimo do tipo; evolução fica) e 1 gravação `user`", () => {
+  it("h pelas alturas medidas (mínimo do tipo; evolução inclusa) e 1 gravação `user`", () => {
     // Alturas naturais simuladas (px): card de evento = título + número.
     const natural: Record<string, number> = {
       usage: 236,
       "card:in": 82,
       "card:out": 150,
-      evolution: 40,
+      // Card inteiro da Evolução, com o gráfico de 280 px.
+      evolution: 357,
     };
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
       this: HTMLElement,
@@ -200,8 +201,9 @@ describe("Ajustar alturas ao conteúdo", () => {
     expect(h["card:out"]).toBe(7);
     expect(gridCellHeightPx(7)).toBeGreaterThanOrEqual(150);
     expect(h.usage).toBe(10);
-    // Gráfico com altura própria: não mexe.
-    expect(h.evolution).toBe(14);
+    // Evolução também segue o card inteiro: 357 px → 16 linhas (380 px).
+    expect(h.evolution).toBe(16);
+    expect(gridCellHeightPx(16)).toBeGreaterThanOrEqual(357);
     // Medida restaurada: o card volta a esticar até a célula.
     const fill = view.container.querySelector<HTMLElement>('[data-grid-measure="card:in"]')!;
     expect(fill.style.cssText).toBe("");
