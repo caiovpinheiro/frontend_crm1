@@ -59,8 +59,10 @@ export function QuickReplyPopover({
   const wrapRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const repliesQ = useQuickReplies();
-  const groupsQ = useQuickReplyGroups();
+  // Só com o popover aberto: fechado ele buscava as duas listas em toda
+  // abertura de conversa (aba nova: semeadas pelo bootstrap quando há bloco).
+  const repliesQ = useQuickReplies("", open);
+  const groupsQ = useQuickReplyGroups(open);
   const settingGroups = groupsQ.data ?? [];
 
   const items = useMemo(
