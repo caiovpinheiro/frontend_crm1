@@ -40,7 +40,8 @@ export function teamUsersKey(includeAi = false) {
   return ["users", "assign-picker", includeAi ? "with-ai" : "human"] as const;
 }
 
-function normalizeUserList<T>(data: unknown): T[] {
+/** Corpo de `GET /api/users` → array (também usado pelo bootstrap). */
+export function normalizeUserList<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === "object") {
     const rec = data as Record<string, unknown>;

@@ -35,15 +35,36 @@
  * GET de `my-agent-status` (semeado, mas o hook em `agent-status.tsx`
  * — presença — não foi ligado ao wrapper nesta leva).
  *
- * ETag: o backend devolve `ETag` + `Cache-Control: private, no-store` e
- * aceita `If-None-Match` → 304. Como só há uma chamada por carga e o
- * payload (permissões, e-mails) não deve ficar em storage persistente,
- * o cliente não revalida — fica como evolução.
+ * `blocks` (contrato novo, opcional): `{ [url]: corpo }` com o corpo
+ * idêntico ao da rota individual, para as rotas que o app chama na
+ * abertura além do shell (canais, funis, usuários…). O mapa
+ * `url → queryKey` vive em `lib/bootstrap-blocks.ts`; aqui:
+ *   - cada bloco com chave conhecida é semeado (`setQueryData`, com
+ *     `updatedAt` agora) antes de a tentativa ser dada como encerrada;
+ *   - GETs dessas URLs feitos com a tentativa em voo esperam por ela e
+ *     recebem o corpo do bloco pelo `fetch` do app (`setApiGetResolver`
+ *     em `lib/api.ts`), sem rede — mesmo fora do React Query.
+ * Sem `blocks` (backend antigo): nada muda. Para não segurar esses GETs à
+ * toa a cada abertura, a página lembra (localStorage) que o backend não
+ * manda blocos e, da próxima vez, não espera.
+ *
+ * ETag: o backend devolve `ETag` + `Cache-Control: private, no-cache` e
+ * responde 304 a `If-None-Match`. O pedido vai com `cache: "no-cache"`: o
+ * cache HTTP do navegador guarda o corpo e revalida sozinho (o 304 chega
+ * ao JS como o 200 guardado) — sem storage próprio e sem precisar do
+ * `ETag` exposto no CORS.
  */
 
 import type { QueryClient } from "@tanstack/react-query";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, setApiGetResolver, setRevalidatedApiPathMatcher } from "@/lib/api";
+import {
+  BOOTSTRAP_BLOCKS,
+  findBootstrapBlock,
+  isRevalidatedApiPath,
+  resolveBlockUrl,
+  type BootstrapBlockContext,
+} from "@/lib/bootstrap-blocks";
 import {
   DEFAULT_INBOX_ALERT_CONFIG,
   type InboxAlertConfig,
@@ -162,6 +183,12 @@ export type MeBootstrapPayload = {
   teamChatRooms: BootstrapTeamChatRooms | null;
   widgets: BootstrapWidgets | null;
   failedBlocks: BootstrapBlockName[];
+  /**
+   * Corpos das rotas individuais por `path+query` exato (contrato novo;
+   * ausente em backend antigo). Valor `null` = sem permissão/falha: a
+   * rota individual é chamada como hoje.
+   */
+  blocks?: Record<string, unknown>;
 };
 
 export const SHELL_BOOTSTRAP_PATH = "/api/me/bootstrap";
@@ -217,6 +244,42 @@ export function normalizeAlertConfigBlock(raw: {
   };
 }
 
+function blockContext(payload: MeBootstrapPayload): BootstrapBlockContext {
+  return { userId: payload.user.id, organizationId: payload.user.organizationId ?? null };
+}
+
+/**
+ * Semeia as chaves de `lib/bootstrap-blocks.ts` com os `blocks` do
+ * payload (`updatedAt` agora: quem montar dentro do `staleTime` não
+ * busca). Devolve as URLs semeadas.
+ */
+export function seedBootstrapBlocks(
+  client: QueryClient,
+  payload: MeBootstrapPayload,
+  now: number = Date.now(),
+): string[] {
+  const blocks = payload.blocks;
+  if (!blocks || typeof blocks !== "object") return [];
+  const ctx = blockContext(payload);
+  const seeded: string[] = [];
+  for (const entry of BOOTSTRAP_BLOCKS) {
+    if (!entry.queryKey) continue;
+    const url = resolveBlockUrl(entry, ctx);
+    if (!Object.prototype.hasOwnProperty.call(blocks, url)) continue;
+    const body = blocks[url];
+    if (body === null || body === undefined) continue;
+    let data: unknown;
+    try {
+      data = entry.parse ? entry.parse(body) : body;
+    } catch {
+      continue; // formato inesperado: a query faz o GET de sempre
+    }
+    client.setQueryData(entry.queryKey(ctx), data, { updatedAt: now });
+    seeded.push(url);
+  }
+  return seeded;
+}
+
 /** Grava cada bloco não-nulo na chave/formato do hook que o consome. */
 export function seedShellBootstrapCaches(
   client: QueryClient,
@@ -249,6 +312,7 @@ export function seedShellBootstrapCaches(
   if (payload.widgets) {
     client.setQueryData(k.activeWidgetSlugs(), payload.widgets);
   }
+  seedBootstrapBlocks(client, payload);
 }
 
 // ──────────────────────────────────────────────
@@ -271,6 +335,59 @@ const attempts = new WeakMap<QueryClient, Attempt>();
 
 /** 404/501 nesta carga de página: backend sem o endpoint. Não insiste. */
 let unsupportedThisPage = false;
+
+/**
+ * Tentativa mais recente da página (para o `fetch` do app): só ela serve
+ * blocos a GETs em voo.
+ */
+let liveAttempt: (Attempt & { ctx: BootstrapBlockContext }) | null = null;
+
+/** localStorage: "0" = o backend respondeu o bootstrap SEM `blocks`. */
+export const BOOTSTRAP_BLOCKS_HINT_KEY = "crm:bootstrap-blocks";
+
+function readBlocksHint(): string | null {
+  try {
+    return typeof window === "undefined"
+      ? null
+      : window.localStorage.getItem(BOOTSTRAP_BLOCKS_HINT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeBlocksHint(hasBlocks: boolean): void {
+  try {
+    window.localStorage.setItem(BOOTSTRAP_BLOCKS_HINT_KEY, hasBlocks ? "1" : "0");
+  } catch {
+    /* storage bloqueado: só perde a dica */
+  }
+}
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json", "x-crm-bootstrap-block": "1" },
+  });
+}
+
+/**
+ * Resolver do `fetch` do app: GET de uma URL do mapa com a tentativa em
+ * voo espera e recebe o bloco (sem rede). Tentativa já encerrada, URL
+ * fora do mapa ou backend sem blocos → `null` (rede, como hoje).
+ */
+export function resolveFromBootstrap(path: string): Promise<Response | null> | null {
+  const attempt = liveAttempt;
+  if (!attempt || attempt.settled) return null;
+  if (!findBootstrapBlock(path, attempt.ctx)) return null;
+  if (readBlocksHint() === "0") return null;
+  return attempt.promise.then((payload) => {
+    const body = payload?.blocks?.[path];
+    return body === null || body === undefined ? null : jsonResponse(body);
+  });
+}
+
+setApiGetResolver(resolveFromBootstrap);
+setRevalidatedApiPathMatcher(isRevalidatedApiPath);
 
 function identityKey(id: ShellBootstrapIdentity): string {
   return `${id.userId}|${id.organizationId ?? ""}`;
@@ -296,6 +413,8 @@ async function fetchShellBootstrap(
   try {
     const res = await apiFetch(SHELL_BOOTSTRAP_PATH, {
       headers: { Accept: "application/json" },
+      // ETag: o navegador revalida com `If-None-Match` (304 → corpo guardado).
+      cache: "no-cache",
     });
     if (res.status === 404 || res.status === 501) {
       unsupportedThisPage = true;
@@ -307,6 +426,10 @@ async function fetchShellBootstrap(
     // Sessão do cookie ≠ sessão do client (cookie trocado em outra aba):
     // os blocos seriam de outro usuário → caminho antigo.
     if (body.user.id !== identity.userId) return null;
+    const blocks = (body as { blocks?: unknown }).blocks;
+    const hasBlocks = !!blocks && typeof blocks === "object" && !Array.isArray(blocks);
+    if (!hasBlocks) delete (body as { blocks?: unknown }).blocks;
+    writeBlocksHint(hasBlocks);
     return body;
   } catch {
     // Rede / timeout: comportamento atual (cada hook faz o seu GET).
@@ -330,10 +453,11 @@ export function startShellBootstrap(
   const current = attempts.get(client);
   if (current && current.identity === key) return current.promise;
 
-  const attempt: Attempt = {
+  const attempt: Attempt & { ctx: BootstrapBlockContext } = {
     identity: key,
     settled: false,
     promise: Promise.resolve(null),
+    ctx: { userId: identity.userId, organizationId: identity.organizationId ?? null },
   };
   attempt.promise = fetchShellBootstrap(identity)
     .then((payload) => {
@@ -346,6 +470,7 @@ export function startShellBootstrap(
       attempt.settled = true;
     });
   attempts.set(client, attempt);
+  liveAttempt = attempt;
   return attempt.promise;
 }
 
@@ -375,4 +500,5 @@ export function hasShellBootstrapAttempt(client: QueryClient): boolean {
 /** Limpa o estado por página (flag 404/501). Para testes. */
 export function resetShellBootstrapForTests(): void {
   unsupportedThisPage = false;
+  liveAttempt = null;
 }

@@ -117,13 +117,29 @@ export function sseReconnectDelayMs(attempt: number, random = Math.random): numb
  * volta à aba (≥ 60s depois).
  */
 export const SSE_EVICTED_EVENT = "sse_connection_evicted";
+/**
+ * Teto por usuário (contrato novo): passando de 3 conexões, o servidor
+ * fecha a MAIS ANTIGA com `event: superseded` /
+ * `data: {"code":"SSE_SUPERSEDED"}` — no mesmo bloco, ANTES do legado
+ * `sse_connection_evicted` (para o front antigo). Aqui o `superseded`
+ * fecha a conexão na hora, então o legado nem é entregue (o
+ * `EventSource` fechado não despacha mais eventos). Reconectar sozinha derrubaria outra
+ * conexão do mesmo usuário (outro navegador/dispositivo), em rodízio —
+ * então a líder fecha e entra em "modo sem tempo real" (`paused`): não
+ * reconecta por timer nem quando o usuário volta à aba. Só o botão
+ * "reconectar" (`resumeSSE`) abre de novo — e aí pode derrubar outra.
+ * As seguidoras sabem pelo `status` (`paused: true`) e pedem a
+ * reconexão à líder (`sse-resume`). Enquanto pausada, a tela refaz as
+ * queries ativas no foco e a cada 60 s (`RealtimePausedNotice`).
+ */
+export const SSE_SUPERSEDED_EVENT = "superseded";
 export const SSE_EVICTED_MIN_RETRY_MS = 60_000;
 /** `Retry-After` ilegível (CORS sem expose) num 429: assume o default do backend. */
 export const SSE_ORG_LIMIT_DEFAULT_RETRY_MS = 35_000;
 export const SSE_UNAUTHORIZED_RECHECK_MS = 60_000;
 const HOLD_JITTER = 0.3;
 
-export type SseHoldReason = "evicted" | "unauthorized" | "session-ended";
+export type SseHoldReason = "evicted" | "unauthorized" | "session-ended" | "superseded";
 
 /** Resultado da sondagem HTTP depois de um handshake recusado. */
 export type SseProbeResult = {
@@ -168,6 +184,7 @@ export interface SseEnv {
 }
 
 type StatusListener = (open: boolean) => void;
+type PausedListener = (paused: boolean) => void;
 
 class SharedSSEConnection {
   private es: EventSourceLike | null = null;
@@ -177,6 +194,9 @@ class SharedSSEConnection {
   private readonly subscribers = new Map<SSEHandler, ReadonlySet<string>>();
   private readonly reconnectHandlers = new Set<SSEReconnectHandler>();
   private readonly statusListeners = new Set<StatusListener>();
+  private readonly pausedListeners = new Set<PausedListener>();
+  /** Seguidora: a líder avisou que está pausada (`superseded`). */
+  private remotePaused = false;
   /** Eventos pedidos pelas seguidoras (cache; recalculado em `refresh`). */
   private followerNeeds = new Set<string>();
   /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
@@ -208,6 +228,51 @@ class SharedSSEConnection {
   /** Por que a líder não está reconectando (`null` = fluxo normal). */
   get holdReason(): SseHoldReason | null {
     return this.hold?.reason ?? null;
+  }
+
+  /**
+   * "Modo sem tempo real": a conexão desta aba (ou da líder) foi
+   * substituída (`superseded`) e só volta pelo `resume()`.
+   */
+  get paused(): boolean {
+    return this.isLeader() ? this.hold?.reason === "superseded" : this.remotePaused;
+  }
+
+  onPausedChange(fn: PausedListener): () => void {
+    this.pausedListeners.add(fn);
+    return () => this.pausedListeners.delete(fn);
+  }
+
+  private emitPaused(): void {
+    const paused = this.paused;
+    for (const fn of this.pausedListeners) {
+      try {
+        fn(paused);
+      } catch {
+        /* isola */
+      }
+    }
+  }
+
+  /**
+   * Usuário pediu para reconectar (botão do aviso). Líder: sai da pausa e
+   * conecta já. Seguidora: pede à líder (é ela quem tem a conexão).
+   */
+  resume(): void {
+    if (!this.isLeader()) {
+      this.tabs?.post({ t: "sse-resume", url: this.url });
+      return;
+    }
+    if (this.hold?.reason !== "superseded") return;
+    this.hold = null;
+    this.failures = 0;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.emitPaused();
+    this.postStatus();
+    this.refresh();
   }
 
   private get tabs(): TabCoordinator | null {
@@ -281,6 +346,12 @@ class SharedSSEConnection {
       // Entre a queda da líder anterior e esta conexão houve um gap sem
       // replay: o open seguinte avisa os assinantes como reconexão.
       if (this.everOpened) this.sawGap = true;
+      // A líder anterior estava pausada (`superseded`): a nova herda a
+      // pausa — abrir sozinha derrubaria outra conexão do usuário.
+      if (this.remotePaused) {
+        this.remotePaused = false;
+        this.hold = { reason: "superseded", until: Number.POSITIVE_INFINITY };
+      }
     }
     this.refresh();
   }
@@ -293,8 +364,13 @@ class SharedSSEConnection {
   }
 
   /** Seguidora: estado da conexão da líder. */
-  applyRemoteStatus(open: boolean): void {
+  applyRemoteStatus(open: boolean, paused = false): void {
     if (this.isLeader()) return;
+    const pausedNow = paused && !open;
+    if (pausedNow !== this.remotePaused) {
+      this.remotePaused = pausedNow;
+      this.emitPaused();
+    }
     if (open === this.open) return;
     this.setOpen(open, false);
     if (open) {
@@ -307,7 +383,7 @@ class SharedSSEConnection {
   /** Líder: reenvia o estado atual (uma seguidora nova acabou de se apresentar). */
   postStatus(): void {
     if (!this.tabs || !this.isLeader()) return;
-    this.tabs.post({ t: "status", url: this.url, open: this.open });
+    this.tabs.post({ t: "status", url: this.url, open: this.open, paused: this.paused });
   }
 
   /** Entrega local (evento da própria conexão ou retransmitido pela líder). */
@@ -347,7 +423,7 @@ class SharedSSEConnection {
       }
     }
     if (broadcast && this.tabs && this.isLeader()) {
-      this.tabs.post({ t: "status", url: this.url, open });
+      this.tabs.post({ t: "status", url: this.url, open, paused: this.paused });
     }
   }
 
@@ -409,6 +485,7 @@ class SharedSSEConnection {
     let opened = false;
     this.attachMissing(this.neededEvents());
     es.addEventListener(SSE_EVICTED_EVENT, (e) => this.onEvicted(es, e));
+    es.addEventListener(SSE_SUPERSEDED_EVENT, () => this.onSuperseded(es));
     es.addEventListener(SSE_HEARTBEAT_EVENT, () => {
       if (this.es !== es) return;
       this.heartbeatSupported = true;
@@ -551,6 +628,31 @@ class SharedSSEConnection {
   }
 
   /**
+   * Teto por usuário (contrato novo): esta conexão era a mais antiga e foi
+   * substituída. Fecha e PAUSA — sem timer de volta (ver
+   * `SSE_SUPERSEDED_EVENT`); `onUserActive` também não libera.
+   */
+  private onSuperseded(es: EventSourceLike): void {
+    if (this.es !== es) return;
+    es.close();
+    this.es = null;
+    this.stopStaleWatch();
+    this.attached.clear();
+    if (this.everOpened) this.sawGap = true;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.hold = { reason: "superseded", until: Number.POSITIVE_INFINITY };
+    if (this.open) {
+      this.setOpen(false, true);
+    } else {
+      this.postStatus();
+    }
+    this.emitPaused();
+  }
+
+  /**
    * Usuário voltou à aba: se o prazo do "evicted"/"unauthorized" já passou
    * (timer estrangulado em segundo plano, ou 401 sem timer), tenta de novo.
    */
@@ -668,7 +770,9 @@ export class SseTabBridge {
         if (msg.t === "event") {
           this.connections.get(msg.url)?.deliverLocal(msg.name, msg.data);
         } else if (msg.t === "status") {
-          this.connection(msg.url).applyRemoteStatus(msg.open);
+          this.connection(msg.url).applyRemoteStatus(msg.open, msg.paused === true);
+        } else if (msg.t === "sse-resume") {
+          this.connections.get(msg.url)?.resume();
         } else if (msg.t === "state") {
           // Seguidora nova: diz a ela como está a conexão.
           for (const url of Object.keys(msg.state.sse ?? {})) {
@@ -834,6 +938,29 @@ export function subscribeSSEStatus(url: string, fn: StatusListener): () => void 
 
 export function isSSEConnected(url = "/api/sse/messages"): boolean {
   return bridge().connection(apiUrl(url)).connected;
+}
+
+/** Conexão da `url` em "modo sem tempo real" (`superseded`)? */
+export function isSSEPaused(url = "/api/sse/messages"): boolean {
+  return bridge().connection(apiUrl(url)).paused;
+}
+
+export function subscribeSSEPaused(url: string, fn: PausedListener): () => void {
+  return bridge().connection(apiUrl(url)).onPausedChange(fn);
+}
+
+/** Botão "reconectar" do aviso de tempo real pausado. */
+export function resumeSSE(url = "/api/sse/messages"): void {
+  bridge().connection(apiUrl(url)).resume();
+}
+
+/** `true` enquanto o tempo real desta aba está pausado (`superseded`). */
+export function useSSEPaused(url = "/api/sse/messages"): boolean {
+  return useSyncExternalStore(
+    (onChange) => subscribeSSEPaused(url, onChange),
+    () => isSSEPaused(url),
+    () => false,
+  );
 }
 
 /** `true` enquanto o stream SSE (desta aba ou da líder) está aberto. */
