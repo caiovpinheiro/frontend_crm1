@@ -120,7 +120,10 @@ export const SSE_EVICTED_EVENT = "sse_connection_evicted";
 /**
  * Teto por usuário (contrato novo): passando de 3 conexões, o servidor
  * fecha a MAIS ANTIGA com `event: superseded` /
- * `data: {"code":"SSE_SUPERSEDED"}`. Reconectar sozinha derrubaria outra
+ * `data: {"code":"SSE_SUPERSEDED"}` — no mesmo bloco, ANTES do legado
+ * `sse_connection_evicted` (para o front antigo). Aqui o `superseded`
+ * fecha a conexão na hora, então o legado nem é entregue (o
+ * `EventSource` fechado não despacha mais eventos). Reconectar sozinha derrubaria outra
  * conexão do mesmo usuário (outro navegador/dispositivo), em rodízio —
  * então a líder fecha e entra em "modo sem tempo real" (`paused`): não
  * reconecta por timer nem quando o usuário volta à aba. Só o botão
