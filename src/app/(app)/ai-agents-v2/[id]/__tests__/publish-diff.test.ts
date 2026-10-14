@@ -35,10 +35,10 @@ describe("buildPublishDiff", () => {
   });
 
   it("assunto alterado mostra o que mudou dentro dele", () => {
-    const t = { id: "t1", name: "Financeiro", when: ["boleto"], handoffDestination: undefined };
+    const t = { id: "t1", name: "Financeiro", when: ["fatura"], handoffDestination: undefined };
     const out = buildPublishDiff(
       { themes: [t] },
-      { themes: [{ ...t, when: ["boleto", "pix"], handoffDestination: { type: "department", id: "d1" } }, { id: "t2", name: "Novo" }] },
+      { themes: [{ ...t, when: ["fatura", "pix"], handoffDestination: { type: "department", id: "d1" } }, { id: "t2", name: "Novo" }] },
       catalogs,
     );
     const g = out[0].groups[0];
