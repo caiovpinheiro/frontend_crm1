@@ -53,10 +53,11 @@ const pathOf = (input: RequestInfo | URL) => {
   return u.replace(/^https?:\/\/[^/]+/, "");
 };
 
+/** be #193: v2 = URLs do contrato MENOS salas do chat (e o status, do live). */
 function stableBlocks(): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [url, fx] of Object.entries(BLOCK_FIXTURES)) {
-    if (url !== ROOMS_PATH) out[url] = fx.body;
+    if (url !== ROOMS_PATH && url !== STATUS_PATH) out[url] = fx.body;
   }
   return out;
 }
@@ -89,11 +90,18 @@ function v1Payload(): MeBootstrapPayload {
   };
 }
 
+/** Corpo de `GET /api/me/live` (be #193). */
 const LIVE = {
+  version: 1,
   agentStatus: { userId: "u1", status: "ONLINE", availableForVoiceCalls: true },
   emailUnread: { totalUnread: 3, accounts: [{ id: "e1", email: "a@x", unreadCount: 3 }] },
   teamChatRooms: { totalUnread: 2, rooms: [] },
-  blocks: { [ROOMS_PATH]: BLOCK_FIXTURES[ROOMS_PATH].body },
+  failedBlocks: [],
+  blocks: {
+    [ROOMS_PATH]: BLOCK_FIXTURES[ROOMS_PATH].body,
+    [STATUS_PATH]: { userId: "u1", status: "ONLINE", availableForVoiceCalls: true },
+  },
+  blockErrors: {},
 };
 
 let bootstrapAnswer: () => Response;
@@ -124,8 +132,13 @@ function useNavEmail() {
   });
 }
 
+const MOUNTED = Object.entries(BLOCK_FIXTURES)
+  .filter(([url]) => url !== STATUS_PATH)
+  .map(([, fx]) => fx);
+
 function Mount() {
-  for (const fx of Object.values(BLOCK_FIXTURES)) fx.useHook();
+  // O status do próprio usuário é lido pelo hook real (`useAgentStatus`).
+  for (const fx of MOUNTED) fx.useHook();
   useAgentStatus();
   useNavEmail();
   return null;
@@ -203,6 +216,43 @@ describe("backend novo (v2 + live)", () => {
     release();
     expect(await (await pending).json()).toEqual(BLOCK_FIXTURES[ROOMS_PATH].body);
     expect(netPaths()).not.toContain(ROOMS_PATH);
+  });
+});
+
+describe("merge estável + live (usuários e departamentos)", () => {
+  it("presença e contagens do live voltam aos itens do bloco estável, na mesma chave", async () => {
+    bootstrapAnswer = () => json(v2Payload());
+    liveAnswer = () =>
+      json({
+        ...LIVE,
+        usersPresence: { u2: { systemOnline: true, lastSeenAt: "2026-10-14T12:00:00.000Z" } },
+        departmentCounts: { d1: { openConversations: 7 } },
+      });
+    const client = newClient();
+    renderApp(client);
+    await settle(client);
+    expect(client.getQueryData(BLOCK_FIXTURES["/api/users"].queryKey)).toEqual([
+      { id: "u1", name: "Ana" },
+      { id: "u2", name: "Bia", systemOnline: true, lastSeenAt: "2026-10-14T12:00:00.000Z" },
+    ]);
+    expect(client.getQueryData(BLOCK_FIXTURES["/api/settings/departments"].queryKey)).toEqual([
+      { id: "d1", name: "Vendas", requireTabulationOnClose: false, openConversations: 7 },
+    ]);
+    expect(netPaths()).not.toContain("/api/users");
+    expect(netPaths()).not.toContain("/api/settings/departments");
+  });
+
+  it("live falhou: o bloco estável é semeado como veio (sem GET individual)", async () => {
+    bootstrapAnswer = () => json(v2Payload());
+    liveAnswer = () => json({ message: "erro" }, 500);
+    const client = newClient();
+    renderApp(client);
+    await settle(client);
+    expect(client.getQueryData(BLOCK_FIXTURES["/api/users"].queryKey)).toEqual([
+      { id: "u1", name: "Ana" },
+      { id: "u2", name: "Bia" },
+    ]);
+    expect(netPaths()).not.toContain("/api/users");
   });
 });
 

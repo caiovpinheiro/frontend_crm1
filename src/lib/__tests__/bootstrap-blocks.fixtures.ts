@@ -34,6 +34,16 @@ export const BLOCK_FIXTURES: Record<string, BlockFixture> = {
     queryKey: ["team-chat-rooms"],
     useHook: () => useTeamChatRooms(true),
   },
+  "/api/agents/u1/status": {
+    body: { userId: "u1", status: "AWAY", availableForVoiceCalls: false },
+    queryKey: ["my-agent-status", "u1"],
+    // Mesmo GET do fallback de `useAgentStatus` (sem montar o popup/SSE).
+    useHook: () =>
+      useQuery({
+        queryKey: ["my-agent-status", "u1"],
+        queryFn: async () => (await fetch(apiUrl("/api/agents/u1/status"))).json(),
+      }),
+  },
   "/api/activities/alerts": {
     body: { alert: null },
     queryKey: ACTIVITY_ALERT_KEY,
