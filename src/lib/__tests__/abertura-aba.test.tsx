@@ -68,8 +68,11 @@ const FORA_DO_SHELL = [
   "GET /api/activities/alerts",
 ] as const;
 
-/** Pior caso da presença: a líder antecipa UMA batida pela entidade nova. */
-const PRESENCA_PIOR_CASO = 1;
+/**
+ * Presença: a aba nova é seguidora e a líder bate em cadência estrita
+ * (abrir o negócio não antecipa a batida) — 0 por abertura.
+ */
+const PRESENCA_PIOR_CASO = 0;
 /** SSE: a aba nova é seguidora (a conexão é da líder). */
 const SSE_ABA_NOVA = 0;
 
@@ -204,7 +207,6 @@ it("aba nova em /pipeline?deal= com outra aba aberta: ≤ 20 requisições", asy
   const linhas = [
     ...shell.map((p) => `GET ${p}`),
     ...FORA_DO_SHELL,
-    "POST /api/presence/beat (da líder, pior caso)",
   ];
   process.stdout.write(`[abertura] ${total} requisições:\n  ${linhas.join("\n  ")}\n`);
   expect(total).toBeLessThanOrEqual(20);
