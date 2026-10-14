@@ -4,6 +4,7 @@ import { useMemo, useCallback, useEffect } from "react"
 import { useReactFlow, useNodes, type Node } from "@xyflow/react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { DropdownGlass } from "@/components/crm/dropdown-glass"
 import { type FlowNodeData, type NodeConfig } from "@/lib/flow-data"
 import {
@@ -167,6 +168,7 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
       const nextConfig: Record<string, unknown> = { ...defaultTriggerConfig(nextType) }
       if (prev.__rfPos !== undefined) nextConfig.__rfPos = prev.__rfPos
       if (prev.__entryDisconnected === true) nextConfig.__entryDisconnected = true
+      if (prev.startWhileAiAttends === true) nextConfig.startWhileAiAttends = true
       updateNodeData(id, {
         triggerType: nextType,
         title: triggerTypeLabel(nextType),
@@ -212,6 +214,27 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
               }}
             />
           ) : null}
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card px-3 py-3">
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm text-foreground">Iniciar com agente de IA</p>
+              <p className="text-xs text-muted-foreground">
+                Este fluxo começa mesmo quando um agente de IA está na conversa. Desligado, um fluxo que fala com o cliente não inicia nesse caso.
+              </p>
+            </div>
+            <Switch
+              checked={(cfg as Record<string, unknown>).startWhileAiAttends === true}
+              onCheckedChange={(on) => {
+                const next = { ...(cfg as Record<string, unknown>), startWhileAiAttends: on }
+                updateNodeData(id, {
+                  config: next as NodeConfig,
+                  preview: triggerType
+                    ? summarizeTriggerConfig(triggerType, next, triggerLookup)
+                    : data.preview,
+                })
+              }}
+              aria-label="Iniciar com agente de IA"
+            />
+          </div>
         </div>
       ) : null}
 
