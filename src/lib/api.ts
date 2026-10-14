@@ -4,6 +4,11 @@ import {
   readRetryAfter,
   retryAfterFrom,
 } from "@/lib/rate-limit";
+import {
+  BOOTSTRAP_VERSION_HEADER,
+  directV2Kind,
+  mergeDirectBody,
+} from "@/lib/bootstrap-live-merge";
 import { handleSessionRevoked, isSessionRevoked } from "@/lib/session-revoked";
 import { getTenantBaseDomain } from "@/lib/tenant-url";
 
@@ -211,6 +216,7 @@ export function createAppFetch(original: typeof fetch): typeof fetch {
     const href = requestHref(input);
     const apiPath = backendApiPathOf(href);
     let nextInit = init;
+    let v2Kind: ReturnType<typeof directV2Kind>;
     if (apiPath && requestMethod(input, init) === "GET") {
       const pending = apiGetResolver?.(apiPath) ?? null;
       if (pending) {
@@ -223,6 +229,14 @@ export function createAppFetch(original: typeof fetch): typeof fetch {
         revalidatedApiPath(apiPath)
       ) {
         nextInit = { ...init, cache: "no-cache" };
+      }
+      // Usuários/departamentos no formato estável (v2) + voláteis do live
+      // recente — merge único em `lib/bootstrap-live-merge.ts`.
+      v2Kind = input instanceof Request ? undefined : directV2Kind(apiPath);
+      if (v2Kind) {
+        const headers = new Headers(nextInit?.headers);
+        headers.set(BOOTSTRAP_VERSION_HEADER, "2");
+        nextInit = { ...nextInit, headers };
       }
     }
     const dest = rewriteToDirectApi(href);
@@ -241,6 +255,16 @@ export function createAppFetch(original: typeof fetch): typeof fetch {
     if (apiPath && isRateLimitStatus(res.status)) {
       const info = await readRetryAfter(res).catch(() => null);
       if (info) noteRateLimited(info.retryAfterMs);
+    }
+    if (v2Kind && res.ok && (res.headers.get("content-type") ?? "").includes("application/json")) {
+      const body: unknown = await res.clone().json().catch(() => undefined);
+      if (body !== undefined) {
+        return new Response(JSON.stringify(mergeDirectBody(v2Kind, body)), {
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+        });
+      }
     }
     return res;
   };
