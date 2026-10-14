@@ -291,12 +291,14 @@ export class FakeTab {
     io: {
       heartbeat: PresenceEnv["heartbeat"];
       leave: PresenceEnv["leave"];
+      beat?: PresenceEnv["beat"];
     },
   ): PresenceEnv {
     return {
       tabs,
       heartbeat: io.heartbeat,
       leave: io.leave,
+      beat: io.beat,
       isHidden: () => this.hidden,
       onVisibilityChange: (fn) => {
         this.visibilityHandlers.add(fn);
@@ -308,7 +310,9 @@ export class FakeTab {
   presenceTickerEnv(
     tabs: TabCoordinator | null,
     io: Pick<PresenceTickerEnv, "ping" | "activity"> &
-      Partial<Pick<PresenceTickerEnv, "onUnauthorized" | "isSessionEnded" | "idle">>,
+      Partial<
+        Pick<PresenceTickerEnv, "onUnauthorized" | "isSessionEnded" | "idle" | "beat" | "hub" | "finalBeacon">
+      >,
   ): PresenceTickerEnv {
     const key = "bwipo:presence:last-tick";
     const holdKey = "bwipo:presence:hold-until";
@@ -319,6 +323,9 @@ export class FakeTab {
       onUnauthorized: io.onUnauthorized,
       isSessionEnded: io.isSessionEnded,
       idle: io.idle,
+      beat: io.beat,
+      hub: io.hub,
+      finalBeacon: io.finalBeacon,
       readLastTick: () => {
         const raw = this.hub.storage.get(key);
         return raw ? Number(raw) : null;

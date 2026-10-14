@@ -34,6 +34,7 @@ import { AgentStatusProvider } from "@/components/crm/agent-status-context";
 import { SendToChatProvider } from "@/features/team-chat/send-to-chat-dialog";
 import { MessageToastProvider } from "@/features/inbox-v2/context/message-toast-context";
 import { InboxMessageAlerts } from "@/components/layout/inbox-message-alerts";
+import { RealtimePausedNotice } from "@/components/layout/realtime-paused-notice";
 
 // O TooltipProvider (Radix) é provido uma única vez na raiz (app/providers.tsx),
 // cobrindo tanto os TooltipGlass quanto os TooltipContent/TooltipHost. Não é
@@ -67,6 +68,8 @@ export default function AppLayout({
         </div>
         {children}
         <UpdateAvailableBanner />
+        {/* SSE substituída (teto de conexões): refetch de segurança + reconectar. */}
+        <RealtimePausedNotice />
         <MobileAppUpdateDialog />
         <SoftphoneWidget />
         <WhatsappIncomingCallWidget />

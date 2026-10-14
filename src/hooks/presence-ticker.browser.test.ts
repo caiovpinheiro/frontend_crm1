@@ -15,6 +15,7 @@ vi.mock("@/lib/sign-out-to-login", () => ({
 // Aba isolada (sem coordenação): esta aba é a líder de si mesma.
 vi.mock("@/hooks/sse-single-leader", () => ({ isSingleLeaderEnabled: () => false }));
 
+import { __resetPresenceBeatHubForTests, PresenceBeatHub } from "@/hooks/presence-beat-hub";
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
 import {
   PRESENCE_TAB_ID_HEADER,
@@ -51,6 +52,8 @@ async function flush() {
 }
 
 beforeEach(() => {
+  // Backend sem `POST /api/presence/beat`: aqui vale o caminho do ping.
+  __resetPresenceBeatHubForTests(new PresenceBeatHub({ readUnsupportedAt: () => Date.now() }));
   vi.useFakeTimers({
     toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
   });

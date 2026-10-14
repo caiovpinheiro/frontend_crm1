@@ -46,10 +46,16 @@ export type TabMessage =
   | { t: "bye" }
   | { t: "state"; state: TabState }
   | { t: "event"; url: string; name: string; data: unknown }
-  | { t: "status"; url: string; open: boolean }
+  /**
+   * `paused`: a líder recebeu `superseded` (teto de conexões do usuário)
+   * e está em "modo sem tempo real" — não reconecta sozinha.
+   */
+  | { t: "status"; url: string; open: boolean; paused?: boolean }
   | { t: "viewers"; key: string; viewers: unknown }
   /** Seguidora → líder: interações de uso real (`presence-ticker.ts`). */
-  | { t: "activity"; count: number };
+  | { t: "activity"; count: number }
+  /** Seguidora → líder: o usuário pediu para reconectar o SSE pausado. */
+  | { t: "sse-resume"; url: string };
 
 export type TabEnvelope = TabMessage & { v: 1; from: string; term: number };
 
@@ -527,6 +533,7 @@ export class TabCoordinator {
         this.emitFollowersChanged();
         break;
       case "activity":
+      case "sse-resume":
         // Endereçada à líder (de qualquer termo: a contagem não envelhece).
         if (this.roleValue !== "leader") return;
         break;

@@ -1,5 +1,6 @@
 "use client";
 
+import { presenceBeatHub, type PresenceBeatHub } from "./presence-beat-hub";
 import { isSingleLeaderEnabled } from "./sse-single-leader";
 import {
   tabCoordinatorFor,
@@ -26,6 +27,16 @@ import {
  * - Aba fechada: seguidora → `bye` → a líder manda `leave` do que mais
  *   ninguém vê. Líder → `onSuspend` manda `leave` do que só ela via, e a
  *   próxima líder renova o resto na hora.
+ *
+ * Com `POST /api/presence/beat` (`presence-beat-hub.ts`): NADA daqui vai à
+ * rede. A união das entidades segue no corpo da batida única do tique
+ * (`presence-ticker.ts`, a cada `nextBeatMs`), os viewers voltam na
+ * resposta e são entregues aqui (e às seguidoras pelo canal). Abrir ou
+ * fechar uma entidade não chama nada: a próxima batida (cadência estrita)
+ * leva a lista nova, e o `leave` HTTP sai de cena (ping + heartbeat contam
+ * no limite da org). A saída de tudo, na última aba do navegador, é a
+ * batida final por `sendBeacon` do tique. 404 no beat → volta ao
+ * heartbeat por entidade (e ao `leave`).
  */
 
 export const ENTITY_VIEWERS_HEARTBEAT_MS = 25_000;
@@ -45,6 +56,8 @@ export interface PresenceEnv {
   heartbeat: (entityType: string, entityId: string) => Promise<EntityViewer[] | null>;
   /** Saída explícita (beacon). */
   leave: (entityType: string, entityId: string) => void;
+  /** Batida única (`presence-beat-hub.ts`); ausente = só heartbeat por entidade. */
+  beat?: PresenceBeatHub | null;
   isHidden: () => boolean;
   onVisibilityChange: (fn: () => void) => () => void;
 }
@@ -84,8 +97,30 @@ export class PresenceSync {
         }),
       );
     }
+    const hub = env.beat;
+    if (hub) {
+      this.offs.push(
+        hub.setSource({
+          keys: () => [...(this.isLeader() ? this.desiredKeys() : this.reportedKeys())],
+          deliver: (key, viewers) => {
+            this.deliver(key, viewers);
+            this.env.tabs?.post({ t: "viewers", key, viewers });
+          },
+        }),
+        // Beat → heartbeat (404): as entidades ainda não foram anunciadas
+        // por heartbeat; zera para o join imediato de cada uma.
+        hub.onModeChange(() => {
+          this.active.clear();
+          this.sync();
+        }),
+      );
+    }
     this.offs.push(env.onVisibilityChange(() => this.onVisibility()));
     if (env.isHidden()) this.armHiddenGrace();
+  }
+
+  private beatActive(): boolean {
+    return !!this.env.beat?.active;
   }
 
   private isLeader(): boolean {
@@ -138,6 +173,13 @@ export class PresenceSync {
     if (!this.isLeader()) {
       // Seguidora (ou líder que acabou de ceder): a nova líder renova o
       // que todos reportam — sair aqui faria a pilha piscar.
+      this.active.clear();
+      this.stopBeat();
+      return;
+    }
+    if (this.beatActive()) {
+      // A batida única leva as entidades (o tique lê `desiredKeys` na hora
+      // de bater): sem heartbeat por entidade e sem `leave` HTTP.
       this.active.clear();
       this.stopBeat();
       return;
@@ -273,6 +315,7 @@ export function browserPresenceEnv(): PresenceEnv {
     tabs: isSingleLeaderEnabled() ? tabCoordinatorFor("crm") : null,
     heartbeat: postHeartbeat,
     leave: leaveBeacon,
+    beat: presenceBeatHub(),
     isHidden: () => typeof document !== "undefined" && document.hidden,
     onVisibilityChange: (fn) => {
       if (typeof document === "undefined") return () => {};
