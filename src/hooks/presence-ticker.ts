@@ -80,10 +80,13 @@ import {
  * `lastInteractionAt` e a união das entidades abertas em todas as abas —
  * a cada `nextBeatMs` da resposta (padrão `PRESENCE_BEAT_DEFAULT_MS`,
  * 60 s); os `viewers` da resposta vão ao `presence-sync`, que deixa de
- * mandar o heartbeat por entidade. Entidade aberta/fechada só antecipa a
- * próxima batida se a última foi há `PRESENCE_BEAT_MIN_GAP_MS` (30 s) ou
- * mais. Ociosidade, 401, 429/503 com prazo e `x-tab-id` como no ping. 404
- * → volta ao ping (no mesmo tique) e ao heartbeat por entidade.
+ * mandar o heartbeat por entidade e o `leave`. Cadência ESTRITA: abrir ou
+ * fechar entidade, resposta deduplicada ou o activity nunca antecipam a
+ * batida — a próxima já leva a lista nova (TTL dos viewers no servidor:
+ * 150 s). No `pagehide` da ÚLTIMA aba do navegador sai um `sendBeacon`
+ * do beat com `entities: []` (a saída de tudo, 1 chamada). Ociosidade,
+ * 401, 429/503 com prazo e `x-tab-id` como no ping. 404 → volta ao ping
+ * (no mesmo tique) e ao heartbeat por entidade.
  */
 
 /** Cadência do tique (sweeper do backend: offline após 300 s sem ping). */
@@ -129,6 +132,9 @@ export type PresenceBeatBody = {
   entities: PresenceEntity[];
 };
 
+/** Batida final (`sendBeacon`) da última aba que fecha: `entities: []`. */
+export type PresenceFinalBeacon = (body: PresenceBeatBody) => void;
+
 /** Ociosidade da sessão (`lib/session-idle.ts`), vista pelo tique. */
 export interface PresenceIdleEnv {
   /** Última interação humana do navegador (vai no corpo do ping). */
@@ -151,6 +157,8 @@ export interface PresenceTickerEnv {
   beat?: (body: PresenceBeatBody) => Promise<PresenceCallResult>;
   /** Elo com o `presence-sync` (entidades, viewers, 404). Sem ele não há beat. */
   hub?: PresenceBeatHub | null;
+  /** `pagehide` da última aba (líder sem seguidoras) com o beat em uso. */
+  finalBeacon?: PresenceFinalBeacon;
   /**
    * 401 em ping/activity. Devolve `true` quando a sessão acabou (o tique
    * para de vez); `false` = 401 esperado (renovação da sessão em
@@ -171,7 +179,7 @@ export interface PresenceTickerEnv {
   onVisibilityChange: (fn: () => void) => () => void;
 }
 
-type TickReason = "lead" | "timer" | "activity" | "visible" | "entities";
+type TickReason = "lead" | "timer" | "activity" | "visible";
 
 export class PresenceTicker {
   /** Líder: interações a enviar. Seguidora: interações a repassar. */
@@ -190,10 +198,6 @@ export class PresenceTicker {
   private wasLeader = false;
   /** Cadência da batida única (do `nextBeatMs` da última resposta). */
   private beatIntervalMs = PRESENCE_BEAT_DEFAULT_MS;
-  /** Entidades da última batida ACEITA (não deduplicada) pelo backend. */
-  private acceptedEntitiesSig: string | null = null;
-  /** Deduplicada com lista nova: o próximo timer é a nova tentativa. */
-  private dedupRetry = false;
   private readonly offs: Array<() => void> = [];
 
   constructor(private readonly env: PresenceTickerEnv) {
@@ -206,9 +210,6 @@ export class PresenceTicker {
         }),
         tabs.onSuspend((wasLeader) => this.onSuspend(wasLeader)),
       );
-    }
-    if (env.hub && env.beat) {
-      this.offs.push(env.hub.setDriver(() => this.requestTick("entities")));
     }
     this.offs.push(env.onVisibilityChange(() => this.onVisibility()));
     this.sync();
@@ -284,8 +285,37 @@ export class PresenceTicker {
   }
 
   private maybeOpenSession(): void {
-    if (Date.now() - this.lastActivitySentAt >= ACTIVITY_SESSION_IDLE_MS) {
-      this.requestTick("activity");
+    if (Date.now() - this.lastActivitySentAt < ACTIVITY_SESSION_IDLE_MS) return;
+    // Com o beat, abrir a sessão de uso manda SÓ o activity: a batida
+    // segue a cadência estrita.
+    if (this.usingBeat()) void this.sendActivityNow();
+    else this.requestTick("activity");
+  }
+
+  /** Beat em uso: o activity que abre a sessão de uso sai sozinho, já. */
+  private async sendActivityNow(): Promise<void> {
+    if (this.dead || !this.isLeader() || this.pending <= 0) return;
+    if (Date.now() < this.holdUntilAt()) return; // 429: espera o prazo (vai no tique)
+    const count = this.pending;
+    this.pending = 0;
+    this.lastActivitySentAt = Date.now();
+    let result: PresenceCallResult | void;
+    try {
+      result = await this.env.activity(count);
+    } catch {
+      result = undefined;
+    }
+    if (this.dead) return;
+    if (result?.status === 401) {
+      this.onUnauthorizedResponse();
+      return;
+    }
+    if (result?.status === 429) {
+      this.pending += count; // não se perde: vai no próximo tique
+      const waitMs = retryAfterOf(result);
+      this.holdUntil = Date.now() + waitMs;
+      this.env.writeHoldUntil?.(this.holdUntil);
+      if (this.holdUntil > this.nextAt) this.scheduleNext(this.holdUntil, true);
     }
   }
 
@@ -297,25 +327,11 @@ export class PresenceTicker {
       this.scheduleNext(holdUntil);
       return;
     }
-    if (reason === "timer" && this.dedupRetry && this.usingBeat()) {
-      // Prazo do `retryAfterMs` de uma batida deduplicada: o backend já
-      // disse quando aceita, o intervalo mínimo local não se aplica.
-      this.dedupRetry = false;
-      void this.tick();
-      return;
-    }
     const since = Date.now() - this.lastTick();
     const interval = this.interval();
     if (reason === "visible") {
       // Só recupera tique atrasado (timer estrangulado em segundo plano).
       if (since >= interval) void this.tick();
-      return;
-    }
-    if (reason === "entities") {
-      // Abrir/fechar entidade nunca gera batida extra: no máximo antecipa
-      // a próxima, se a última foi há 30 s ou mais. Senão, a cadência leva.
-      if (!this.usingBeat()) return;
-      if (since >= PRESENCE_BEAT_MIN_GAP_MS) void this.tick();
       return;
     }
     // Troca de líder / F5: segue a cadência do navegador (1 ping por
@@ -405,9 +421,7 @@ export class PresenceTicker {
   ): Promise<PresenceCallResult | void> {
     const hub = this.env.hub;
     if (!this.env.beat || !hub?.active) return this.env.ping(lastInteractionAt);
-    this.dedupRetry = false;
     const entities = hub.entities();
-    const sig = entities.map((e) => `${e.type}:${e.id}`).join(",");
     const result = await this.env.beat({ lastInteractionAt, entities });
     if (result.status === 404 || result.status === 405 || result.status === 501) {
       hub.markUnsupported();
@@ -423,17 +437,8 @@ export class PresenceTicker {
         this.beatIntervalMs = interval;
         if (!this.dead && this.isLeader()) this.scheduleNext(at + interval, true);
       }
-      if (!result.deduped) {
-        this.acceptedEntitiesSig = sig;
-      } else if (sig !== this.acceptedEntitiesSig && !this.dead && this.isLeader()) {
-        // Deduplicada e o backend não tem a lista atual: tenta de novo no
-        // prazo dado (antes da cadência), sem tratar como 429.
-        const wait = result.retryAfterMs;
-        if (typeof wait === "number" && Number.isFinite(wait) && wait > 0 && Date.now() + wait < this.nextAt) {
-          this.dedupRetry = true;
-          this.scheduleNext(Date.now() + wait, true);
-        }
-      }
+      // Deduplicada (200): nada a antecipar — a próxima do ciclo leva a
+      // lista atual.
       hub.deliver(result.viewers);
     }
     return result;
@@ -481,9 +486,27 @@ export class PresenceTicker {
     if (this.env.isVisible()) this.requestTick("visible");
   }
 
-  /** `pagehide`: o que ainda não saiu não se perde. */
+  /**
+   * `pagehide`: o que ainda não saiu não se perde. Líder SEM seguidoras =
+   * última aba do navegador: com o beat, uma batida final por `sendBeacon`
+   * com `entities: []` (o backend tira o navegador de todas as entidades).
+   * Com outras abas abertas, a próxima líder bate na cadência sem as
+   * entidades desta.
+   */
   private onSuspend(wasLeader: boolean): void {
     this.flushPending(wasLeader);
+    if (!wasLeader || this.halted || !this.usingBeat() || !this.env.finalBeacon) return;
+    const tabs = this.env.tabs;
+    if (tabs && tabs.followerStates().size > 0) return;
+    if (this.env.isSessionEnded?.()) return;
+    try {
+      this.env.finalBeacon({
+        lastInteractionAt: this.env.idle?.lastInteractionAt() ?? null,
+        entities: [],
+      });
+    } catch {
+      /* beacon é best-effort */
+    }
   }
 
   private flushPending(asLeader: boolean): void {
@@ -658,6 +681,24 @@ export function presenceClientId(): string {
   }
 }
 
+/**
+ * Batida final da última aba (`pagehide`): `sendBeacon` same-origin (o
+ * rewrite `/api/*` do Next leva ao backend; sem CORS nem cabeçalho — o
+ * `tabId` vai no corpo).
+ */
+export function sendFinalBeatBeacon(tabId: string, body: PresenceBeatBody): void {
+  if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") return;
+  const payload = JSON.stringify({
+    tabId,
+    clientId: presenceClientId(),
+    ...(body.lastInteractionAt != null ? { lastInteractionAt: body.lastInteractionAt } : {}),
+    entities: body.entities,
+  });
+  navigator.sendBeacon(PRESENCE_BEAT_PATH, new Blob([payload], { type: "application/json" }));
+}
+
+export const PRESENCE_BEAT_PATH = "/api/presence/beat";
+
 async function postActivity(interactionCount: number): Promise<PresenceCallResult> {
   const res = await fetch(apiUrl("/api/agents/me/activity"), {
     method: "POST",
@@ -707,6 +748,7 @@ export function browserPresenceTickerEnv(): PresenceTickerEnv {
     activity: postActivity,
     beat: (body) => postPresenceBeat(tabId, body),
     hub: presenceBeatHub(),
+    finalBeacon: (body) => sendFinalBeatBeacon(tabId, body),
     // Qualquer 401 encerra; só a renovação da própria sessão não.
     onUnauthorized: () => handleUnauthorized() !== "renewal",
     isSessionEnded,

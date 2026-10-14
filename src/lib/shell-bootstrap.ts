@@ -665,29 +665,147 @@ function mergeLive(stable: MeBootstrapPayload, live: MeLivePayload | null): MeBo
 }
 
 /**
- * De onde vem o estável de uma tentativa. Padrão: a rede. Outra aba pode
- * fornecê-lo sem rede (`lib/bootstrap-share.ts`).
+ * De onde vem o estável de uma carga. Padrão: a rede. Outra aba pode
+ * fornecê-lo sem rede (`lib/bootstrap-share.ts`). `client()` = o
+ * QueryClient vivo mais recente desta página (para responder a outras
+ * abas com o cache atual).
  */
 export type StableBootstrapSource = (
   identity: ShellBootstrapIdentity,
   fetchFromNetwork: () => Promise<MeBootstrapPayload | null>,
-  client: QueryClient,
+  client: () => QueryClient,
 ) => Promise<MeBootstrapPayload | null>;
 
+/** De onde vem o live de uma carga (mesma ideia: outra aba ou a rede). */
+export type LiveSource = (
+  identity: ShellBootstrapIdentity,
+  fetchFromNetwork: () => Promise<MeLivePayload | null>,
+  client: () => QueryClient,
+) => Promise<MeLivePayload | null>;
+
 const networkSource: StableBootstrapSource = (_identity, fromNetwork) => fromNetwork();
+const networkLiveSource: LiveSource = (_identity, fromNetwork) => fromNetwork();
 let stableSource: StableBootstrapSource = networkSource;
+let liveSource: LiveSource = networkLiveSource;
 
 export function setStableBootstrapSource(source: StableBootstrapSource | null): void {
   stableSource = source ?? networkSource;
 }
 
+export function setLiveSource(source: LiveSource | null): void {
+  liveSource = source ?? networkLiveSource;
+}
+
+// ──────────────────────────────────────────────
+// Carga por PÁGINA (uma por identidade), semeada em cada QueryClient
+// ──────────────────────────────────────────────
+
 /**
- * Inicia (ou reaproveita) a tentativa para esta identidade. Idempotente
- * por `userId|organizationId`: trocar de org/usuário sem recarregar a
- * página cria uma tentativa nova e re-semeia os caches.
+ * A rede (bootstrap + live) sai UMA vez por página e identidade, não uma
+ * vez por QueryClient: o `<ShellBootstrap/>` dispara no render, e um
+ * render descartado antes do commit (ex.: React refazendo a árvore do
+ * zero depois de um erro de hidratação recria o `QueryClient` de
+ * `app/providers.tsx`) ou uma identidade que vai e volta criavam outra
+ * tentativa — e outro bootstrap + live. Cada QueryClient continua com a
+ * sua tentativa (semeadura, `fromShellBootstrap`), alimentada pela carga
+ * da página. Uma carga vale por `PAGE_LOAD_REUSE_MS` depois de pronta.
+ */
+export const PAGE_LOAD_REUSE_MS = 60_000;
+
+type PageLoad = {
+  stable: Promise<MeBootstrapPayload | null>;
+  /** Decidido quando o estável resolve (`null` = sem live). */
+  live: Promise<MeLivePayload | null> | null;
+  doneAt: number | null;
+  client: QueryClient;
+};
+
+const pageLoads = new Map<string, PageLoad>();
+
+/**
+ * Semeadura só depois do PRIMEIRO commit da página. O bootstrap (ainda
+ * mais o vindo de outra aba, em milissegundos) podia chegar NO MEIO da
+ * hidratação: componentes ainda não hidratados liam o cache já semeado
+ * (ex.: `useCan` em `app/(app)/contacts/client-page.tsx:341-345`, que
+ * muda os itens do menu de ações) e renderizavam diferente do HTML do
+ * servidor → erro de hidratação → o React refaz a árvore do zero,
+ * `app/providers.tsx` cria outro `QueryClient` e o `<ShellBootstrap/>`
+ * disparava outra carga (3× bootstrap + 3× live em /contacts). Os
+ * `queryFn` só rodam depois do commit e, enquanto a porta está fechada,
+ * esperam a tentativa (`fromShellBootstrap` / blocos em voo) — nada vai à
+ * rede à toa. Teto de `COMMIT_GATE_MAX_MS` por segurança.
+ */
+export const COMMIT_GATE_MAX_MS = 3_000;
+let pageCommitted = false;
+let commitGate: { promise: Promise<void>; open: () => void } | null = null;
+
+/** `<ShellBootstrap/>` no render: segura a semeadura até o 1º commit. */
+export function holdSeedingUntilCommit(): void {
+  if (pageCommitted || commitGate || typeof window === "undefined") return;
+  let open!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  const timer = setTimeout(() => open(), COMMIT_GATE_MAX_MS);
+  commitGate = {
+    promise,
+    open: () => {
+      clearTimeout(timer);
+      open();
+    },
+  };
+}
+
+/** `<ShellBootstrap/>` no efeito (página hidratada): libera a semeadura. */
+export function releaseSeedingAfterCommit(): void {
+  pageCommitted = true;
+  commitGate?.open();
+}
+
+function afterCommit(): Promise<void> | null {
+  return pageCommitted || !commitGate ? null : commitGate.promise;
+}
+
+function pageLoadFor(identity: ShellBootstrapIdentity, client: QueryClient): PageLoad {
+  const key = identityKey(identity);
+  const existing = pageLoads.get(key);
+  if (existing && (existing.doneAt === null || Date.now() - existing.doneAt < PAGE_LOAD_REUSE_MS)) {
+    existing.client = client;
+    return existing;
+  }
+  const load: PageLoad = { stable: Promise.resolve(null), live: null, doneAt: null, client };
+  const currentClient = () => load.client;
+  load.stable = stableSource(identity, () => fetchShellBootstrap(identity), currentClient)
+    .catch(() => null)
+    .then((payload) => {
+      // Decide o live JÁ (antes de quem espera o estável continuar).
+      if (payload && isStableOnlyPayload(payload) && !isPreviewMode()) {
+        load.live = liveSource(identity, () => fetchMeLive(identity), currentClient)
+          .catch(() => null)
+          .then((live) => {
+            // Live de outra aba também alimenta o merge das chamadas diretas.
+            if (live) rememberLive(live);
+            return live;
+          });
+        void load.live.finally(() => {
+          load.doneAt = Date.now();
+        });
+      } else {
+        load.doneAt = Date.now();
+      }
+      return payload;
+    });
+  pageLoads.set(key, load);
+  return load;
+}
+
+/**
+ * Inicia (ou reaproveita) a tentativa deste QueryClient para esta
+ * identidade. Idempotente por `userId|organizationId`: trocar de
+ * org/usuário sem recarregar a página cria uma tentativa nova e re-semeia
+ * os caches. A rede vem da carga da página (`pageLoadFor`).
  *
- * Seguro no render (não lança, não muda estado React); só efeito
- * colateral é o fetch, deduplicado pela tentativa.
+ * Seguro no render (não lança, não muda estado React).
  *
  * v2: o estável chega primeiro (semeado na hora); se ele vier sem os
  * voláteis, sai UM `GET /api/me/live` e o que ele trouxer é semeado nas
@@ -713,16 +831,17 @@ export function startShellBootstrap(
     liveSettled: false,
   };
   const isCurrent = () => attempts.get(client) === attempt;
-  attempt.stable = stableSource(identity, () => fetchShellBootstrap(identity), client)
-    .catch(() => null)
-    .then((payload) => {
-      const wantsLive = !!payload && isStableOnlyPayload(payload) && !isPreviewMode();
+  const load = pageLoadFor(identity, client);
+  attempt.stable = load.stable
+    .then(async (payload) => {
+      const gate = afterCommit();
+      if (gate) await gate;
+      const wantsLive = !!payload && !!load.live;
       if (payload && isCurrent()) {
         seedShellBootstrapCaches(client, payload, { deferOverlays: wantsLive });
       }
-      // Decide o live JÁ (antes de quem espera o estável continuar).
-      if (payload && wantsLive) {
-        attempt.live = fetchMeLive(identity)
+      if (payload && load.live) {
+        attempt.live = load.live
           .then((live) => {
             if (isCurrent()) {
               if (live) seedLiveCaches(client, attempt.ctx, live);
@@ -772,9 +891,14 @@ export function hasShellBootstrapAttempt(client: QueryClient): boolean {
   return attempts.has(client);
 }
 
-/** Limpa o estado por página (flag 404/501, fonte do estável). Para testes. */
+/** Limpa o estado por página (flag 404/501, fontes, cargas). Para testes. */
 export function resetShellBootstrapForTests(): void {
   unsupportedThisPage = false;
   liveAttempt = null;
   stableSource = networkSource;
+  liveSource = networkLiveSource;
+  pageLoads.clear();
+  commitGate?.open();
+  commitGate = null;
+  pageCommitted = false;
 }

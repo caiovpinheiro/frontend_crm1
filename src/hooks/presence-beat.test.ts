@@ -3,8 +3,10 @@
  *  - só a aba líder manda, a cada `nextBeatMs` (padrão 60 s), com a UNIÃO
  *    das entidades abertas em todas as abas — sem ping e sem heartbeat;
  *  - as seguidoras recebem os `viewers` pela líder;
- *  - abrir/fechar entidade não gera batida extra (no máximo antecipa a
- *    próxima, se a última foi há 30 s ou mais);
+ *  - cadência ESTRITA de `nextBeatMs`: abrir/fechar entidade, resposta
+ *    deduplicada e activity não antecipam a batida;
+ *  - com o beat: 0 heartbeat e 0 `leave` HTTP; só a ÚLTIMA aba que fecha
+ *    manda a batida final (`sendBeacon`, `entities: []`);
  *  - 404 → ping (no mesmo tique) + heartbeat por entidade, e memória;
  *  - ociosidade (lastInteractionAt, logout local), 401, 429 e x-tab-id.
  */
@@ -18,10 +20,10 @@ import {
 import { PresenceSync, type EntityViewer } from "./presence-sync";
 import {
   PRESENCE_BEAT_DEFAULT_MS,
-  PRESENCE_BEAT_MIN_GAP_MS,
   PRESENCE_TAB_ID_HEADER,
   PresenceTicker,
   postPresenceBeat,
+  sendFinalBeatBeacon,
   type PresenceBeatBody,
   type PresenceCallResult,
   type PresenceIdleEnv,
@@ -41,6 +43,8 @@ type Aba = {
 };
 
 type Io = {
+  finals: { at: number; tab: string; body: PresenceBeatBody }[];
+  activities: { at: number; count: number }[];
   leaves: { at: number; tab: string; key: string }[];
   beats: Beat[];
   pings: { at: number; tab: string }[];
@@ -78,7 +82,13 @@ function abrir(hub: FakeTabHub, id: string, io: Io, idle?: PresenceIdleEnv, onUn
         io.pings.push({ at: Date.now(), tab: id });
         return { status: 200 };
       },
-      activity: async () => ({ status: 200 }),
+      activity: async (count) => {
+        io.activities.push({ at: Date.now(), count });
+        return { status: 200 };
+      },
+      finalBeacon: (body) => {
+        io.finals.push({ at: Date.now(), tab: id, body: structuredClone(body) });
+      },
       beat: async (body) => {
         io.beats.push({ at: Date.now(), tab: id, body: structuredClone(body) });
         return io.beatReply(body);
@@ -101,6 +111,8 @@ beforeEach(() => {
   vi.setSystemTime(T0);
   hub = new FakeTabHub();
   io = {
+    finals: [],
+    activities: [],
     leaves: [],
     beats: [],
     pings: [],
@@ -129,7 +141,7 @@ describe("uma batida por navegador", () => {
     // ≤ 1 por ciclo de 60 s (+ a primeira).
     expect(io.beats.length).toBeLessThanOrEqual(10 + 1);
     const gaps = io.beats.slice(1).map((b, i) => b.at - io.beats[i].at);
-    for (const g of gaps) expect(g).toBeGreaterThanOrEqual(PRESENCE_BEAT_MIN_GAP_MS);
+    for (const g of gaps) expect(g).toBe(PRESENCE_BEAT_DEFAULT_MS);
     expect(keysOf(io.beats[io.beats.length - 1])).toEqual(["conversation:c7", "deal:1", "deal:2"]);
     process.stdout.write(`[beat] 3 abas, 10 min → ${io.beats.length} batidas, 0 ping, 0 heartbeat\n`);
   });
@@ -157,75 +169,115 @@ describe("uma batida por navegador", () => {
   });
 });
 
-describe("abrir/fechar entidade", () => {
-  it("menos de 30 s depois da batida: nenhuma extra (vai na próxima do ciclo)", async () => {
+describe("cadência estrita (nextBeatMs)", () => {
+  const gapsOf = (beats: Beat[]) => beats.slice(1).map((b, i) => b.at - beats[i].at);
+
+  it("60 s exatos com 10 aberturas/fechamentos de negócio no meio; 0 heartbeat e 0 leave HTTP", async () => {
     const a = abrir(hub, "a", io);
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(io.beats).toHaveLength(1);
-    const off = a.sync.register("deal", "1", () => undefined);
-    await vi.advanceTimersByTimeAsync(10_000);
-    off();
-    a.sync.register("deal", "3", () => undefined);
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(io.beats).toHaveLength(1);
-    await vi.advanceTimersByTimeAsync(PRESENCE_BEAT_DEFAULT_MS);
-    expect(io.beats).toHaveLength(2);
-    expect(keysOf(io.beats[1])).toEqual(["deal:3"]);
+    const b = abrir(hub, "b", io);
+    await vi.advanceTimersByTimeAsync(1_000);
+    // 10 aberturas/fechamentos espalhados (líder e seguidora), em instantes
+    // que antes antecipavam a batida (≥ 30 s desde a última).
+    const ops: Array<[number, Aba, string]> = [
+      [33_000, a, "1"], [7_000, b, "2"], [25_000, a, "3"], [31_000, b, "4"], [2_000, a, "5"],
+      [45_000, b, "6"], [12_000, a, "7"], [36_000, b, "8"], [9_000, a, "9"], [40_000, b, "10"],
+    ];
+    for (const [wait, aba, id] of ops) {
+      await vi.advanceTimersByTimeAsync(wait);
+      const off = aba.sync.register("deal", id, () => undefined);
+      await vi.advanceTimersByTimeAsync(3_000);
+      off();
+    }
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(io.beats.length).toBeGreaterThanOrEqual(5);
+    for (const g of gapsOf(io.beats)) expect(g).toBe(PRESENCE_BEAT_DEFAULT_MS);
+    expect(io.heartbeats).toHaveLength(0);
+    expect(io.leaves).toHaveLength(0);
+    expect(io.pings).toHaveLength(0);
+    process.stdout.write(`[beat] 10 aberturas/fechamentos → intervalos ${gapsOf(io.beats).join(", ")} ms\n`);
   });
 
-  it("30 s ou mais depois: antecipa a próxima (uma só) e a cadência recomeça dela", async () => {
+  it("a batida seguinte já leva a lista nova (e sem a entidade que saiu)", async () => {
     const a = abrir(hub, "a", io);
-    await vi.advanceTimersByTimeAsync(40_000);
-    expect(io.beats).toHaveLength(1);
-    a.sync.register("deal", "1", () => undefined);
-    a.sync.register("deal", "2", () => undefined);
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(io.beats).toHaveLength(2);
-    expect(keysOf(io.beats[1])).toEqual(["deal:1", "deal:2"]);
-    await vi.advanceTimersByTimeAsync(PRESENCE_BEAT_DEFAULT_MS - 2_000);
-    expect(io.beats).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect(io.beats).toHaveLength(3);
+    const off = a.sync.register("deal", "1", () => undefined);
+    await vi.advanceTimersByTimeAsync(PRESENCE_BEAT_DEFAULT_MS);
+    expect(keysOf(io.beats[1])).toEqual(["deal:1"]);
+    off();
+    await vi.advanceTimersByTimeAsync(PRESENCE_BEAT_DEFAULT_MS);
+    expect(keysOf(io.beats[2])).toEqual([]);
+    expect(io.leaves).toHaveLength(0);
+  });
+
+  it("deduplicada (200) não antecipa: segue nextBeatMs", async () => {
+    io.beatReply = () => ({ status: 200, deduped: true, retryAfterMs: 5_000, nextBeatMs: 60_000 });
+    const a = abrir(hub, "a", io);
+    await vi.advanceTimersByTimeAsync(1_000);
+    a.sync.register("deal", "1", () => undefined);
+    await vi.advanceTimersByTimeAsync(3 * 60_000);
+    for (const g of gapsOf(io.beats)) expect(g).toBe(60_000);
+  });
+
+  it("activity que abre a sessão de uso sai sozinho; a batida não se move", async () => {
+    const a = abrir(hub, "a", io);
+    await vi.advanceTimersByTimeAsync(6 * 60_000 + 20_000); // > 5 min sem activity
+    const before = io.beats.length;
+    a.ticker.record(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(io.activities).toHaveLength(1);
+    expect(io.beats).toHaveLength(before);
+    await vi.advanceTimersByTimeAsync(3 * 60_000);
+    for (const g of gapsOf(io.beats)) expect(g).toBe(PRESENCE_BEAT_DEFAULT_MS);
+  });
+});
+
+describe("saída na última aba (sendBeacon)", () => {
+  it("só a última aba do navegador manda a batida final, com entities []", async () => {
+    const a = abrir(hub, "a", io);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const b = abrir(hub, "b", io);
+    const c = abrir(hub, "c", io);
+    b.sync.register("deal", "2", () => undefined);
+    await vi.advanceTimersByTimeAsync(25_000);
+
+    c.tab.close(); // seguidora
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(io.finals).toHaveLength(0);
+
+    a.tab.close(); // líder, com a "b" ainda aberta
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(io.finals).toHaveLength(0);
+    expect(b.tabs.role).toBe("leader");
+
+    await vi.advanceTimersByTimeAsync(PRESENCE_BEAT_DEFAULT_MS);
+    b.tab.close(); // a última
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(io.finals).toHaveLength(1);
+    expect(io.finals[0]).toMatchObject({ tab: "b", body: { entities: [] } });
+    expect(io.leaves).toHaveLength(0);
+    expect(io.heartbeats).toHaveLength(0);
+  });
+
+  it("sendFinalBeatBeacon: sendBeacon same-origin para /api/presence/beat com tabId e clientId", () => {
+    const sendBeacon = vi.fn(() => true);
+    vi.stubGlobal("navigator", { sendBeacon });
+    vi.stubGlobal("Blob", class {
+      constructor(readonly parts: string[], readonly opts: { type: string }) {}
+    });
+    sendFinalBeatBeacon("tab-9", { lastInteractionAt: 5, entities: [] });
+    expect(sendBeacon).toHaveBeenCalledTimes(1);
+    const [url, blob] = sendBeacon.mock.calls[0] as unknown as [string, { parts: string[]; opts: { type: string } }];
+    expect(url).toBe("/api/presence/beat");
+    expect(blob.opts.type).toBe("application/json");
+    const body = JSON.parse(blob.parts[0]);
+    expect(body).toMatchObject({ tabId: "tab-9", lastInteractionAt: 5, entities: [] });
+    expect(typeof body.clientId).toBe("string");
+    vi.unstubAllGlobals();
   });
 });
 
 describe("contrato do beat (be #194)", () => {
-  it("fechar a entidade em todas as abas: `leave` imediato, sem batida extra", async () => {
-    const a = abrir(hub, "a", io);
-    await vi.advanceTimersByTimeAsync(1_000);
-    const b = abrir(hub, "b", io);
-    const offA = a.sync.register("deal", "1", () => undefined);
-    const offB = b.sync.register("deal", "1", () => undefined);
-    await vi.advanceTimersByTimeAsync(5_000);
-    const beats = io.beats.length;
-    offA();
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(io.leaves).toHaveLength(0); // a outra aba ainda vê
-    offB();
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(io.leaves.map((l) => l.key)).toEqual(["deal|1"]);
-    expect(io.leaves[0].tab).toBe("a"); // a líder
-    expect(io.beats).toHaveLength(beats);
-  });
-
-  it("deduplicada (200, não 429): com a lista mudada, tenta de novo no retryAfterMs; sem mudança, segue a cadência", async () => {
-    let n = 0;
-    io.beatReply = () =>
-      n++ === 1
-        ? { status: 200, deduped: true, retryAfterMs: 20_000, nextBeatMs: 60_000 }
-        : { status: 200, nextBeatMs: 60_000 };
-    const a = abrir(hub, "a", io);
-    await vi.advanceTimersByTimeAsync(40_000); // 1ª aceita, sem entidades
-    a.sync.register("deal", "1", () => undefined);
-    await vi.advanceTimersByTimeAsync(1_000); // 2ª antecipada → deduplicada
-    expect(io.beats).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(20_000);
-    expect(io.beats).toHaveLength(3); // retry no prazo, com a lista nova
-    expect(keysOf(io.beats[2])).toEqual(["deal:1"]);
-    await vi.advanceTimersByTimeAsync(58_000);
-    expect(io.beats).toHaveLength(3); // cadência normal (nextBeatMs)
-  });
-
   it("só tipos/ids do contrato e no máximo 20 por batida", () => {
     const beatHub = new PresenceBeatHub();
     const keys = [
