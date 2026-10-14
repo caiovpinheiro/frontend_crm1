@@ -11,6 +11,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 
+import { IDLE_MINUTE_OPTIONS, idleMinutesLabel } from "@/lib/idle-leads";
 import { cn } from "@/lib/utils";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { TagChip } from "@/components/crm/tag-chip";
@@ -348,13 +349,14 @@ function ConversationSegmentation({
     { value: "closed" as const, label: "Fechada" },
   ];
   const directionOptions = [
-    { value: "out" as const, label: "Agente" },
+    { value: "out" as const, label: "Consultor ou automação" },
     { value: "in" as const, label: "Cliente" },
   ];
   const activeCount =
     (draft.conversationStatus ? 1 : 0) +
     (draft.windowState ? 1 : 0) +
-    (draft.lastMessageDirection ? 1 : 0);
+    (draft.lastMessageDirection ? 1 : 0) +
+    (draft.idleMinutes ? 1 : 0);
 
   return (
     <div className="mb-4 border-b border-[var(--glass-border-subtle)] pb-4">
@@ -465,6 +467,32 @@ function ConversationSegmentation({
                   )}
                 >
                   {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block font-body text-[10.5px] text-[var(--text-muted)]">
+            Tempo sem interação
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {IDLE_MINUTE_OPTIONS.map((minutes) => {
+              const active = draft.idleMinutes === minutes;
+              return (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => setDraftField("idleMinutes", active ? undefined : minutes)}
+                  className={cn(
+                    "rounded-[var(--radius-md)] px-2 py-1.5 font-display text-[11px] font-semibold transition-colors",
+                    active
+                      ? "bg-[var(--brand-primary)] text-white"
+                      : "bg-[var(--glass-bg-modal)] text-[var(--text-secondary)] hover:text-[var(--brand-primary)]",
+                  )}
+                >
+                  {idleMinutesLabel(minutes)}
                 </button>
               );
             })}

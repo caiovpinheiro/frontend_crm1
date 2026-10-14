@@ -49,6 +49,7 @@ describe("URL dos filtros do Pipeline", () => {
       conversationStatus: "open",
       windowState: "closed",
       lastMessageDirection: "in",
+      idleMinutes: 180,
     };
     expect(dealFiltersFromUrlParams(toParams(dealFiltersToUrlParams(filters)))).toEqual(
       filters,

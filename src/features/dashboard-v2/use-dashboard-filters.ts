@@ -30,6 +30,8 @@ import {
   writeJson,
 } from "@/features/dashboard-v2/dashboard-persist";
 
+import { parseIdleMinutes } from "@/lib/idle-leads";
+
 import type { DashboardFiltersState, PeriodKey } from "./api";
 import { dashboardFiltersSettled } from "./dashboard-filters-gate";
 
@@ -70,6 +72,8 @@ type UrlFilterKeys = {
   ownerIds: string[];
   userIds: string[];
   sources: string[];
+  idleMinutes?: number;
+  lastMessageDirection?: "in" | "out";
 };
 
 function readUrlKeys(sp: URLSearchParams): UrlFilterKeys {
@@ -89,6 +93,9 @@ function readUrlKeys(sp: URLSearchParams): UrlFilterKeys {
     ownerIds: parseCsv(sp.get("owners")),
     userIds: parseCsv(sp.get("user")),
     sources: parseCsv(sp.get("sources")),
+    idleMinutes: parseIdleMinutes(sp.get("idle")),
+    lastMessageDirection:
+      sp.get("dir") === "in" || sp.get("dir") === "out" ? (sp.get("dir") as "in" | "out") : undefined,
   };
 }
 
@@ -136,6 +143,8 @@ function resolveToIds(
     tagIds: keys.tagIds,
     ownerIds: keys.ownerIds,
     sources: keys.sources,
+    idleMinutes: keys.idleMinutes,
+    lastMessageDirection: keys.lastMessageDirection,
   };
 }
 
@@ -173,6 +182,8 @@ function toSearchParams(
   if (f.ownerIds.length) sp.set("owners", f.ownerIds.join(","));
   if (f.userIds.length) sp.set("user", f.userIds.join(","));
   if (f.sources.length) sp.set("sources", f.sources.join(","));
+  if (f.idleMinutes) sp.set("idle", String(f.idleMinutes));
+  if (f.lastMessageDirection) sp.set("dir", f.lastMessageDirection);
   const mock = current?.get("mock");
   if (mock === "1" || mock === "0") sp.set("mock", mock);
   return sp.toString();
@@ -187,6 +198,8 @@ export function countStructuralDashboardFilters(f: DashboardFiltersState): numbe
   if (f.ownerIds.length) n++;
   if (f.userIds.length) n++;
   if (f.sources.length) n++;
+  if (f.idleMinutes) n++;
+  if (f.lastMessageDirection) n++;
   return n;
 }
 
@@ -247,6 +260,8 @@ const FILTER_URL_KEYS = [
   "owners",
   "user",
   "sources",
+  "idle",
+  "dir",
 ] as const;
 
 function urlHasDashboardFilters(sp: URLSearchParams): boolean {

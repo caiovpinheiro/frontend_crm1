@@ -357,7 +357,16 @@ function asIdList(value: unknown): string[] {
  */
 export type PainelRequestFilters = Pick<
   DashboardFiltersState,
-  "period" | "startDate" | "endDate" | "pipelineIds" | "stageIds" | "tagIds" | "ownerIds" | "sources"
+  | "period"
+  | "startDate"
+  | "endDate"
+  | "pipelineIds"
+  | "stageIds"
+  | "tagIds"
+  | "ownerIds"
+  | "sources"
+  | "idleMinutes"
+  | "lastMessageDirection"
 >;
 
 export function requestFilters(filters: DashboardFiltersState): PainelRequestFilters {
@@ -372,6 +381,10 @@ export function requestFilters(filters: DashboardFiltersState): PainelRequestFil
     tagIds: asIdList(filters.tagIds),
     ownerIds: asIdList(filters.ownerIds),
     sources: asIdList(filters.sources),
+    ...(filters.idleMinutes ? { idleMinutes: filters.idleMinutes } : {}),
+    ...(filters.lastMessageDirection
+      ? { lastMessageDirection: filters.lastMessageDirection }
+      : {}),
   };
 }
 
@@ -397,6 +410,8 @@ function filterQuery(filters: DashboardFiltersState, fieldIds?: string[]): URLSe
   if (tagIds.length) sp.set("tags", tagIds.join(","));
   if (ownerIds.length) sp.set("owners", ownerIds.join(","));
   if (sources.length) sp.set("sources", sources.join(","));
+  if (filters.idleMinutes) sp.set("idle", String(filters.idleMinutes));
+  if (filters.lastMessageDirection) sp.set("dir", filters.lastMessageDirection);
   if (fieldIds?.length) sp.set("fieldIds", fieldIds.join(","));
   return sp;
 }
