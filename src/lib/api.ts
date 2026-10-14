@@ -134,24 +134,62 @@ function rewriteToDirectApi(url: string): string | null {
   }
 }
 
+/**
+ * `path+query` de uma chamada à API do backend (relativa `/api/...` no
+ * origin da página ou absoluta no host da API); `null` para o resto
+ * (rotas locais do Next, assets, outros hosts).
+ */
+export function backendApiPathOf(href: string): string | null {
+  let parsed: URL;
+  try {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "http://localhost";
+    parsed = new URL(href, origin);
+  } catch {
+    return null;
+  }
+  const base = getApiBaseUrl();
+  const sameOrigin =
+    typeof window !== "undefined" && parsed.origin === window.location.origin;
+  const onApiHost = !!base && (parsed.origin === base || parsed.href.startsWith(`${base}/`));
+  if (!sameOrigin && !onApiHost && typeof window !== "undefined") return null;
+  const path = `${parsed.pathname}${parsed.search}`;
+  if (!path.startsWith("/api/")) return null;
+  if (isSameOriginFrontendApi(path)) return null;
+  return path;
+}
+
+/**
+ * O `fetch` do app (instalado em `window.fetch`), em volta do original:
+ *  1. reescrita same-origin → host da API (cookie de `.bwipo.com`).
+ */
+export function createAppFetch(original: typeof fetch): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const href = requestHref(input);
+    const nextInit = init;
+    const dest = rewriteToDirectApi(href);
+    let res: Response;
+    if (!dest) {
+      res = await original(input, nextInit);
+    } else if (input instanceof Request) {
+      res = await original(new Request(dest, input), {
+        ...nextInit,
+        credentials: "include",
+        mode: "cors",
+      });
+    } else {
+      res = await original(dest, { ...nextInit, credentials: "include", mode: "cors" });
+    }
+    return res;
+  };
+}
+
 function ensureDirectApiFetchCredentials(): void {
   if (typeof window === "undefined") return;
   const w = window as Window & { __crmDirectApiFetch?: boolean };
   if (w.__crmDirectApiFetch) return;
   w.__crmDirectApiFetch = true;
-  const original = window.fetch.bind(window);
-  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-    const dest = rewriteToDirectApi(requestHref(input));
-    if (!dest) return original(input, init);
-    if (input instanceof Request) {
-      return original(new Request(dest, input), {
-        ...init,
-        credentials: "include",
-        mode: "cors",
-      });
-    }
-    return original(dest, { ...init, credentials: "include", mode: "cors" });
-  };
+  window.fetch = createAppFetch(window.fetch.bind(window));
 }
 
 ensureDirectApiFetchCredentials();
