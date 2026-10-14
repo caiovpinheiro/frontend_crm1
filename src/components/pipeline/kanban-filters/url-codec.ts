@@ -31,6 +31,7 @@ import {
   type DealStatus,
   type TagMode,
 } from "./types";
+import { parseIdleMinutes } from "@/lib/idle-leads";
 import {
   decodeBool,
   decodeCsv,
@@ -73,6 +74,7 @@ export const DEAL_FILTER_URL_KEYS = [
   "conv",
   "window",
   "dir",
+  "idle",
   "logic",
   "cf",
   "ccf",
@@ -176,6 +178,7 @@ export function dealFiltersToUrlParams(
     conv: f.conversationStatus ?? null,
     window: f.windowState ?? null,
     dir: f.lastMessageDirection ?? null,
+    idle: f.idleMinutes ? String(f.idleMinutes) : null,
     logic: f.logic === "OR" ? "or" : null,
     cf: encodeJsonParam(f.dealCustomFields?.length ? f.dealCustomFields : null),
     ccf: encodeJsonParam(f.contactCustomFields?.length ? f.contactCustomFields : null),
@@ -267,6 +270,8 @@ export function dealFiltersFromUrlParams(
   if (windowState) out.windowState = windowState;
   const dir = decodeEnum(params.get("dir"), ["in", "out"] as const);
   if (dir) out.lastMessageDirection = dir;
+  const idle = parseIdleMinutes(params.get("idle"));
+  if (idle) out.idleMinutes = idle;
 
   if (params.get("logic")?.trim().toLowerCase() === "or") out.logic = "OR";
 

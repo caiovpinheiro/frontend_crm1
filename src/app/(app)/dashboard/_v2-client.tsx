@@ -68,6 +68,7 @@ import {
   periodToRangeISO,
   useDashboardFilters,
 } from "@/features/dashboard-v2/use-dashboard-filters";
+import type { DashboardFiltersState } from "@/features/dashboard-v2/api";
 import {
   createRemoteSliceSaver,
   loadRemoteDashboard,
@@ -849,6 +850,7 @@ function ManagerHome({
                 effectivePipelineId,
                 filters.pipelineIds,
                 filters.userIds,
+                filters,
                 <FunnelPipelinePicker
                   pipelines={(pipelines ?? []).map((p) => ({ id: p.id, name: p.name }))}
                   selectedId={effectivePipelineId}
@@ -1025,6 +1027,7 @@ function renderDealWidget(
   pipelineId?: string,
   pipelineIds?: string[],
   userIds?: string[],
+  filters?: DashboardFiltersState,
   funnelPicker?: ReactNode,
   hideInactiveAgents?: boolean,
   onHideInactiveAgents?: (next: boolean) => void,
@@ -1049,6 +1052,7 @@ function renderDealWidget(
       pipelineId={pipelineId}
       pipelineIds={pipelineIds}
       userIds={userIds}
+      filters={filters}
       funnelPicker={funnelPicker}
       hideInactiveAgents={hideInactiveAgents}
       onHideInactiveAgents={onHideInactiveAgents}
