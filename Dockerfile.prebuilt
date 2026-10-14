@@ -12,7 +12,10 @@
 # Uso: requer que .next/standalone e .next/static existam no contexto
 # (o workflow GHA garante isso apos `npm run build`).
 
-FROM public.ecr.aws/docker/library/node:22-bookworm-slim
+# Espelho do Docker Hub (mesmo digest da imagem oficial). public.ecr.aws
+# estoura a cota anonima de 500 GB/mes nos IPs do GitHub Actions
+# (429 "Data limit exceeded") e o build-and-push morre antes do COPY.
+FROM mirror.gcr.io/library/node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
