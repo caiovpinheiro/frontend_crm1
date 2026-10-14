@@ -41,6 +41,7 @@ type Aba = {
 };
 
 type Io = {
+  leaves: { at: number; tab: string; key: string }[];
   beats: Beat[];
   pings: { at: number; tab: string }[];
   heartbeats: { at: number; tab: string; key: string }[];
@@ -65,7 +66,9 @@ function abrir(hub: FakeTabHub, id: string, io: Io, idle?: PresenceIdleEnv, onUn
         io.heartbeats.push({ at: Date.now(), tab: id, key: `${type}|${entityId}` });
         return [];
       },
-      leave: () => undefined,
+      leave: (type, entityId) => {
+        io.leaves.push({ at: Date.now(), tab: id, key: `${type}|${entityId}` });
+      },
       beat: beatHub,
     }),
   );
@@ -98,6 +101,7 @@ beforeEach(() => {
   vi.setSystemTime(T0);
   hub = new FakeTabHub();
   io = {
+    leaves: [],
     beats: [],
     pings: [],
     heartbeats: [],
@@ -114,7 +118,7 @@ describe("uma batida por navegador", () => {
     abas[0].sync.register("deal", "1", () => undefined);
     abas[1].sync.register("deal", "2", () => undefined);
     abas[2].sync.register("deal", "2", () => undefined);
-    abas[2].sync.register("contact", "7", () => undefined);
+    abas[2].sync.register("conversation", "c7", () => undefined);
     await vi.advanceTimersByTimeAsync(10 * 60_000);
 
     const leaders = abas.filter((x) => x.tabs.role === "leader");
@@ -126,7 +130,7 @@ describe("uma batida por navegador", () => {
     expect(io.beats.length).toBeLessThanOrEqual(10 + 1);
     const gaps = io.beats.slice(1).map((b, i) => b.at - io.beats[i].at);
     for (const g of gaps) expect(g).toBeGreaterThanOrEqual(PRESENCE_BEAT_MIN_GAP_MS);
-    expect(keysOf(io.beats[io.beats.length - 1])).toEqual(["contact:7", "deal:1", "deal:2"]);
+    expect(keysOf(io.beats[io.beats.length - 1])).toEqual(["conversation:c7", "deal:1", "deal:2"]);
     process.stdout.write(`[beat] 3 abas, 10 min → ${io.beats.length} batidas, 0 ping, 0 heartbeat\n`);
   });
 
@@ -182,6 +186,77 @@ describe("abrir/fechar entidade", () => {
     expect(io.beats).toHaveLength(2);
     await vi.advanceTimersByTimeAsync(2_000);
     expect(io.beats).toHaveLength(3);
+  });
+});
+
+describe("contrato do beat (be #194)", () => {
+  it("fechar a entidade em todas as abas: `leave` imediato, sem batida extra", async () => {
+    const a = abrir(hub, "a", io);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const b = abrir(hub, "b", io);
+    const offA = a.sync.register("deal", "1", () => undefined);
+    const offB = b.sync.register("deal", "1", () => undefined);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const beats = io.beats.length;
+    offA();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(io.leaves).toHaveLength(0); // a outra aba ainda vê
+    offB();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(io.leaves.map((l) => l.key)).toEqual(["deal|1"]);
+    expect(io.leaves[0].tab).toBe("a"); // a líder
+    expect(io.beats).toHaveLength(beats);
+  });
+
+  it("deduplicada (200, não 429): com a lista mudada, tenta de novo no retryAfterMs; sem mudança, segue a cadência", async () => {
+    let n = 0;
+    io.beatReply = () =>
+      n++ === 1
+        ? { status: 200, deduped: true, retryAfterMs: 20_000, nextBeatMs: 60_000 }
+        : { status: 200, nextBeatMs: 60_000 };
+    const a = abrir(hub, "a", io);
+    await vi.advanceTimersByTimeAsync(40_000); // 1ª aceita, sem entidades
+    a.sync.register("deal", "1", () => undefined);
+    await vi.advanceTimersByTimeAsync(1_000); // 2ª antecipada → deduplicada
+    expect(io.beats).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(io.beats).toHaveLength(3); // retry no prazo, com a lista nova
+    expect(keysOf(io.beats[2])).toEqual(["deal:1"]);
+    await vi.advanceTimersByTimeAsync(58_000);
+    expect(io.beats).toHaveLength(3); // cadência normal (nextBeatMs)
+  });
+
+  it("só tipos/ids do contrato e no máximo 20 por batida", () => {
+    const beatHub = new PresenceBeatHub();
+    const keys = [
+      "deal|ok_1",
+      "conversation|c-2",
+      "contact|x", // tipo fora do contrato
+      "deal|id com espaço",
+      `deal|${"x".repeat(65)}`,
+      ...Array.from({ length: 30 }, (_, i) => `deal|d${String(i).padStart(2, "0")}`),
+    ];
+    beatHub.setSource({ keys: () => keys, deliver: () => undefined });
+    const out = beatHub.entities();
+    expect(out).toHaveLength(20);
+    for (const e of out) {
+      expect(["deal", "conversation"]).toContain(e.type);
+      expect(e.id).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+    }
+  });
+
+  it("clientId estável do navegador vai no corpo de toda batida", async () => {
+    const bodies: unknown[] = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    await postPresenceBeat("tab-1", { lastInteractionAt: 1, entities: [] }, fetchImpl);
+    await postPresenceBeat("tab-2", { lastInteractionAt: 1, entities: [] }, fetchImpl);
+    const [a, b] = bodies as { clientId: string; tabId: string }[];
+    expect(a.clientId).toMatch(/^[A-Za-z0-9_-]{8,128}$/);
+    expect(b.clientId).toBe(a.clientId);
+    expect([a.tabId, b.tabId]).toEqual(["tab-1", "tab-2"]);
   });
 });
 
@@ -269,6 +344,7 @@ describe("ociosidade, 401, 429 e x-tab-id", () => {
       "tab-1",
       { lastInteractionAt: 123, entities: [{ type: "deal", id: "1" }] },
       fetchImpl as unknown as typeof fetch,
+      "client-abc",
     );
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toMatch(/\/api\/presence\/beat$/);
@@ -276,6 +352,7 @@ describe("ociosidade, 401, 429 e x-tab-id", () => {
     expect(new Headers(init.headers).get(PRESENCE_TAB_ID_HEADER)).toBe("tab-1");
     expect(JSON.parse(String(init.body))).toEqual({
       tabId: "tab-1",
+      clientId: "client-abc",
       lastInteractionAt: 123,
       entities: [{ type: "deal", id: "1" }],
     });

@@ -31,10 +31,11 @@ import {
  * Com `POST /api/presence/beat` (`presence-beat-hub.ts`): NADA daqui vai à
  * rede. A união das entidades segue no corpo da batida única do tique
  * (`presence-ticker.ts`, a cada `nextBeatMs`), os viewers voltam na
- * resposta e são entregues aqui (e às seguidoras pelo canal). Abrir ou
- * fechar uma entidade só avisa o tique, que antecipa a próxima batida se
- * a última foi há 30 s ou mais; sem `leave` imediato (a batida seguinte já
- * não a inclui). 404 no beat → volta ao heartbeat por entidade.
+ * resposta e são entregues aqui (e às seguidoras pelo canal). Abrir uma
+ * entidade só avisa o tique, que antecipa a próxima batida se a última
+ * foi há 30 s ou mais. Fechar (nenhuma aba a vê mais) manda o `leave` de
+ * sempre na hora — fora do limite do beat. 404 no beat → volta ao
+ * heartbeat por entidade.
  */
 
 export const ENTITY_VIEWERS_HEARTBEAT_MS = 25_000;
@@ -107,7 +108,12 @@ export class PresenceSync {
             this.env.tabs?.post({ t: "viewers", key, viewers });
           },
         }),
-        hub.onModeChange(() => this.sync()),
+        // Beat → heartbeat (404): as entidades ainda não foram anunciadas
+        // por heartbeat; zera para o join imediato de cada uma.
+        hub.onModeChange(() => {
+          this.active.clear();
+          this.sync();
+        }),
       );
     }
     this.offs.push(env.onVisibilityChange(() => this.onVisibility()));
@@ -174,10 +180,18 @@ export class PresenceSync {
       return;
     }
     if (this.beatActive()) {
-      // A batida única leva as entidades: sem heartbeat nem `leave` aqui.
-      this.active.clear();
+      // A batida única leva as entidades: sem heartbeat por entidade. Quem
+      // saiu de vez (nenhuma aba vê) recebe o `leave` imediato de sempre.
       this.stopBeat();
-      const sig = [...this.desiredKeys()].sort().join(",");
+      const want = this.desiredKeys();
+      for (const key of this.active) {
+        if (want.has(key)) continue;
+        this.active.delete(key);
+        const { entityType, entityId } = parsePresenceKey(key);
+        this.env.leave(entityType, entityId);
+      }
+      for (const key of want) this.active.add(key);
+      const sig = [...want].sort().join(",");
       if (sig !== this.beatSig) {
         this.beatSig = sig;
         this.env.beat?.entitiesChanged();
