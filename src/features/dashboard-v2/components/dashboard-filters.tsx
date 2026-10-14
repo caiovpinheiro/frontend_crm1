@@ -502,9 +502,6 @@ type FilterGroup = {
   body: ReactNode;
 };
 
-/** Sobrevive ao re-render da URL. Sem isso o modal volta para Pipeline a cada chip. */
-let dashboardFilterGroupId = "";
-
 function DashboardFilterDialog({
   open,
   onClose,
@@ -518,18 +515,8 @@ function DashboardFilterDialog({
   clearDisabled: boolean;
   groups: FilterGroup[];
 }) {
-  const [groupId, setGroupId] = useState(
-    () => dashboardFilterGroupId || groups[0]?.id || "",
-  );
-  const active =
-    groups.find((group) => group.id === groupId) ??
-    groups.find((group) => group.id === dashboardFilterGroupId) ??
-    groups[0];
-
-  function chooseGroup(id: string) {
-    dashboardFilterGroupId = id;
-    setGroupId(id);
-  }
+  const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
+  const active = groups.find((group) => group.id === groupId) ?? groups[0];
 
   useEffect(() => {
     if (!open) return;
@@ -586,7 +573,7 @@ function DashboardFilterDialog({
                 <button
                   key={group.id}
                   type="button"
-                  onClick={() => chooseGroup(group.id)}
+                  onClick={() => setGroupId(group.id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     selected
