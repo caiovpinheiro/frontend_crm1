@@ -97,7 +97,7 @@ async function openTabA(hub: () => ShareChannelLike, id: ShellBootstrapIdentity,
   const shareA = new BootstrapShare(tabEnv(hub));
   const clientA = newClient();
   const netA = vi.fn(async () => payload);
-  const got = await sharedStableSource(shareA, () => clock)(id, netA, clientA);
+  const got = await sharedStableSource(shareA, () => clock)(id, netA, () => clientA);
   expect(got).toBe(payload);
   expect(netA).toHaveBeenCalledTimes(1);
   return { shareA, clientA };
@@ -134,7 +134,7 @@ describe("aba nova com outra aba aberta", () => {
     storage.set("hint", `${clock}|u2|org-1`);
     expect(await shareB.ask(BIA)).toBeNull();
     const netB = vi.fn(async () => payloadFor(BIA));
-    await sharedStableSource(shareB, () => clock)(BIA, netB, newClient());
+    await sharedStableSource(shareB, () => clock)(BIA, netB, newClient);
     expect(netB).toHaveBeenCalledTimes(1);
   });
 
@@ -153,7 +153,7 @@ describe("aba nova com outra aba aberta", () => {
     clock += BOOTSTRAP_SHARE_MAX_AGE_MS;
     const shareB = new BootstrapShare(tabEnv(hub));
     const netB = vi.fn(async () => payloadFor(ANA));
-    await sharedStableSource(shareB, () => clock)(ANA, netB, newClient());
+    await sharedStableSource(shareB, () => clock)(ANA, netB, newClient);
     expect(netB).toHaveBeenCalledTimes(1);
   });
 
@@ -163,7 +163,7 @@ describe("aba nova com outra aba aberta", () => {
     await openTabA(hub, ANA, payloadFor(ANA));
     clock += 10_000;
     const shareB = new BootstrapShare(tabEnv(hub));
-    await sharedStableSource(shareB, () => clock)(ANA, vi.fn(), newClient());
+    await sharedStableSource(shareB, () => clock)(ANA, vi.fn(), newClient);
     clock += 10_000;
     const shareC = new BootstrapShare(tabEnv(hub));
     const got = await shareC.ask(ANA);
