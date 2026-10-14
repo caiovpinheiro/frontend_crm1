@@ -188,8 +188,10 @@ type SortColumn = "evento" | "detalhe" | "entidade" | "origem" | "ator" | "data"
 function resolveEntityId(ev: FeedEvent): string | null {
   const t = ev.entityType;
   if (t === "DEAL") return ev.dealId ?? ev.entityId ?? null;
-  if (t === "CONTACT" || t === "MESSAGE")
-    return ev.contactId ?? ev.entityId ?? null;
+  if (t === "CONTACT") return ev.contactId ?? ev.entityId ?? null;
+  // Mensagem abre a conversa. O id da mensagem e o do contato não
+  // resolvem `?c=` no inbox.
+  if (t === "MESSAGE") return ev.conversationId ?? null;
   if (t === "CONVERSATION") return ev.conversationId ?? ev.entityId ?? null;
   return ev.entityId ?? null;
 }
@@ -1015,7 +1017,7 @@ function entityHref(entityType: string | null, entityId: string): string | null 
   if (!entityType || !entityId) return null;
   switch (entityType) {
     case "DEAL":
-      return `/deals/${entityId}`;
+      return `/pipeline?deal=${encodeURIComponent(entityId)}`;
     case "CONTACT":
       return `/contacts/${entityId}`;
     case "CONVERSATION":
