@@ -78,7 +78,8 @@ export function useTeamUsersQuery<T = CanonicalTeamUser>(
     queryKey: teamUsersKey(includeAi),
     queryFn: () => fetchTeamUsers<T>({ includeAi }),
     enabled,
-    staleTime: opts?.staleTime ?? 60_000,
+    // Bloco do bootstrap; presença chega por SSE (patch no cache).
+    staleTime: opts?.staleTime ?? 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });

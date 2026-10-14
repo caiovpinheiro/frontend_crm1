@@ -25,6 +25,10 @@
  * cache-busting), a chave a do hook, e o `parse` o mesmo do `queryFn`.
  */
 
+import {
+  DEPARTMENTS_QUERY_KEY,
+  normalizeDepartmentList,
+} from "@/features/conversations-settings/hooks/use-departments";
 import { INBOX_SETTINGS_QUERY_KEY, parseInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings";
 import { ACTIVITY_ALERT_KEY } from "@/features/directory-v2/hooks";
 import { parseOutboundMessagingChannels } from "@/features/inbox-v2/hooks/use-channels";
@@ -128,6 +132,14 @@ export const BOOTSTRAP_BLOCKS: readonly BootstrapBlockEntry[] = [
     // para todos — admin só não lê a chave.
     url: "/api/settings/visibility",
     queryKey: () => ["settings-visibility"],
+  },
+  {
+    name: "departments",
+    url: "/api/settings/departments",
+    // `useDepartments` (conversations-settings/hooks/use-departments.ts) —
+    // painel do negócio (atividades) e telas de configuração.
+    queryKey: () => DEPARTMENTS_QUERY_KEY,
+    parse: normalizeDepartmentList,
   },
 ];
 

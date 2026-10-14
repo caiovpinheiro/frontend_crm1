@@ -6,6 +6,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { useInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings";
 import {
   useQuickReplies,
@@ -104,5 +105,10 @@ export const BLOCK_FIXTURES: Record<string, BlockFixture> = {
     queryKey: ["settings-visibility"],
     useHook: () =>
       useQuery({ queryKey: ["settings-visibility"], queryFn: fetchVisibilitySettings }),
+  },
+  "/api/settings/departments": {
+    body: { items: [{ id: "d1", name: "Vendas", requireTabulationOnClose: false }] },
+    queryKey: ["settings", "departments"],
+    useHook: () => useDepartments(),
   },
 };
