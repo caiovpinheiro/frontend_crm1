@@ -6406,7 +6406,7 @@ function StepClosure({
       <TabulationSettings config={config} catalogs={catalogs} onChange={onChange} />
 
       <AdvancedOptions count={5}>
-      <SectionCard title="Usar o texto do disparo" description="Quando o aluno responde um modelo, o agente lê o texto que ficou no chat. Se a bolha só tiver o nome, busca o texto salvo do modelo e continua a partir da resposta, sem começar de novo.">
+      <SectionCard title="Usar o texto do disparo" description="Quando o cliente responde um modelo, o agente lê o texto que ficou no chat. Se a bolha só tiver o nome, busca o texto salvo do modelo e continua a partir da resposta, sem começar de novo.">
         <div className="flex items-center gap-3">
           <Switch
             checked={config.useDispatchText === true}

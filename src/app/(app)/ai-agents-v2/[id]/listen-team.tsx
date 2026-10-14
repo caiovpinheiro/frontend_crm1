@@ -338,7 +338,7 @@ function StartListening({
         icon={IconEar}
         tone="teal"
         title="Escutar a equipe"
-        description="Escolha a origem do aluno, as pessoas da equipe, ou as duas. Ele lê esses atendimentos e propõe conhecimento, jeito de conduzir e tom de voz — você decide o que entra no rascunho."
+        description="Escolha a origem do cliente, as pessoas da equipe, ou as duas. Ele lê esses atendimentos e propõe conhecimento, jeito de conduzir e tom de voz — você decide o que entra no rascunho."
       />
       {previous && (
         <p className="text-xs text-muted-foreground">
@@ -402,7 +402,7 @@ function StartListening({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        A origem é a etapa de onde o aluno veio antes de entrar em atendimento. Vale mesmo com o card em Em Atendimento. Nada muda no atendimento enquanto escuta. Dados de clientes são mascarados antes de ir ao modelo.
+        A origem é a etapa de onde o cliente veio antes de entrar em atendimento. Vale mesmo com o card em Em Atendimento. Nada muda no atendimento enquanto escuta. Dados de clientes são mascarados antes de ir ao modelo.
       </p>
       <Button className="gap-1.5" disabled={!ready || start.isPending} onClick={() => start.mutate()}>
         {start.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconEar className="size-4" />} Começar a escutar
@@ -625,7 +625,7 @@ export function ListenHomeCard({ agentId, onOpen }: { agentId: string; onOpen: (
         <h3 className="text-[15px] font-semibold leading-tight">Escutar a equipe</h3>
         <p className="text-[13px] text-muted-foreground">
           {idle
-            ? "O agente acompanha atendimentos reais pela origem do aluno ou pelas pessoas da equipe, e propõe materiais, jeito de conduzir e tom de voz. Você decide o que entra."
+            ? "O agente acompanha atendimentos reais pela origem do cliente ou pelas pessoas da equipe, e propõe materiais, jeito de conduzir e tom de voz. Você decide o que entra."
             : active
               ? `${STATUS[s!.status].label} ${[
                   s!.origins?.length ? s!.origins.map((o) => o.name).join(", ") : "",
