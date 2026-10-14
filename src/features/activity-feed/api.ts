@@ -5,6 +5,8 @@ export type ActivityFeedFilters = {
   entityType?: string[];
   actorType?: string[];
   actorUserId?: string | null;
+  /** Vários responsáveis: união dos eventos em que cada um é o ator. */
+  actorUserIds?: string[];
   type?: string[];
   entityId?: string | null;
   dealId?: string | null;
@@ -38,7 +40,9 @@ function buildQuery(filters: ActivityFeedFilters, cursor: string | null): string
   if (filters.entityType?.length) sp.set("entityType", filters.entityType.join(","));
   if (filters.actorType?.length) sp.set("actorType", filters.actorType.join(","));
   if (filters.type?.length) sp.set("type", filters.type.join(","));
-  if (filters.actorUserId) sp.set("actorUserId", filters.actorUserId);
+  const actorIds = filters.actorUserIds?.filter(Boolean) ?? [];
+  if (actorIds.length) sp.set("actorUserId", actorIds.join(","));
+  else if (filters.actorUserId) sp.set("actorUserId", filters.actorUserId);
   if (filters.entityId) sp.set("entityId", filters.entityId);
   if (filters.dealId) sp.set("dealId", filters.dealId);
   if (filters.contactId) sp.set("contactId", filters.contactId);
