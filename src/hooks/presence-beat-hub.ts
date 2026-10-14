@@ -41,6 +41,10 @@ export interface PresenceBeatHubEnv {
 export const PRESENCE_BEAT_UNSUPPORTED_KEY = "crm:presence-beat-unsupported-at";
 /** Depois disto o navegador tenta o beat de novo (backend pode ter sido atualizado). */
 export const PRESENCE_BEAT_RETRY_MS = 6 * 60 * 60_000;
+/** Contrato do beat (be #194): tipos aceitos, formato do id e teto por batida. */
+export const PRESENCE_BEAT_TYPES: ReadonlySet<string> = new Set(["deal", "conversation"]);
+export const PRESENCE_BEAT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+export const PRESENCE_BEAT_MAX_ENTITIES = 20;
 
 export function entityFromKey(key: string): PresenceEntity {
   const i = key.indexOf("|");
@@ -96,10 +100,16 @@ export class PresenceBeatHub {
     return () => this.modeListeners.delete(fn);
   }
 
-  /** Entidades para o corpo do beat. */
+  /**
+   * Entidades para o corpo do beat: só tipos/ids do contrato, ordenadas
+   * (corpo estável) e no máximo `PRESENCE_BEAT_MAX_ENTITIES`.
+   */
   entities(): PresenceEntity[] {
-    const keys = this.source?.keys() ?? [];
-    return [...new Set(keys)].map(entityFromKey);
+    const keys = [...new Set(this.source?.keys() ?? [])].sort();
+    return keys
+      .map(entityFromKey)
+      .filter((e) => PRESENCE_BEAT_TYPES.has(e.type) && PRESENCE_BEAT_ID_RE.test(e.id))
+      .slice(0, PRESENCE_BEAT_MAX_ENTITIES);
   }
 
   /**

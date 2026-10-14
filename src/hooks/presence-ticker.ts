@@ -117,6 +117,11 @@ export type PresenceCallResult = {
   nextBeatMs?: number;
   /** 200 do beat: `{ "<type>:<id>": viewers[] }`. */
   viewers?: unknown;
+  /**
+   * 200 do beat deduplicado (outra batida do usuário há pouco): não é 429.
+   * `retryAfterMs` só antecipa a próxima se a lista de entidades mudou.
+   */
+  deduped?: boolean;
 };
 
 export type PresenceBeatBody = {
@@ -185,6 +190,10 @@ export class PresenceTicker {
   private wasLeader = false;
   /** Cadência da batida única (do `nextBeatMs` da última resposta). */
   private beatIntervalMs = PRESENCE_BEAT_DEFAULT_MS;
+  /** Entidades da última batida ACEITA (não deduplicada) pelo backend. */
+  private acceptedEntitiesSig: string | null = null;
+  /** Deduplicada com lista nova: o próximo timer é a nova tentativa. */
+  private dedupRetry = false;
   private readonly offs: Array<() => void> = [];
 
   constructor(private readonly env: PresenceTickerEnv) {
@@ -288,6 +297,13 @@ export class PresenceTicker {
       this.scheduleNext(holdUntil);
       return;
     }
+    if (reason === "timer" && this.dedupRetry && this.usingBeat()) {
+      // Prazo do `retryAfterMs` de uma batida deduplicada: o backend já
+      // disse quando aceita, o intervalo mínimo local não se aplica.
+      this.dedupRetry = false;
+      void this.tick();
+      return;
+    }
     const since = Date.now() - this.lastTick();
     const interval = this.interval();
     if (reason === "visible") {
@@ -389,7 +405,10 @@ export class PresenceTicker {
   ): Promise<PresenceCallResult | void> {
     const hub = this.env.hub;
     if (!this.env.beat || !hub?.active) return this.env.ping(lastInteractionAt);
-    const result = await this.env.beat({ lastInteractionAt, entities: hub.entities() });
+    this.dedupRetry = false;
+    const entities = hub.entities();
+    const sig = entities.map((e) => `${e.type}:${e.id}`).join(",");
+    const result = await this.env.beat({ lastInteractionAt, entities });
     if (result.status === 404 || result.status === 405 || result.status === 501) {
       hub.markUnsupported();
       return this.env.ping(lastInteractionAt);
@@ -403,6 +422,17 @@ export class PresenceTicker {
       if (interval !== this.beatIntervalMs) {
         this.beatIntervalMs = interval;
         if (!this.dead && this.isLeader()) this.scheduleNext(at + interval, true);
+      }
+      if (!result.deduped) {
+        this.acceptedEntitiesSig = sig;
+      } else if (sig !== this.acceptedEntitiesSig && !this.dead && this.isLeader()) {
+        // Deduplicada e o backend não tem a lista atual: tenta de novo no
+        // prazo dado (antes da cadência), sem tratar como 429.
+        const wait = result.retryAfterMs;
+        if (typeof wait === "number" && Number.isFinite(wait) && wait > 0 && Date.now() + wait < this.nextAt) {
+          this.dedupRetry = true;
+          this.scheduleNext(Date.now() + wait, true);
+        }
       }
       hub.deliver(result.viewers);
     }
@@ -559,6 +589,7 @@ export async function postPresenceBeat(
   tabId: string,
   body: PresenceBeatBody,
   fetchImpl: typeof fetch = fetch,
+  clientId: string = presenceClientId(),
 ): Promise<PresenceCallResult> {
   const res = await fetchImpl(apiUrl("/api/presence/beat"), {
     method: "POST",
@@ -567,6 +598,7 @@ export async function postPresenceBeat(
     headers: { [PRESENCE_TAB_ID_HEADER]: tabId, "Content-Type": "application/json" },
     body: JSON.stringify({
       tabId,
+      clientId,
       ...(body.lastInteractionAt != null ? { lastInteractionAt: body.lastInteractionAt } : {}),
       entities: body.entities,
     }),
@@ -578,16 +610,52 @@ export async function postPresenceBeat(
       sessionIdleMs?: unknown;
       nextBeatMs?: unknown;
       viewers?: unknown;
+      deduped?: unknown;
+      retryAfterMs?: unknown;
     } | null;
     const idle = json?.sessionIdleMs;
     if (typeof idle === "number" && Number.isFinite(idle) && idle > 0) result.sessionIdleMs = idle;
     const next = json?.nextBeatMs;
     if (typeof next === "number" && Number.isFinite(next) && next > 0) result.nextBeatMs = next;
     if (json?.viewers && typeof json.viewers === "object") result.viewers = json.viewers;
+    if (json?.deduped === true) {
+      result.deduped = true;
+      const wait = json.retryAfterMs;
+      if (typeof wait === "number" && Number.isFinite(wait) && wait > 0) result.retryAfterMs = wait;
+    }
   } catch {
     /* corpo vazio/não-JSON: segue como sucesso */
   }
   return result;
+}
+
+/** localStorage: id estável DESTE navegador para o beat (`clientId`). */
+export const PRESENCE_CLIENT_ID_STORAGE_KEY = "crm:presence-client-id";
+
+let pageClientId: string | null = null;
+
+function randomId(): string {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffffff).toString(36)}`;
+}
+
+/**
+ * `clientId` do beat: o backend remove as entidades que saíram POR
+ * navegador, então todas as abas usam o mesmo id (gravado no storage).
+ * Storage bloqueado: um id por página.
+ */
+export function presenceClientId(): string {
+  try {
+    const stored = window.localStorage.getItem(PRESENCE_CLIENT_ID_STORAGE_KEY);
+    if (stored && /^[A-Za-z0-9_-]{8,128}$/.test(stored)) return stored;
+    const id = randomId();
+    window.localStorage.setItem(PRESENCE_CLIENT_ID_STORAGE_KEY, id);
+    return id;
+  } catch {
+    pageClientId ??= randomId();
+    return pageClientId;
+  }
 }
 
 async function postActivity(interactionCount: number): Promise<PresenceCallResult> {
