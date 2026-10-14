@@ -5,7 +5,7 @@
  * Período mora no PeriodCalendarButton do header — não duplicar aqui.
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   IconAdjustmentsHorizontal,
@@ -517,10 +517,15 @@ function DashboardFilterDialog({
 }) {
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const active = groups.find((group) => group.id === groupId) ?? groups[0];
+  const openedRef = useRef(false);
+
+  useEffect(() => {
+    if (open && !openedRef.current) setGroupId(groups[0]?.id ?? "");
+    openedRef.current = open;
+  }, [open, groups]);
 
   useEffect(() => {
     if (!open) return;
-    setGroupId(groups[0]?.id ?? "");
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -531,8 +536,6 @@ function DashboardFilterDialog({
       document.removeEventListener("keydown", onEsc);
       document.body.style.overflow = prev;
     };
-    // groups muda a cada render; o reset é só na abertura.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, onClose]);
 
   if (!open || !active || typeof document === "undefined") return null;
