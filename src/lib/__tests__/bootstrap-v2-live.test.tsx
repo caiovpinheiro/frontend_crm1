@@ -29,6 +29,11 @@ import { useAgentStatus } from "@/components/crm/agent-status";
 import { ShellBootstrap } from "@/components/layout/shell-bootstrap";
 import { createAppFetch } from "@/lib/api";
 import {
+  forgetLiveForTests,
+  LIVE_OVERLAY_FRESH_MS,
+  mergeLiveIntoBlock,
+} from "@/lib/bootstrap-live-merge";
+import {
   BOOTSTRAP_V2_RETRY_MS,
   BOOTSTRAP_V2_UNSUPPORTED_KEY,
   BOOTSTRAP_VERSION_HEADER,
@@ -166,6 +171,7 @@ async function settle(client: QueryClient) {
 
 beforeEach(() => {
   resetShellBootstrapForTests();
+  forgetLiveForTests();
   network.mockClear();
   window.localStorage.clear();
   window.fetch = createAppFetch(network as unknown as typeof fetch);
@@ -220,39 +226,75 @@ describe("backend novo (v2 + live)", () => {
 });
 
 describe("merge estável + live (usuários e departamentos)", () => {
-  it("presença e contagens do live voltam aos itens do bloco estável, na mesma chave", async () => {
+  const PRESENCE_U2 = {
+    systemOnline: true,
+    lastSeenAt: "2026-10-14T12:00:00.000Z",
+    agentStatus: { status: "ONLINE", availableForVoiceCalls: true, updatedAt: "2026-10-14T11:00:00.000Z" },
+  };
+  const OFFLINE = { systemOnline: false, lastSeenAt: null, agentStatus: null };
+
+  it("bloco estável + usersPresence/departmentCounts = corpo legado, na mesma chave e sem GET", async () => {
     bootstrapAnswer = () => json(v2Payload());
     liveAnswer = () =>
-      json({
-        ...LIVE,
-        usersPresence: { u2: { systemOnline: true, lastSeenAt: "2026-10-14T12:00:00.000Z" } },
-        departmentCounts: { d1: { openConversations: 7 } },
-      });
+      json({ ...LIVE, usersPresence: { u2: PRESENCE_U2 }, departmentCounts: { d1: { openConversations: 7 } } });
     const client = newClient();
     renderApp(client);
     await settle(client);
     expect(client.getQueryData(BLOCK_FIXTURES["/api/users"].queryKey)).toEqual([
-      { id: "u1", name: "Ana" },
-      { id: "u2", name: "Bia", systemOnline: true, lastSeenAt: "2026-10-14T12:00:00.000Z" },
+      { id: "u1", name: "Ana", ...OFFLINE }, // fora do usersPresence → offline
+      { id: "u2", name: "Bia", ...PRESENCE_U2 },
     ]);
     expect(client.getQueryData(BLOCK_FIXTURES["/api/settings/departments"].queryKey)).toEqual([
-      { id: "d1", name: "Vendas", requireTabulationOnClose: false, openConversations: 7 },
+      { id: "d1", name: "Vendas", requireTabulationOnClose: false, _count: { members: 2, conversations: 7 } },
     ]);
     expect(netPaths()).not.toContain("/api/users");
     expect(netPaths()).not.toContain("/api/settings/departments");
   });
 
-  it("live falhou: o bloco estável é semeado como veio (sem GET individual)", async () => {
+  it("departmentCounts ausente/null → conversations 0 (só onde há `_count`)", () => {
+    const body = { items: [{ id: "d1", _count: { members: 1 } }, { id: "d2", name: "sem count" }] };
+    expect(mergeLiveIntoBlock("/api/settings/departments", body, { departmentCounts: null })).toEqual({
+      items: [{ id: "d1", _count: { members: 1, conversations: 0 } }, { id: "d2", name: "sem count" }],
+    });
+  });
+
+  it("live falhou: usuários e departamentos NÃO são semeados do bloco estável (GET direto, corpo legado)", async () => {
     bootstrapAnswer = () => json(v2Payload());
     liveAnswer = () => json({ message: "erro" }, 500);
     const client = newClient();
     renderApp(client);
     await settle(client);
-    expect(client.getQueryData(BLOCK_FIXTURES["/api/users"].queryKey)).toEqual([
-      { id: "u1", name: "Ana" },
-      { id: "u2", name: "Bia" },
-    ]);
-    expect(netPaths()).not.toContain("/api/users");
+    expect(netPaths()).toContain("/api/users");
+    expect(netPaths()).toContain("/api/settings/departments");
+    // Sem live não há merge: a chamada direta vai sem o cabeçalho v2.
+    expect(new Headers(initOf("/api/users")?.headers).has(BOOTSTRAP_VERSION_HEADER)).toBe(false);
+  });
+
+  it("chamada direta com live recente: cabeçalho v2 e o mesmo merge; live velho (≥ 30 s): sem cabeçalho", async () => {
+    bootstrapAnswer = () => json(v2Payload());
+    liveAnswer = () => json({ ...LIVE, usersPresence: { u2: PRESENCE_U2 } });
+    const client = newClient();
+    renderApp(client);
+    await settle(client);
+
+    network.mockClear();
+    const res = await window.fetch("/api/users?includeAi=1");
+    expect(new Headers(initOf("/api/users?includeAi=1")?.headers).get(BOOTSTRAP_VERSION_HEADER)).toBe("2");
+    // Corpo "da rede" é o fixture de /api/users? → 500 no mock; usa /api/users.
+    expect(res.status).toBe(500);
+    const direct = await window.fetch("/api/users");
+    expect(await direct.json()).toEqual({
+      items: [
+        { id: "u1", name: "Ana", ...OFFLINE },
+        { id: "u2", name: "Bia", ...PRESENCE_U2 },
+      ],
+    });
+
+    network.mockClear();
+    const later = vi.spyOn(Date, "now").mockReturnValue(Date.now() + LIVE_OVERLAY_FRESH_MS + 1);
+    await window.fetch("/api/users");
+    expect(new Headers(initOf("/api/users")?.headers).has(BOOTSTRAP_VERSION_HEADER)).toBe(false);
+    later.mockRestore();
   });
 });
 

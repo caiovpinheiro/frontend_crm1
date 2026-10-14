@@ -117,7 +117,7 @@ export const BLOCK_FIXTURES: Record<string, BlockFixture> = {
       useQuery({ queryKey: ["settings-visibility"], queryFn: fetchVisibilitySettings }),
   },
   "/api/settings/departments": {
-    body: { items: [{ id: "d1", name: "Vendas", requireTabulationOnClose: false }] },
+    body: { items: [{ id: "d1", name: "Vendas", requireTabulationOnClose: false, _count: { members: 2 } }] },
     queryKey: ["settings", "departments"],
     useHook: () => useDepartments(),
   },

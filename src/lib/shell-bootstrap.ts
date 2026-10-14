@@ -66,7 +66,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { apiFetch, setApiGetResolver, setRevalidatedApiPathMatcher } from "@/lib/api";
-import { liveOverlayFor, mergeLiveIntoBlock } from "@/lib/bootstrap-live-merge";
+import {
+  BOOTSTRAP_VERSION_HEADER,
+  liveOverlayFor,
+  mergeLiveIntoBlock,
+  rememberLive,
+} from "@/lib/bootstrap-live-merge";
 import {
   BOOTSTRAP_BLOCKS,
   findBootstrapBlock,
@@ -213,7 +218,7 @@ export const SHELL_BOOTSTRAP_PATH = "/api/me/bootstrap";
  * formato dos campos antigos. Backend antigo ignora o cabeçalho e
  * responde o payload completo (v1) — aí o live não é chamado.
  */
-export const BOOTSTRAP_VERSION_HEADER = "x-bootstrap-version";
+export { BOOTSTRAP_VERSION_HEADER };
 export const ME_LIVE_PATH = "/api/me/live";
 
 /**
@@ -233,8 +238,8 @@ export type MeLivePayload = {
    */
   blocks?: Record<string, unknown>;
   /** Voláteis por id dos blocos estáveis (`lib/bootstrap-live-merge.ts`). */
-  usersPresence?: Record<string, unknown>;
-  departmentCounts?: Record<string, unknown>;
+  usersPresence?: Record<string, unknown> | null;
+  departmentCounts?: Record<string, unknown> | null;
 };
 
 /** localStorage: instante (ms) em que `/api/me/live` respondeu 404. */
@@ -405,7 +410,7 @@ export function seedLiveCaches(
  * v2: blocos estáveis que perderam campos voláteis (`/api/users`,
  * `/api/settings/departments`) só são semeados com o live em mãos —
  * reconstruídos pelo merge único de `lib/bootstrap-live-merge.ts`. Live
- * falhou (`null`): o bloco estável como veio.
+ * falhou: não semeia (o hook faz o GET direto, corpo legado completo).
  */
 function seedOverlaidBlocks(
   client: QueryClient,
@@ -414,6 +419,7 @@ function seedOverlaidBlocks(
   live: MeLivePayload | null,
   now: number = Date.now(),
 ): void {
+  if (!live) return;
   seedBlocks(client, ctx, blocks, now, {
     only: (url) => !!liveOverlayFor(url),
     transform: (url, body) => mergeLiveIntoBlock(url, body, live),
@@ -545,7 +551,8 @@ export function resolveFromBootstrap(path: string): Promise<Response | null> | n
       // Bloco estável sem os voláteis (v2): espera o live e reconstrói.
       if (attempt.live && liveOverlayFor(path)) {
         const live = await attempt.live;
-        return jsonResponse(mergeLiveIntoBlock(path, fromStable, live as Record<string, unknown> | null));
+        // Sem live o bloco estável não é o corpo legado: rede.
+        return live ? jsonResponse(mergeLiveIntoBlock(path, fromStable, live)) : null;
       }
       return jsonResponse(fromStable);
     }
@@ -636,6 +643,7 @@ async function fetchMeLive(identity: ShellBootstrapIdentity): Promise<MeLivePayl
     const live = body as MeLivePayload;
     // Mesmo cuidado do bootstrap: resposta de outro usuário não semeia nada.
     if (live.user?.id && live.user.id !== identity.userId) return null;
+    rememberLive(live);
     if (live.blocks !== undefined && (!live.blocks || typeof live.blocks !== "object" || Array.isArray(live.blocks))) {
       delete live.blocks;
     }
