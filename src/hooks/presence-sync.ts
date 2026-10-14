@@ -1,5 +1,6 @@
 "use client";
 
+import { presenceBeatHub, type PresenceBeatHub } from "./presence-beat-hub";
 import { isSingleLeaderEnabled } from "./sse-single-leader";
 import {
   tabCoordinatorFor,
@@ -26,6 +27,14 @@ import {
  * - Aba fechada: seguidora → `bye` → a líder manda `leave` do que mais
  *   ninguém vê. Líder → `onSuspend` manda `leave` do que só ela via, e a
  *   próxima líder renova o resto na hora.
+ *
+ * Com `POST /api/presence/beat` (`presence-beat-hub.ts`): NADA daqui vai à
+ * rede. A união das entidades segue no corpo da batida única do tique
+ * (`presence-ticker.ts`, a cada `nextBeatMs`), os viewers voltam na
+ * resposta e são entregues aqui (e às seguidoras pelo canal). Abrir ou
+ * fechar uma entidade só avisa o tique, que antecipa a próxima batida se
+ * a última foi há 30 s ou mais; sem `leave` imediato (a batida seguinte já
+ * não a inclui). 404 no beat → volta ao heartbeat por entidade.
  */
 
 export const ENTITY_VIEWERS_HEARTBEAT_MS = 25_000;
@@ -45,6 +54,8 @@ export interface PresenceEnv {
   heartbeat: (entityType: string, entityId: string) => Promise<EntityViewer[] | null>;
   /** Saída explícita (beacon). */
   leave: (entityType: string, entityId: string) => void;
+  /** Batida única (`presence-beat-hub.ts`); ausente = só heartbeat por entidade. */
+  beat?: PresenceBeatHub | null;
   isHidden: () => boolean;
   onVisibilityChange: (fn: () => void) => () => void;
 }
@@ -67,6 +78,8 @@ export class PresenceSync {
   private beatTimer: ReturnType<typeof setInterval> | null = null;
   private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
   private hiddenExpired = false;
+  /** Modo beat: última assinatura das entidades avisada ao tique. */
+  private beatSig: string | null = null;
   private readonly offs: Array<() => void> = [];
 
   constructor(private readonly env: PresenceEnv) {
@@ -84,8 +97,25 @@ export class PresenceSync {
         }),
       );
     }
+    const hub = env.beat;
+    if (hub) {
+      this.offs.push(
+        hub.setSource({
+          keys: () => [...(this.isLeader() ? this.desiredKeys() : this.reportedKeys())],
+          deliver: (key, viewers) => {
+            this.deliver(key, viewers);
+            this.env.tabs?.post({ t: "viewers", key, viewers });
+          },
+        }),
+        hub.onModeChange(() => this.sync()),
+      );
+    }
     this.offs.push(env.onVisibilityChange(() => this.onVisibility()));
     if (env.isHidden()) this.armHiddenGrace();
+  }
+
+  private beatActive(): boolean {
+    return !!this.env.beat?.active;
   }
 
   private isLeader(): boolean {
@@ -140,8 +170,21 @@ export class PresenceSync {
       // que todos reportam — sair aqui faria a pilha piscar.
       this.active.clear();
       this.stopBeat();
+      this.beatSig = null;
       return;
     }
+    if (this.beatActive()) {
+      // A batida única leva as entidades: sem heartbeat nem `leave` aqui.
+      this.active.clear();
+      this.stopBeat();
+      const sig = [...this.desiredKeys()].sort().join(",");
+      if (sig !== this.beatSig) {
+        this.beatSig = sig;
+        this.env.beat?.entitiesChanged();
+      }
+      return;
+    }
+    this.beatSig = null;
     const want = this.desiredKeys();
     for (const key of this.active) {
       if (want.has(key)) continue;
@@ -273,6 +316,7 @@ export function browserPresenceEnv(): PresenceEnv {
     tabs: isSingleLeaderEnabled() ? tabCoordinatorFor("crm") : null,
     heartbeat: postHeartbeat,
     leave: leaveBeacon,
+    beat: presenceBeatHub(),
     isHidden: () => typeof document !== "undefined" && document.hidden,
     onVisibilityChange: (fn) => {
       if (typeof document === "undefined") return () => {};
