@@ -15,7 +15,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
+import { installBootstrapShare } from "@/lib/bootstrap-share";
 import { startShellBootstrap } from "@/lib/shell-bootstrap";
+
+// Aba nova reaproveita o bootstrap (< 60 s, mesmo usuário/org) de uma aba
+// aberta, sem rede — ver `lib/bootstrap-share.ts`.
+if (typeof window !== "undefined") installBootstrapShare();
 
 export function ShellBootstrap() {
   const client = useQueryClient();
