@@ -14,6 +14,11 @@ import {
   watchSessionEndInOtherTabs,
 } from "@/lib/session-revoked";
 
+import {
+  presenceBeatHub,
+  type PresenceBeatHub,
+  type PresenceEntity,
+} from "./presence-beat-hub";
 import { isSingleLeaderEnabled } from "./sse-single-leader";
 import {
   tabCoordinatorFor,
@@ -69,6 +74,16 @@ import {
  * prazo de um 429 (`retryAfterMs`, teto por usuário) ficam no
  * `localStorage` — a líder que assume (a anterior fechou ou travou) segue
  * a cadência do navegador e respeita o 429 que a outra recebeu.
+ *
+ * Batida única (`POST /api/presence/beat`, `presence-beat-hub.ts`): com o
+ * backend novo o tique manda o beat NO LUGAR do ping — `tabId`,
+ * `lastInteractionAt` e a união das entidades abertas em todas as abas —
+ * a cada `nextBeatMs` da resposta (padrão `PRESENCE_BEAT_DEFAULT_MS`,
+ * 60 s); os `viewers` da resposta vão ao `presence-sync`, que deixa de
+ * mandar o heartbeat por entidade. Entidade aberta/fechada só antecipa a
+ * próxima batida se a última foi há `PRESENCE_BEAT_MIN_GAP_MS` (30 s) ou
+ * mais. Ociosidade, 401, 429/503 com prazo e `x-tab-id` como no ping. 404
+ * → volta ao ping (no mesmo tique) e ao heartbeat por entidade.
  */
 
 /** Cadência do tique (sweeper do backend: offline após 300 s sem ping). */
@@ -84,13 +99,29 @@ export const PRESENCE_LAST_TICK_STORAGE_KEY = "bwipo:presence:last-tick";
 /** 429 do ping/activity: nenhum tique do navegador antes deste instante (ms). */
 export const PRESENCE_HOLD_UNTIL_STORAGE_KEY = "bwipo:presence:hold-until";
 
-/** Resposta de ping/activity que importa ao tique (sem valor = sucesso). */
+/** Cadência padrão da batida única (sem `nextBeatMs` na resposta). */
+export const PRESENCE_BEAT_DEFAULT_MS = 60_000;
+/** Entidades mudaram: antecipa a batida só se a última foi há isto ou mais. */
+export const PRESENCE_BEAT_MIN_GAP_MS = 30_000;
+/** Teto aceito para o `nextBeatMs` do backend. */
+export const PRESENCE_BEAT_MAX_MS = 5 * 60_000;
+
+/** Resposta de ping/activity/beat que importa ao tique (sem valor = sucesso). */
 export type PresenceCallResult = {
   status: number;
   /** 429: espera pedida pelo backend (`retryAfterMs` ou `Retry-After`). */
   retryAfterMs?: number;
-  /** 200 do ping: limite de ociosidade da sessão (ms). Ausente = backend antigo. */
+  /** 200 do ping/beat: limite de ociosidade da sessão (ms). Ausente = backend antigo. */
   sessionIdleMs?: number;
+  /** 200 do beat: quando mandar a próxima (ms). */
+  nextBeatMs?: number;
+  /** 200 do beat: `{ "<type>:<id>": viewers[] }`. */
+  viewers?: unknown;
+};
+
+export type PresenceBeatBody = {
+  lastInteractionAt: number | null;
+  entities: PresenceEntity[];
 };
 
 /** Ociosidade da sessão (`lib/session-idle.ts`), vista pelo tique. */
@@ -111,6 +142,10 @@ export interface PresenceTickerEnv {
   /** `lastInteractionAt`: última interação humana do navegador (`null` = sem registro). */
   ping: (lastInteractionAt: number | null) => Promise<PresenceCallResult | void>;
   activity: (interactionCount: number) => Promise<PresenceCallResult | void>;
+  /** `POST /api/presence/beat` (substitui o ping quando o backend tem). */
+  beat?: (body: PresenceBeatBody) => Promise<PresenceCallResult>;
+  /** Elo com o `presence-sync` (entidades, viewers, 404). Sem ele não há beat. */
+  hub?: PresenceBeatHub | null;
   /**
    * 401 em ping/activity. Devolve `true` quando a sessão acabou (o tique
    * para de vez); `false` = 401 esperado (renovação da sessão em
@@ -131,7 +166,7 @@ export interface PresenceTickerEnv {
   onVisibilityChange: (fn: () => void) => () => void;
 }
 
-type TickReason = "lead" | "timer" | "activity" | "visible";
+type TickReason = "lead" | "timer" | "activity" | "visible" | "entities";
 
 export class PresenceTicker {
   /** Líder: interações a enviar. Seguidora: interações a repassar. */
@@ -148,6 +183,8 @@ export class PresenceTicker {
   /** 429: nenhum tique antes deste instante. */
   private holdUntil = Number.NEGATIVE_INFINITY;
   private wasLeader = false;
+  /** Cadência da batida única (do `nextBeatMs` da última resposta). */
+  private beatIntervalMs = PRESENCE_BEAT_DEFAULT_MS;
   private readonly offs: Array<() => void> = [];
 
   constructor(private readonly env: PresenceTickerEnv) {
@@ -161,8 +198,21 @@ export class PresenceTicker {
         tabs.onSuspend((wasLeader) => this.onSuspend(wasLeader)),
       );
     }
+    if (env.hub && env.beat) {
+      this.offs.push(env.hub.setDriver(() => this.requestTick("entities")));
+    }
     this.offs.push(env.onVisibilityChange(() => this.onVisibility()));
     this.sync();
+  }
+
+  /** Batida única em uso (backend com `/api/presence/beat`, ou ainda sem 404)? */
+  private usingBeat(): boolean {
+    return !!this.env.beat && !!this.env.hub?.active;
+  }
+
+  /** Intervalo entre tiques: o do beat ou o do ping. */
+  private interval(): number {
+    return this.usingBeat() ? this.beatIntervalMs : PRESENCE_TICK_MS;
   }
 
   private isLeader(): boolean {
@@ -239,21 +289,29 @@ export class PresenceTicker {
       return;
     }
     const since = Date.now() - this.lastTick();
+    const interval = this.interval();
     if (reason === "visible") {
       // Só recupera tique atrasado (timer estrangulado em segundo plano).
-      if (since >= PRESENCE_TICK_MS) void this.tick();
+      if (since >= interval) void this.tick();
+      return;
+    }
+    if (reason === "entities") {
+      // Abrir/fechar entidade nunca gera batida extra: no máximo antecipa
+      // a próxima, se a última foi há 30 s ou mais. Senão, a cadência leva.
+      if (!this.usingBeat()) return;
+      if (since >= PRESENCE_BEAT_MIN_GAP_MS) void this.tick();
       return;
     }
     // Troca de líder / F5: segue a cadência do navegador (1 ping por
     // ciclo), em vez de pingar já com o último tique a 45–90 s.
-    const minGap = reason === "lead" ? PRESENCE_TICK_MS : PRESENCE_MIN_GAP_MS;
+    const minGap = reason === "lead" ? interval : PRESENCE_MIN_GAP_MS;
     if (since >= minGap) {
       void this.tick();
       return;
     }
     // Bloqueado pelo intervalo mínimo: a abertura de sessão sai assim que
     // os 45 s passarem; o resto segue a cadência a partir do último tique.
-    const wait = (reason === "activity" ? PRESENCE_MIN_GAP_MS : PRESENCE_TICK_MS) - since;
+    const wait = (reason === "activity" ? PRESENCE_MIN_GAP_MS : interval) - since;
     this.scheduleNext(Date.now() + Math.max(0, wait));
   }
 
@@ -294,11 +352,11 @@ export class PresenceTicker {
     this.pending = 0;
     if (count > 0) this.lastActivitySentAt = at;
     // A cadência recomeça deste tique.
-    this.scheduleNext(at + PRESENCE_TICK_MS, true);
+    this.scheduleNext(at + this.interval(), true);
     let results: Array<PresenceCallResult | void> = [];
     try {
       const settled = await Promise.allSettled([
-        this.env.ping(this.env.idle?.lastInteractionAt() ?? null),
+        this.presenceCall(this.env.idle?.lastInteractionAt() ?? null, at),
         count > 0 ? this.env.activity(count) : Promise.resolve(),
       ]);
       results = settled.map((r) => (r.status === "fulfilled" ? r.value : undefined));
@@ -322,6 +380,33 @@ export class PresenceTicker {
       // A cadência normal segue valendo quando é mais longa que o prazo.
       if (this.holdUntil > this.nextAt) this.scheduleNext(this.holdUntil, true);
     }
+  }
+
+  /** Beat (backend novo) ou ping; 404 no beat → ping no mesmo tique. */
+  private async presenceCall(
+    lastInteractionAt: number | null,
+    at: number,
+  ): Promise<PresenceCallResult | void> {
+    const hub = this.env.hub;
+    if (!this.env.beat || !hub?.active) return this.env.ping(lastInteractionAt);
+    const result = await this.env.beat({ lastInteractionAt, entities: hub.entities() });
+    if (result.status === 404 || result.status === 405 || result.status === 501) {
+      hub.markUnsupported();
+      return this.env.ping(lastInteractionAt);
+    }
+    if (result.status >= 200 && result.status < 300) {
+      const next = result.nextBeatMs;
+      const interval =
+        typeof next === "number" && Number.isFinite(next) && next > 0
+          ? Math.min(PRESENCE_BEAT_MAX_MS, Math.max(PRESENCE_BEAT_MIN_GAP_MS, next))
+          : PRESENCE_BEAT_DEFAULT_MS;
+      if (interval !== this.beatIntervalMs) {
+        this.beatIntervalMs = interval;
+        if (!this.dead && this.isLeader()) this.scheduleNext(at + interval, true);
+      }
+      hub.deliver(result.viewers);
+    }
+    return result;
   }
 
   private onUnauthorizedResponse(): void {
@@ -465,6 +550,46 @@ export async function postPresencePing(
   return readPresenceResponse(res);
 }
 
+/**
+ * `POST /api/presence/beat`: presença do navegador numa batida só (corpo
+ * `{ tabId, lastInteractionAt, entities }`). 200 → `{ ok, sessionIdleMs,
+ * nextBeatMs, viewers, deduped? }`.
+ */
+export async function postPresenceBeat(
+  tabId: string,
+  body: PresenceBeatBody,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PresenceCallResult> {
+  const res = await fetchImpl(apiUrl("/api/presence/beat"), {
+    method: "POST",
+    credentials: "include",
+    keepalive: true,
+    headers: { [PRESENCE_TAB_ID_HEADER]: tabId, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tabId,
+      ...(body.lastInteractionAt != null ? { lastInteractionAt: body.lastInteractionAt } : {}),
+      entities: body.entities,
+    }),
+  });
+  if (!res.ok) return readPresenceResponse(res);
+  const result: PresenceCallResult = { status: res.status };
+  try {
+    const json = (await res.json()) as {
+      sessionIdleMs?: unknown;
+      nextBeatMs?: unknown;
+      viewers?: unknown;
+    } | null;
+    const idle = json?.sessionIdleMs;
+    if (typeof idle === "number" && Number.isFinite(idle) && idle > 0) result.sessionIdleMs = idle;
+    const next = json?.nextBeatMs;
+    if (typeof next === "number" && Number.isFinite(next) && next > 0) result.nextBeatMs = next;
+    if (json?.viewers && typeof json.viewers === "object") result.viewers = json.viewers;
+  } catch {
+    /* corpo vazio/não-JSON: segue como sucesso */
+  }
+  return result;
+}
+
 async function postActivity(interactionCount: number): Promise<PresenceCallResult> {
   const res = await fetch(apiUrl("/api/agents/me/activity"), {
     method: "POST",
@@ -512,6 +637,8 @@ export function browserPresenceTickerEnv(): PresenceTickerEnv {
     tabs,
     ping: (lastInteractionAt) => postPresencePing(tabId, fetch, lastInteractionAt),
     activity: postActivity,
+    beat: (body) => postPresenceBeat(tabId, body),
+    hub: presenceBeatHub(),
     // Qualquer 401 encerra; só a renovação da própria sessão não.
     onUnauthorized: () => handleUnauthorized() !== "renewal",
     isSessionEnded,
