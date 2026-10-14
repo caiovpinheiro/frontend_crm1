@@ -142,7 +142,7 @@ type Catalogs = {
   messageFlows?: Array<{ id: string; name: string }>;
   knowledgeDocs: Array<{ id: string; name: string; title?: string }>;
   channels: Array<{ id: string; name: string }>;
-  pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
+  pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string; isLost?: boolean }> }>;
   tags?: Array<{ id: string; name: string }>;
   /** Tabulações (folhas), "Pai › Filha". */
   tabulations?: Array<{ id: string; name: string }>;
@@ -4626,7 +4626,15 @@ const FOLLOWUP_DEFAULTS = {
   questionMessage: "Ainda está por aí? Fico no aguardo da sua resposta para continuar.",
 };
 
-function InactivitySettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+function InactivitySettings({
+  config,
+  catalogs,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  catalogs: Catalogs;
+  onChange: (path: string, value: unknown) => void;
+}) {
   const inactivity = (getPath(config, "inactivity", {}) ?? {}) as Record<string, unknown>;
   const enabled = !!inactivity.enabled;
   const nudgeAfter = typeof inactivity.nudgeAfter === "number" ? inactivity.nudgeAfter : 0;
@@ -4637,6 +4645,12 @@ function InactivitySettings({ config, onChange }: { config: Record<string, unkno
   const steps: FollowUpStep[] = saved.length > 0
     ? saved
     : nudgeAfter > 0 ? [{ after: nudgeAfter, mode: "fixed", ...(inactivity.nudgeMessage ? { message: String(inactivity.nudgeMessage) } : {}) }] : [];
+  const lostDeal = (inactivity.lostDeal ?? {}) as { enabled?: boolean; stageId?: string; reasonId?: string };
+  const setLost = (patch: Partial<typeof lostDeal>) =>
+    onChange("inactivity", { ...inactivity, lostDeal: { ...lostDeal, ...patch } });
+  const lostStages = (catalogs.pipelines ?? []).flatMap((p) =>
+    (p.stages ?? []).filter((s) => s.isLost).map((s) => ({ value: s.id, label: `${p.name} › ${s.name}` })),
+  );
   const setSteps = (next: FollowUpStep[]) => onChange("inactivity", { ...inactivity, followUps: next, nudgeAfter: 0 });
   const update = (i: number, patch: Partial<FollowUpStep>) => setSteps(steps.map((st, j) => (j === i ? { ...st, ...patch } : st)));
   return (
@@ -4734,6 +4748,43 @@ function InactivitySettings({ config, onChange }: { config: Record<string, unkno
           <Field label="Mensagem ao encerrar" hint="Vazio: encerra sem mensagem.">
             <Textarea value={(inactivity.closeMessage as string) ?? ""} onChange={(e) => onChange("inactivity.closeMessage", e.target.value)} />
           </Field>
+          <div className="space-y-3 rounded-md border p-3">
+            <label className="flex cursor-pointer items-center gap-3">
+              <Switch
+                checked={!!lostDeal.enabled}
+                onCheckedChange={(v) => setLost({ enabled: v })}
+                aria-label="Ao encerrar, mover para perdido"
+              />
+              <span className="text-sm">Depois da mensagem, mover para Perdido</span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              O card sai da etapa em que está e não fica acumulado. O motivo é o do catálogo de motivos de perda.
+            </p>
+            {lostDeal.enabled && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Etapa de perdido">
+                  <Select value={lostDeal.stageId || undefined} onValueChange={(v) => setLost({ stageId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Escolha a etapa…" /></SelectTrigger>
+                    <SelectContent>
+                      {lostStages.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Motivo da perda">
+                  <Select value={lostDeal.reasonId || undefined} onValueChange={(v) => setLost({ reasonId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Escolha o motivo…" /></SelectTrigger>
+                    <SelectContent>
+                      {(catalogs.lossReasons ?? []).map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </SectionCard>
@@ -6350,7 +6401,7 @@ function StepClosure({
       </SectionCard>
 
       <LossReasonSettings config={config} catalogs={catalogs} onChange={onChange} />
-      <InactivitySettings config={config} onChange={onChange} />
+      <InactivitySettings config={config} catalogs={catalogs} onChange={onChange} />
       <SummarySettings config={config} onChange={onChange} />
       <TabulationSettings config={config} catalogs={catalogs} onChange={onChange} />
 
