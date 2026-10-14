@@ -1,4 +1,10 @@
 import {
+  isRateLimitStatus,
+  noteRateLimited,
+  readRetryAfter,
+  retryAfterFrom,
+} from "@/lib/rate-limit";
+import {
   BOOTSTRAP_VERSION_HEADER,
   directV2Kind,
   mergeDirectBody,
@@ -201,7 +207,9 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
  *     vão com `cache: "no-cache"`: o cache HTTP do navegador guarda o
  *     corpo e revalida com `If-None-Match` — 304 vira o 200 guardado
  *     sem o JS ver (funciona cross-origin sem expor o `ETag`);
- *  3. reescrita same-origin → host da API (cookie de `.bwipo.com`).
+ *  3. reescrita same-origin → host da API (cookie de `.bwipo.com`);
+ *  4. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
+ *     devolver, para o `retryDelay` das queries esperar o prazo.
  */
 export function createAppFetch(original: typeof fetch): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -244,6 +252,10 @@ export function createAppFetch(original: typeof fetch): typeof fetch {
     } else {
       res = await original(dest, { ...nextInit, credentials: "include", mode: "cors" });
     }
+    if (apiPath && isRateLimitStatus(res.status)) {
+      const info = await readRetryAfter(res).catch(() => null);
+      if (info) noteRateLimited(info.retryAfterMs);
+    }
     if (v2Kind && res.ok && (res.headers.get("content-type") ?? "").includes("application/json")) {
       const body: unknown = await res.clone().json().catch(() => undefined);
       if (body !== undefined) {
@@ -275,11 +287,24 @@ ensureDirectApiFetchCredentials();
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
-  constructor(message: string, status: number, code?: string) {
+  /** 429/503 com prazo do backend (`retryAfterMs`/`Retry-After`). */
+  readonly retryAfterMs?: number;
+  /** Classe do limite (`class` do corpo do 429/503). */
+  readonly limitClass?: string;
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    retry?: { retryAfterMs: number; limitClass?: string },
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    if (retry) {
+      this.retryAfterMs = retry.retryAfterMs;
+      this.limitClass = retry.limitClass;
+    }
   }
 }
 
@@ -372,6 +397,23 @@ export async function parseApiResponse<T>(
         : "Sua sessão expirou. Faça login novamente.",
       401,
       payloadCode ?? "AUTH_REQUIRED",
+    );
+  }
+
+  // Limite por classe (429) ou sobrecarga (503 com prazo): erro tipado
+  // com `retryAfterMs` — a query espera o prazo e tenta uma vez
+  // (`lib/rate-limit.ts`); nada de recarregar nem deslogar.
+  const retry = isRateLimitStatus(res.status)
+    ? retryAfterFrom(res.status, data, res.headers.get("Retry-After"))
+    : null;
+  if (retry) {
+    throw new ApiError(
+      res.status === 429 || !payloadMessage
+        ? "Muitas requisições agora. Tentando de novo em instantes."
+        : payloadMessage,
+      res.status,
+      payloadCode ?? (res.status === 429 ? "RATE_LIMITED" : "OVERLOADED"),
+      retry,
     );
   }
 
