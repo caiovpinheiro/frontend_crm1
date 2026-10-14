@@ -23,9 +23,10 @@ export interface Department {
   _count?: { conversations?: number; members?: number };
 }
 
-const QUERY_KEY = ["settings", "departments"];
+export const DEPARTMENTS_QUERY_KEY = ["settings", "departments"] as const;
+const QUERY_KEY = DEPARTMENTS_QUERY_KEY;
 
-function normalizeDepartmentList(data: unknown): Department[] {
+export function normalizeDepartmentList(data: unknown): Department[] {
   if (Array.isArray(data)) return data as Department[];
   if (data && typeof data === "object") {
     const rec = data as Record<string, unknown>;
@@ -49,7 +50,9 @@ export function useDepartments(enabled = true, opts?: { staleTime?: number }) {
     queryKey: QUERY_KEY,
     queryFn: fetchDepartments,
     enabled,
-    staleTime: opts?.staleTime ?? 30_000,
+    // Catálogo da org (bloco do bootstrap): mutações invalidam; 5 min evita
+    // refazer o GET a cada painel que remonta.
+    staleTime: opts?.staleTime ?? 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });

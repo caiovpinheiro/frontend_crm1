@@ -77,7 +77,8 @@ export function useWhatsappChannels(enabled = true) {
     queryKey: ["inbox-v2", "outbound-messaging-channels"],
     queryFn: fetchOutboundMessagingChannels,
     enabled,
-    staleTime: 60_000,
+    // Catálogo da org (bloco do bootstrap): sem GET a cada chat que remonta.
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -1811,7 +1811,8 @@ function ExtensionOpenButton({
   const { data: fields = [] } = useQuery({
     queryKey: ["custom-fields-card-extension"],
     queryFn: () => fetchJsonList<{ id: string }>("/api/custom-fields/card-extension"),
-    staleTime: 30_000,
+    // Catálogo da org (bloco do bootstrap): sem GET a cada negócio aberto.
+    staleTime: 5 * 60_000,
   })
   if (fields.length === 0) return null
   return (
@@ -1850,7 +1851,7 @@ function CardExtensionBlock({
   const { data: fields = [] } = useQuery({
     queryKey: ["custom-fields-card-extension"],
     queryFn: () => fetchJsonList<ExtensionDef>("/api/custom-fields/card-extension"),
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
   })
   const { data: stored = [] } = useQuery({
     queryKey: ["deal-card-extension", dealId],
