@@ -34,6 +34,7 @@ import {
 import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
+import { CountUpNumber } from "@/components/crm/count-up";
 import { PageChrome } from "@/components/crm/page-header";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { PipelineSwitcher, AddDealDialog } from "@/features/pipeline-v2/extras";
@@ -238,7 +239,9 @@ export default function V2PipelineListClientPage() {
   );
   const { data: teamUsers = [] } = useTeamUsers(canFetch && selectedIds.size > 0);
 
-  const { total, lastPage, items } = dealsList;
+  const { total, totalKnown, lastPage, items } = dealsList;
+  const listCounting = !totalKnown && (dealsQuery.isPending || dealsQuery.isFetching);
+  const listFiltering = !isEmptyFilters(filters) || search.trim().length > 0;
   const rows = items.map(toDealListRow);
 
   // Limpa seleção ao mudar página / filtros / pipeline / status.
@@ -335,14 +338,34 @@ export default function V2PipelineListClientPage() {
             router.push(pathForPipelineView(view));
           }}
           titleAccessory={
-            <PipelineSwitcher
-              variant="icon"
-              selectedId={pipelineId}
-              onChange={(id) => {
-                setPipelineId(id);
-                setPage(1);
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <PipelineSwitcher
+                variant="icon"
+                selectedId={pipelineId}
+                onChange={(id) => {
+                  setPipelineId(id);
+                  setPage(1);
+                }}
+              />
+              <span
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 font-display text-[11.5px] font-bold",
+                  listFiltering
+                    ? "border-[var(--brand-primary)]/30 bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
+                    : "border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] text-[var(--text-secondary)]",
+                )}
+                aria-live="polite"
+              >
+                {listCounting ? (
+                  "Contando…"
+                ) : (
+                  <>
+                    <CountUpNumber value={total} className="tabular-nums" />
+                    {total === 1 ? "negócio" : "negócios"}
+                  </>
+                )}
+              </span>
+            </div>
           }
           searchSlot={
             <PipelineSearchFilterBar
