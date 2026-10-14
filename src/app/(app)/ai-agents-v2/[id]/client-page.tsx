@@ -156,6 +156,8 @@ type Catalogs = {
   roles?: Array<{ id: string; name: string }>;
   /** Quem está em cada departamento. */
   departmentMembers?: Array<{ departmentId: string; userId: string }>;
+  /** Cargo atribuído (papel → pessoa). Não é o enum User.role. */
+  roleAssignments?: Array<{ roleId: string; userId: string }>;
   /** Motivos de perda ativos da organização. */
   lossReasons?: Array<{ id: string; name: string }>;
 };
@@ -5947,16 +5949,24 @@ function LeadsHandoffCard({
   const inDepartment = new Set(
     members.filter((m) => !departmentId || m.departmentId === departmentId).map((m) => m.userId),
   );
-  const people = (catalogs.users ?? []).filter(
-    (u) => u.type === "HUMAN" && (departmentId && members.length > 0 ? inDepartment.has(u.id) : true),
+  const selectedRoles = leads.roleIds ?? [];
+  const withRole = new Set(
+    (catalogs.roleAssignments ?? [])
+      .filter((a) => selectedRoles.includes(a.roleId))
+      .map((a) => a.userId),
   );
+  const people = (catalogs.users ?? []).filter((u) => {
+    if (u.type !== "HUMAN") return false;
+    if (selectedRoles.length > 0) return withRole.has(u.id) || inDepartment.has(u.id);
+    return departmentId && members.length > 0 ? inDepartment.has(u.id) : true;
+  });
   const setLeads = (patch: Partial<typeof leads>) =>
     onChange("handoff.leads", { roleIds: [], userIds: [], ...leads, ...patch });
 
   return (
     <SectionCard
       title="Distribuir no modo por leads"
-      description="Só este agente. Desligado, o destino departamento segue a distribuição inteligente. Ligado, o sorteio usa o peso do modo por leads e só entra quem está naquele departamento, no papel escolhido e, se você marcar pessoas, só elas. A pessoa precisa estar no rodízio por leads (peso maior que zero), online e dentro do expediente: quem entra às 13h só recebe depois das 13h. Se ninguém estiver disponível, o card espera na fila do modo por leads — não vai para a fila inteligente."
+      description="Só este agente. Desligado, o destino departamento segue a distribuição inteligente. Ligado, o sorteio usa o peso do modo por leads e só entra quem tem o papel escolhido — o cargo atribuído, não só quem está na tabela do departamento — e, se você marcar pessoas, só elas. A pessoa precisa estar no rodízio por leads (peso maior que zero), online e dentro do expediente: quem entra às 13h só recebe depois das 13h. Se ninguém estiver disponível, o card espera na fila do modo por leads — não vai para a fila inteligente."
     >
       <div className="flex items-center gap-3">
         <Switch
@@ -5983,9 +5993,11 @@ function LeadsHandoffCard({
           <Field
             label="Pessoas do departamento"
             hint={
-              departmentId
-                ? "Vazio: todas as pessoas desse departamento que passam no papel. Quem não está no departamento não recebe."
-                : "Escolha o departamento no destino acima para ver só as pessoas dele."
+              selectedRoles.length > 0
+                ? "A lista é quem tem o papel escolhido, mesmo fora do departamento, mais quem já está no departamento. Vazio: todas essas pessoas."
+                : departmentId
+                  ? "Vazio: todas as pessoas desse departamento. Escolha um papel para ver quem tem esse cargo."
+                  : "Escolha o departamento no destino acima para ver só as pessoas dele."
             }
           >
             <MultiSelectPopover
