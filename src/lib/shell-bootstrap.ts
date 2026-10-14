@@ -619,6 +619,7 @@ function mergeLive(stable: MeBootstrapPayload, live: MeLivePayload | null): MeBo
 export type StableBootstrapSource = (
   identity: ShellBootstrapIdentity,
   fetchFromNetwork: () => Promise<MeBootstrapPayload | null>,
+  client: QueryClient,
 ) => Promise<MeBootstrapPayload | null>;
 
 const networkSource: StableBootstrapSource = (_identity, fromNetwork) => fromNetwork();
@@ -660,7 +661,7 @@ export function startShellBootstrap(
     liveSettled: false,
   };
   const isCurrent = () => attempts.get(client) === attempt;
-  attempt.stable = stableSource(identity, () => fetchShellBootstrap(identity))
+  attempt.stable = stableSource(identity, () => fetchShellBootstrap(identity), client)
     .catch(() => null)
     .then((payload) => {
       if (payload && isCurrent()) seedShellBootstrapCaches(client, payload);
