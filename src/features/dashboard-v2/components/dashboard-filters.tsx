@@ -5,7 +5,7 @@
  * Período mora no PeriodCalendarButton do header — não duplicar aqui.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   IconAdjustmentsHorizontal,
@@ -502,6 +502,9 @@ type FilterGroup = {
   body: ReactNode;
 };
 
+/** Sobrevive ao re-render da URL. Sem isso o modal volta para Pipeline a cada chip. */
+let dashboardFilterGroupId = "";
+
 function DashboardFilterDialog({
   open,
   onClose,
@@ -515,14 +518,18 @@ function DashboardFilterDialog({
   clearDisabled: boolean;
   groups: FilterGroup[];
 }) {
-  const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
-  const active = groups.find((group) => group.id === groupId) ?? groups[0];
-  const openedRef = useRef(false);
+  const [groupId, setGroupId] = useState(
+    () => dashboardFilterGroupId || groups[0]?.id || "",
+  );
+  const active =
+    groups.find((group) => group.id === groupId) ??
+    groups.find((group) => group.id === dashboardFilterGroupId) ??
+    groups[0];
 
-  useEffect(() => {
-    if (open && !openedRef.current) setGroupId(groups[0]?.id ?? "");
-    openedRef.current = open;
-  }, [open, groups]);
+  function chooseGroup(id: string) {
+    dashboardFilterGroupId = id;
+    setGroupId(id);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -579,7 +586,7 @@ function DashboardFilterDialog({
                 <button
                   key={group.id}
                   type="button"
-                  onClick={() => setGroupId(group.id)}
+                  onClick={() => chooseGroup(group.id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     selected
