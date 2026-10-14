@@ -126,11 +126,11 @@ describe("salsicha: coluna Perdidos", () => {
       },
       "p1",
     );
-    expect(lostLink()!.getAttribute("href")).toBe("/pipeline?pipeline=p1&stage=lost1");
+    expect(lostLink()!.getAttribute("href")).toBe("/pipeline/list?pipeline=p1&stages=lost1");
   });
 
   it("sem a etapa Perdido no payload mantém o link do funil", () => {
     renderFunnel({ lostStage: { count: 7, value: 0, sentInPeriod: 0 } }, "p1");
-    expect(lostLink()!.getAttribute("href")).toBe("/pipeline?pipeline=p1");
+    expect(lostLink()!.getAttribute("href")).toBe("/pipeline/list?pipeline=p1");
   });
 });

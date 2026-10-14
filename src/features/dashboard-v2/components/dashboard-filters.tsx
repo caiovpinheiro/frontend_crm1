@@ -9,6 +9,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   IconAdjustmentsHorizontal,
+  IconClock,
   IconBriefcase,
   IconBuilding,
   IconRoute,
@@ -29,6 +30,7 @@ import {
 } from "@/features/dashboard-v2/api";
 import { useDashboardFilterOptions } from "@/features/dashboard-v2/hooks";
 import { countStructuralDashboardFilters } from "@/features/dashboard-v2/use-dashboard-filters";
+import { IDLE_MINUTE_OPTIONS, idleMinutesLabel } from "@/lib/idle-leads";
 
 /** Funil com etapas, como vem de `GET /api/pipelines` (lista do shell). */
 export type DashboardFilterPipeline = {
@@ -136,6 +138,8 @@ export function DashboardSearchFilterBar({
       tagIds: [],
       ownerIds: [],
       sources: [],
+      idleMinutes: undefined,
+      lastMessageDirection: undefined,
     });
   }
 
@@ -201,6 +205,22 @@ export function DashboardSearchFilterBar({
                       title: "Consultor",
                       count: filters.ownerIds.length,
                       onRemove: () => onPatch({ ownerIds: [] }),
+                    }]
+                  : []),
+                ...(filters.idleMinutes
+                  ? [{
+                      id: "idle",
+                      title: `Parado há +${idleMinutesLabel(filters.idleMinutes)}`,
+                      count: 1,
+                      onRemove: () => onPatch({ idleMinutes: undefined }),
+                    }]
+                  : []),
+                ...(filters.lastMessageDirection
+                  ? [{
+                      id: "dir",
+                      title: filters.lastMessageDirection === "in" ? "Cliente" : "Consultor ou automação",
+                      count: 1,
+                      onRemove: () => onPatch({ lastMessageDirection: undefined }),
                     }]
                   : []),
                 ...(filters.userIds.length
@@ -341,6 +361,66 @@ export function DashboardSearchFilterBar({
                   ),
                 },
                 {
+                  id: "idle",
+                  label: "Leads parados",
+                  hint: "Tempo desde a última mensagem",
+                  icon: IconClock,
+                  count: filters.idleMinutes || filters.lastMessageDirection ? 1 : 0,
+                  body: (
+                    <div className="space-y-3">
+                      <div>
+                        <span className="mb-1.5 block text-[11px] font-medium text-muted-foreground">
+                          Tempo sem interação
+                        </span>
+                        <ChipWrap>
+                          {IDLE_MINUTE_OPTIONS.map((minutes) => (
+                            <FilterChip
+                              key={minutes}
+                              tone="fill"
+                              selected={filters.idleMinutes === minutes}
+                              onClick={() =>
+                                onPatch({
+                                  idleMinutes: filters.idleMinutes === minutes ? undefined : minutes,
+                                })
+                              }
+                            >
+                              {idleMinutesLabel(minutes)}
+                            </FilterChip>
+                          ))}
+                        </ChipWrap>
+                      </div>
+                      <div>
+                        <span className="mb-1.5 block text-[11px] font-medium text-muted-foreground">
+                          Última mensagem enviada por
+                        </span>
+                        <ChipWrap>
+                          <FilterChip
+                            tone="fill"
+                            selected={!filters.lastMessageDirection}
+                            onClick={() => onPatch({ lastMessageDirection: undefined })}
+                          >
+                            Qualquer um
+                          </FilterChip>
+                          <FilterChip
+                            tone="fill"
+                            selected={filters.lastMessageDirection === "in"}
+                            onClick={() => onPatch({ lastMessageDirection: "in" })}
+                          >
+                            Cliente
+                          </FilterChip>
+                          <FilterChip
+                            tone="fill"
+                            selected={filters.lastMessageDirection === "out"}
+                            onClick={() => onPatch({ lastMessageDirection: "out" })}
+                          >
+                            Consultor ou automação
+                          </FilterChip>
+                        </ChipWrap>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
                   id: "users",
                   label: "Usuário",
                   hint: "Quem aparece no funil e no uso",
@@ -422,6 +502,9 @@ type FilterGroup = {
   body: ReactNode;
 };
 
+/** Sobrevive ao re-render da URL. Sem isso o modal volta para Pipeline a cada chip. */
+let dashboardFilterGroupId = "";
+
 function DashboardFilterDialog({
   open,
   onClose,
@@ -435,12 +518,21 @@ function DashboardFilterDialog({
   clearDisabled: boolean;
   groups: FilterGroup[];
 }) {
-  const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
-  const active = groups.find((group) => group.id === groupId) ?? groups[0];
+  const [groupId, setGroupId] = useState(
+    () => dashboardFilterGroupId || groups[0]?.id || "",
+  );
+  const active =
+    groups.find((group) => group.id === groupId) ??
+    groups.find((group) => group.id === dashboardFilterGroupId) ??
+    groups[0];
+
+  function chooseGroup(id: string) {
+    dashboardFilterGroupId = id;
+    setGroupId(id);
+  }
 
   useEffect(() => {
     if (!open) return;
-    setGroupId(groups[0]?.id ?? "");
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -451,8 +543,6 @@ function DashboardFilterDialog({
       document.removeEventListener("keydown", onEsc);
       document.body.style.overflow = prev;
     };
-    // groups muda a cada render; o reset é só na abertura.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, onClose]);
 
   if (!open || !active || typeof document === "undefined") return null;
@@ -496,7 +586,7 @@ function DashboardFilterDialog({
                 <button
                   key={group.id}
                   type="button"
-                  onClick={() => setGroupId(group.id)}
+                  onClick={() => chooseGroup(group.id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     selected

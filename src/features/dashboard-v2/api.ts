@@ -66,6 +66,10 @@ export interface DashboardFiltersState {
   ownerIds: string[];
   /** Pode incluir `SOURCE_NONE` para "Sem origem". */
   sources: string[];
+  /** Minutos sem mensagem de chat. Ausente = sem esse filtro. */
+  idleMinutes?: number;
+  /** "in" = cliente, "out" = consultor ou automação. Ausente = qualquer um. */
+  lastMessageDirection?: "in" | "out";
 }
 
 export interface DashboardMeItem {

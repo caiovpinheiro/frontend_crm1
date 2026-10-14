@@ -26,6 +26,7 @@ import {
 
 import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu";
 
+import { IDLE_MINUTE_OPTIONS, idleMinutesLabel } from "@/lib/idle-leads";
 import { cn } from "@/lib/utils";
 import { ds } from "@/lib/design-system";
 import {
@@ -518,7 +519,7 @@ const META_SESSION_OPTIONS: { value: "open" | "closed"; label: string }[] = [
   { value: "closed", label: "Fechada" },
 ];
 const LAST_DIRECTION_OPTIONS: { value: "in" | "out"; label: string }[] = [
-  { value: "out", label: "Agente" },
+  { value: "out", label: "Consultor ou automação" },
   { value: "in", label: "Cliente" },
 ];
 
@@ -530,11 +531,12 @@ export function ConversationSection({ draft, setDraftField }: SectionProps) {
   return (
     <FieldCard
       label="Conversa"
-      active={!!status || !!session || !!dir}
+      active={!!status || !!session || !!dir || !!draft.idleMinutes}
       onClear={() => {
         setDraftField("conversationStatus", undefined);
         setDraftField("windowState", undefined);
         setDraftField("lastMessageDirection", undefined);
+        setDraftField("idleMinutes", undefined);
       }}
     >
       <div className="space-y-2.5">
@@ -573,6 +575,31 @@ export function ConversationSection({ draft, setDraftField }: SectionProps) {
               setDraftField("lastMessageDirection", dir === v ? undefined : v)
             }
           />
+        </div>
+        <div>
+          <span className="mb-1.5 block text-[11px] font-medium text-[var(--text-muted)]">
+            Tempo sem interação
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {IDLE_MINUTE_OPTIONS.map((minutes) => {
+              const active = draft.idleMinutes === minutes;
+              return (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => setDraftField("idleMinutes", active ? undefined : minutes)}
+                  className={cn(
+                    "rounded-[var(--radius-md)] px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                    active
+                      ? "bg-[var(--brand-primary)] text-white"
+                      : "bg-[var(--glass-bg-strong)] text-[var(--text-secondary)] hover:text-[var(--brand-primary)]",
+                  )}
+                >
+                  {idleMinutesLabel(minutes)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </FieldCard>

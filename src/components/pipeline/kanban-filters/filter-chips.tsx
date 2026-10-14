@@ -8,6 +8,8 @@
 import { ActiveFilterChip, type ActiveFilterChipModel } from "@/components/crm/active-filter-chip";
 import { cn } from "@/lib/utils";
 
+import { idleMinutesLabel } from "@/lib/idle-leads";
+
 import type { AdvancedDealFilters, CustomFieldFilter, FilterOptionsResponse } from "./types";
 
 type Patch = (partial: Partial<AdvancedDealFilters>) => void;
@@ -255,9 +257,18 @@ export function dealFilterChips(
   if (filters.lastMessageDirection) {
     chips.push({
       id: "direction",
-      title: filters.lastMessageDirection === "in" ? "Mensagem recebida" : "Mensagem enviada",
+      title: filters.lastMessageDirection === "in" ? "Cliente" : "Consultor ou automação",
       count: 1,
       onRemove: () => onPatch({ lastMessageDirection: undefined }),
+    });
+  }
+
+  if (filters.idleMinutes) {
+    chips.push({
+      id: "idle",
+      title: `Parado há +${idleMinutesLabel(filters.idleMinutes)}`,
+      count: 1,
+      onRemove: () => onPatch({ idleMinutes: undefined }),
     });
   }
 

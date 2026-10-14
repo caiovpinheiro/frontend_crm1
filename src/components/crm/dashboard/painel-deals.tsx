@@ -70,6 +70,8 @@ import {
   KPI_CONTAINER_CLASS,
 } from "@/features/dashboard-v2/layout-classes";
 import type { DealCoreWidgetId } from "@/features/dashboard-v2/use-negocios-grid";
+import type { DashboardFiltersState } from "@/features/dashboard-v2/api";
+import { dashboardFiltersToPipelineHref } from "@/features/dashboard-v2/dashboard-to-pipeline";
 import { cn } from "@/lib/utils";
 import { StageMetricCard } from "@/components/crm/dashboard/stage-metric-card";
 
@@ -95,6 +97,7 @@ export function PainelDealWidget({
   pipelineId,
   pipelineIds,
   userIds,
+  filters,
   funnelPicker,
   pipelines,
   hideInactiveAgents = false,
@@ -108,6 +111,7 @@ export function PainelDealWidget({
   pipelineId?: string;
   pipelineIds?: string[];
   userIds?: string[];
+  filters?: DashboardFiltersState;
   funnelPicker?: ReactNode;
   /** Funis em cache: nomeiam as etapas de origem/destino do fluxo do funil. */
   pipelines?: ReadonlyArray<FunnelFlowPipeline>;
@@ -133,6 +137,7 @@ export function PainelDealWidget({
           period={period}
           pipelineId={pipelineId}
           pipelineIds={pipelineIds}
+          filters={filters}
           funnelPicker={funnelPicker}
           pipelines={pipelines}
           onRetry={() => onRetry("funnel")}
@@ -236,6 +241,7 @@ function DealFunnel({
   period,
   pipelineId,
   pipelineIds,
+  filters,
   funnelPicker,
   pipelines,
   onRetry,
@@ -246,6 +252,7 @@ function DealFunnel({
   period?: { from: string; to: string };
   pipelineId?: string;
   pipelineIds?: string[];
+  filters?: DashboardFiltersState;
   funnelPicker?: ReactNode;
   pipelines?: ReadonlyArray<FunnelFlowPipeline>;
   onRetry: () => void;
@@ -254,9 +261,16 @@ function DealFunnel({
   const funnel = block.data;
   const stages = funnel.stages.filter((s) => textMatchesQuery(s.name, search));
   const single = pipelineIds?.length === 1 ? pipelineIds[0] : pipelineId;
-  const pipelineHref = single
-    ? `/pipeline?pipeline=${encodeURIComponent(single)}`
-    : "/pipeline";
+  const pipelineFilters = filters ?? {
+    stageIds: [],
+    tagIds: [],
+    ownerIds: [],
+    sources: [],
+  };
+  const pipelineHref = dashboardFiltersToPipelineHref({
+    filters: pipelineFilters,
+    pipelineRef: single,
+  });
   const wonCount = kpis.ok ? (kpis.data.negociosGanhos.value ?? 0) : 0;
   const wonValue = kpis.ok ? (kpis.data.receitaGanha.value ?? 0) : 0;
   const lostStage = funnel.lostStage;
@@ -265,9 +279,11 @@ function DealFunnel({
     ? funnel.stages.find((s) => /^perdid/.test(s.name.trim().toLowerCase()))?.id
     : undefined;
   const stageHref = (stageId: string) =>
-    single
-      ? `/pipeline?${new URLSearchParams({ pipeline: single, stage: stageId }).toString()}`
-      : "/pipeline";
+    dashboardFiltersToPipelineHref({
+      filters: pipelineFilters,
+      pipelineRef: single,
+      stageId,
+    });
 
   // Fluxo por etapa (backend novo): rótulos de origem/destino resolvidos aqui.
   const lookup = funnelStageLookup(funnel.stages, pipelines);

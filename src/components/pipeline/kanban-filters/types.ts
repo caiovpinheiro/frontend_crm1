@@ -80,8 +80,10 @@ export type AdvancedDealFilters = {
   conversationStatus?: "open" | "closed";
   /** Janela 24h da Meta (WhatsApp Cloud). Não é status RESOLVED da conversa. */
   windowState?: "open" | "closed";
-  /** Direção da última mensagem: "out" = nossa / "in" = do cliente. */
+  /** Direção da última mensagem: "out" = consultor ou automação / "in" = cliente. */
   lastMessageDirection?: "in" | "out";
+  /** Minutos sem mensagem de chat. Não é `stalledDays`. */
+  idleMinutes?: number;
   /** Exceções do Painel → lista filtrada. */
   exception?: "no_task" | "stalled" | "overdue" | "empty_value";
   stalledDays?: number;
@@ -181,6 +183,7 @@ export function countActiveFilters(f: AdvancedDealFilters | null | undefined): n
   if (f.conversationStatus) n++;
   if (f.windowState) n++;
   if (f.lastMessageDirection) n++;
+  if (f.idleMinutes) n++;
   if (f.exception) n++;
   return n;
 }
