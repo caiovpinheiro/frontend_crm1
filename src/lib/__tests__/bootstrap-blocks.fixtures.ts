@@ -6,6 +6,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { useInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings";
 import {
   useQuickReplies,
@@ -32,6 +33,16 @@ export const BLOCK_FIXTURES: Record<string, BlockFixture> = {
     body: { rooms: [{ id: "r1", kind: "DM", name: "Ana", unread: 2, muted: false }] },
     queryKey: ["team-chat-rooms"],
     useHook: () => useTeamChatRooms(true),
+  },
+  "/api/agents/u1/status": {
+    body: { userId: "u1", status: "AWAY", availableForVoiceCalls: false },
+    queryKey: ["my-agent-status", "u1"],
+    // Mesmo GET do fallback de `useAgentStatus` (sem montar o popup/SSE).
+    useHook: () =>
+      useQuery({
+        queryKey: ["my-agent-status", "u1"],
+        queryFn: async () => (await fetch(apiUrl("/api/agents/u1/status"))).json(),
+      }),
   },
   "/api/activities/alerts": {
     body: { alert: null },
@@ -104,5 +115,10 @@ export const BLOCK_FIXTURES: Record<string, BlockFixture> = {
     queryKey: ["settings-visibility"],
     useHook: () =>
       useQuery({ queryKey: ["settings-visibility"], queryFn: fetchVisibilitySettings }),
+  },
+  "/api/settings/departments": {
+    body: { items: [{ id: "d1", name: "Vendas", requireTabulationOnClose: false, _count: { members: 2 } }] },
+    queryKey: ["settings", "departments"],
+    useHook: () => useDepartments(),
   },
 };

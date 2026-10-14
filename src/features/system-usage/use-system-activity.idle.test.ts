@@ -21,6 +21,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => h.pathname }));
 // Aba isolada (sem coordenação): esta aba é a líder de si mesma.
 vi.mock("@/hooks/sse-single-leader", () => ({ isSingleLeaderEnabled: () => false }));
 
+import { __resetPresenceBeatHubForTests, PresenceBeatHub } from "@/hooks/presence-beat-hub";
 import { PRESENCE_TICK_MS } from "@/hooks/presence-ticker";
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
 import {
@@ -84,6 +85,8 @@ function focusBack() {
 }
 
 beforeEach(() => {
+  // Backend sem `POST /api/presence/beat`: aqui vale o caminho do ping.
+  __resetPresenceBeatHubForTests(new PresenceBeatHub({ readUnsupportedAt: () => Date.now() }));
   vi.useFakeTimers({
     toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
   });

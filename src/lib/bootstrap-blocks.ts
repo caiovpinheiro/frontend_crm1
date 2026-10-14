@@ -25,6 +25,10 @@
  * cache-busting), a chave a do hook, e o `parse` o mesmo do `queryFn`.
  */
 
+import {
+  DEPARTMENTS_QUERY_KEY,
+  normalizeDepartmentList,
+} from "@/features/conversations-settings/hooks/use-departments";
 import { INBOX_SETTINGS_QUERY_KEY, parseInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings";
 import { ACTIVITY_ALERT_KEY } from "@/features/directory-v2/hooks";
 import { parseOutboundMessagingChannels } from "@/features/inbox-v2/hooks/use-channels";
@@ -58,6 +62,14 @@ export const BOOTSTRAP_BLOCKS: readonly BootstrapBlockEntry[] = [
     url: "/api/team-chat/rooms",
     // `useTeamChatRooms` (features/team-chat/hooks.ts) — `listTeamChatRooms`.
     queryKey: () => ["team-chat-rooms"],
+  },
+  {
+    name: "my-agent-status",
+    // Volátil: vem em `blocks` do `GET /api/me/live` (be #193), não do
+    // bootstrap. Sem ETag (URL por função não entra em `isRevalidatedApiPath`).
+    url: (ctx) => `/api/agents/${ctx.userId}/status`,
+    // `useAgentStatus` (components/crm/agent-status.tsx).
+    queryKey: (ctx) => ["my-agent-status", ctx.userId],
   },
   {
     name: "activity-alert",
@@ -128,6 +140,14 @@ export const BOOTSTRAP_BLOCKS: readonly BootstrapBlockEntry[] = [
     // para todos — admin só não lê a chave.
     url: "/api/settings/visibility",
     queryKey: () => ["settings-visibility"],
+  },
+  {
+    name: "departments",
+    url: "/api/settings/departments",
+    // `useDepartments` (conversations-settings/hooks/use-departments.ts) —
+    // painel do negócio (atividades) e telas de configuração.
+    queryKey: () => DEPARTMENTS_QUERY_KEY,
+    parse: normalizeDepartmentList,
   },
 ];
 

@@ -201,6 +201,8 @@ class SharedSSEConnection {
   private followerNeeds = new Set<string>();
   /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
   private everOpened = false;
+  /** Última líder conhecida (`null` = nenhuma ainda, ou saiu com `bye`). */
+  private knownLeaderId: string | null = null;
   private sawGap = false;
   /** Falhas seguidas desde o último open (backoff). */
   private failures = 0;
@@ -219,7 +221,11 @@ class SharedSSEConnection {
   constructor(
     readonly url: string,
     private readonly env: SseEnv,
-  ) {}
+  ) {
+    // Conexão criada depois de a aba já conhecer a líder: a próxima troca
+    // é troca de verdade (gap).
+    this.knownLeaderId = env.tabs?.leaderId ?? null;
+  }
 
   get connected(): boolean {
     return this.open;
@@ -356,9 +362,20 @@ class SharedSSEConnection {
     this.refresh();
   }
 
-  /** Seguidora: a líder mudou — o que a nova abrir é uma reconexão. */
-  onLeaderChange(): void {
+  /**
+   * Seguidora: a líder mudou — o que a nova abrir é uma reconexão.
+   *
+   * Exceção: a PRIMEIRA líder que uma aba recém-aberta conhece. O `status`
+   * da líder costuma chegar antes do `lead` (que sai a cada 5 s); tratar o
+   * `lead` como troca de líder marcava um gap falso, e o `status` seguinte
+   * disparava `onReconnect` em todos os assinantes — refetch de status do
+   * agente e afins em TODA aba nova, sem nada perdido.
+   */
+  onLeaderChange(leaderId: string | null = null): void {
+    const previous = this.knownLeaderId;
+    this.knownLeaderId = leaderId;
     if (this.isLeader()) return;
+    if (previous === null && leaderId !== null) return;
     if (this.everOpened) this.sawGap = true;
     this.setOpen(false, false);
   }
@@ -756,8 +773,8 @@ export class SseTabBridge {
       tabs.onRoleChange(() => {
         for (const conn of this.connections.values()) conn.onRoleChange();
       }),
-      tabs.onLeaderChange(() => {
-        for (const conn of this.connections.values()) conn.onLeaderChange();
+      tabs.onLeaderChange((leaderId) => {
+        for (const conn of this.connections.values()) conn.onLeaderChange(leaderId);
       }),
       tabs.onFollowerStatesChange(() => {
         // Seguidora pode precisar de uma URL que esta aba ainda não tem.

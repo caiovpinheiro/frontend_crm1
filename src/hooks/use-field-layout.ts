@@ -29,7 +29,8 @@ export function useFieldLayout(context: FieldLayoutContext, enabled = true) {
       if (!res.ok) return { admin: null, agent: null };
       return res.json();
     },
-    staleTime: 60_000,
+    // Configuração da org (bloco do bootstrap): mutações invalidam.
+    staleTime: 5 * 60_000,
     enabled,
     refetchOnMount: false,
     refetchOnWindowFocus: false,

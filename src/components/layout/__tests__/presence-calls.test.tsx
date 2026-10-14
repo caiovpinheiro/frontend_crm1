@@ -67,6 +67,7 @@ vi.mock("@/features/inbox-v2/context/message-toast-context", () => ({
   useMessageToast: () => ({ registerActiveConversation: () => () => {} }),
 }));
 
+import { __resetPresenceBeatHubForTests, PresenceBeatHub } from "@/hooks/presence-beat-hub";
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
 import { useSystemActivity } from "@/features/system-usage/use-system-activity";
 import { useAgentStatus } from "@/components/crm/agent-status";
@@ -129,6 +130,8 @@ function emit(event: string, data: unknown) {
 }
 
 beforeEach(() => {
+  // Backend sem `POST /api/presence/beat`: aqui vale o caminho do ping.
+  __resetPresenceBeatHubForTests(new PresenceBeatHub({ readUnsupportedAt: () => Date.now() }));
   vi.useFakeTimers({
     toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
   });
