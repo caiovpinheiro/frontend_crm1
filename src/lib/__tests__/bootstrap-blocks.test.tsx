@@ -38,6 +38,10 @@ import {
 import { BLOCK_FIXTURES, type BlockFixture } from "./bootstrap-blocks.fixtures";
 
 const CTX: BootstrapBlockContext = { userId: "u1", organizationId: "org-1" };
+/** Blocos por usuário (URL com id, vêm do live): sem ETag, sem `no-cache`. */
+const VOLATILE_URLS = new Set(
+  BOOTSTRAP_BLOCKS.filter((e) => typeof e.url === "function").map((e) => resolveBlockUrl(e, CTX)),
+);
 
 function payload(blocks?: Record<string, unknown>): MeBootstrapPayload {
   return {
@@ -163,7 +167,9 @@ describe("mapa url → queryKey", () => {
 
   it("rotas do mapa e o bootstrap revalidam (ETag); o resto não", () => {
     expect(isRevalidatedApiPath(SHELL_BOOTSTRAP_PATH)).toBe(true);
-    for (const url of Object.keys(BLOCK_FIXTURES)) expect(isRevalidatedApiPath(url), url).toBe(true);
+    for (const url of Object.keys(BLOCK_FIXTURES)) {
+      expect(isRevalidatedApiPath(url), url).toBe(!VOLATILE_URLS.has(url));
+    }
     expect(isRevalidatedApiPath("/api/deals/abc")).toBe(false);
   });
 });
@@ -235,7 +241,8 @@ describe("compat: backend sem `blocks`", () => {
     });
     for (const url of Object.keys(BLOCK_FIXTURES)) expect(netPaths()).toContain(url);
     for (const [input, init] of network.mock.calls) {
-      if (BLOCK_FIXTURES[pathOf(input)]) expect(init?.cache).toBe("no-cache");
+      const p = pathOf(input);
+      if (BLOCK_FIXTURES[p] && !VOLATILE_URLS.has(p)) expect(init?.cache).toBe("no-cache");
     }
     expect(window.localStorage.getItem(BOOTSTRAP_BLOCKS_HINT_KEY)).toBe("0");
   });

@@ -64,6 +64,14 @@ export const BOOTSTRAP_BLOCKS: readonly BootstrapBlockEntry[] = [
     queryKey: () => ["team-chat-rooms"],
   },
   {
+    name: "my-agent-status",
+    // Volátil: vem em `blocks` do `GET /api/me/live` (be #193), não do
+    // bootstrap. Sem ETag (URL por função não entra em `isRevalidatedApiPath`).
+    url: (ctx) => `/api/agents/${ctx.userId}/status`,
+    // `useAgentStatus` (components/crm/agent-status.tsx).
+    queryKey: (ctx) => ["my-agent-status", ctx.userId],
+  },
+  {
     name: "activity-alert",
     // GET "consumptivo" (marca o alerta como entregue): o backend decide
     // se entra no bootstrap; se entrar, o corpo é o mesmo da rota.

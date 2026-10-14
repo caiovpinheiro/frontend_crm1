@@ -66,6 +66,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { apiFetch, setApiGetResolver, setRevalidatedApiPathMatcher } from "@/lib/api";
+import { liveOverlayFor, mergeLiveIntoBlock } from "@/lib/bootstrap-live-merge";
 import {
   BOOTSTRAP_BLOCKS,
   findBootstrapBlock,
@@ -226,7 +227,14 @@ export type MeLivePayload = {
   agentStatus?: BootstrapAgentStatus | null;
   emailUnread?: BootstrapEmailUnread | null;
   teamChatRooms?: BootstrapTeamChatRooms | null;
+  /**
+   * `{ [url]: corpo }` (be #193: `/api/team-chat/rooms` e
+   * `/api/agents/<eu>/status`), semeados pelo mesmo mapa do bootstrap.
+   */
   blocks?: Record<string, unknown>;
+  /** Voláteis por id dos blocos estáveis (`lib/bootstrap-live-merge.ts`). */
+  usersPresence?: Record<string, unknown>;
+  departmentCounts?: Record<string, unknown>;
 };
 
 /** localStorage: instante (ms) em que `/api/me/live` respondeu 404. */
@@ -340,14 +348,17 @@ function seedBlocks(
   ctx: BootstrapBlockContext,
   blocks: Record<string, unknown> | undefined,
   now: number,
+  opts: { only?: (url: string) => boolean; transform?: (url: string, body: unknown) => unknown } = {},
 ): string[] {
   if (!blocks || typeof blocks !== "object") return [];
   const seeded: string[] = [];
   for (const entry of BOOTSTRAP_BLOCKS) {
     if (!entry.queryKey) continue;
     const url = resolveBlockUrl(entry, ctx);
+    if (opts.only && !opts.only(url)) continue;
     if (!Object.prototype.hasOwnProperty.call(blocks, url)) continue;
-    const body = blocks[url];
+    const raw = blocks[url];
+    const body = opts.transform && raw != null ? opts.transform(url, raw) : raw;
     if (body === null || body === undefined) continue;
     let data: unknown;
     try {
@@ -390,10 +401,34 @@ export function seedLiveCaches(
   seedBlocks(client, ctx, live.blocks, now);
 }
 
-/** Grava cada bloco não-nulo na chave/formato do hook que o consome. */
+/**
+ * v2: blocos estáveis que perderam campos voláteis (`/api/users`,
+ * `/api/settings/departments`) só são semeados com o live em mãos —
+ * reconstruídos pelo merge único de `lib/bootstrap-live-merge.ts`. Live
+ * falhou (`null`): o bloco estável como veio.
+ */
+function seedOverlaidBlocks(
+  client: QueryClient,
+  ctx: BootstrapBlockContext,
+  blocks: Record<string, unknown> | undefined,
+  live: MeLivePayload | null,
+  now: number = Date.now(),
+): void {
+  seedBlocks(client, ctx, blocks, now, {
+    only: (url) => !!liveOverlayFor(url),
+    transform: (url, body) => mergeLiveIntoBlock(url, body, live),
+  });
+}
+
+/**
+ * Grava cada bloco não-nulo na chave/formato do hook que o consome.
+ * `deferOverlays`: v2 — os blocos com voláteis no live esperam por ele
+ * (`seedOverlaidBlocks`).
+ */
 export function seedShellBootstrapCaches(
   client: QueryClient,
   payload: MeBootstrapPayload,
+  opts: { deferOverlays?: boolean } = {},
 ): void {
   const { user } = payload;
   const k = shellBootstrapKeys;
@@ -417,7 +452,9 @@ export function seedShellBootstrapCaches(
   if (payload.widgets) {
     client.setQueryData(k.activeWidgetSlugs(), payload.widgets);
   }
-  seedBootstrapBlocks(client, payload);
+  seedBlocks(client, blockContext(payload), payload.blocks, Date.now(), {
+    only: opts.deferOverlays ? (url) => !liveOverlayFor(url) : undefined,
+  });
 }
 
 // ──────────────────────────────────────────────
@@ -504,7 +541,14 @@ export function resolveFromBootstrap(path: string): Promise<Response | null> | n
   return (async () => {
     const stable = await attempt.stable;
     const fromStable = blockBody(stable?.blocks, path);
-    if (fromStable !== undefined) return jsonResponse(fromStable);
+    if (fromStable !== undefined) {
+      // Bloco estável sem os voláteis (v2): espera o live e reconstrói.
+      if (attempt.live && liveOverlayFor(path)) {
+        const live = await attempt.live;
+        return jsonResponse(mergeLiveIntoBlock(path, fromStable, live as Record<string, unknown> | null));
+      }
+      return jsonResponse(fromStable);
+    }
     // No bootstrap com `null` = sem permissão/falha: rede, sem esperar o live.
     if (stable?.blocks && Object.prototype.hasOwnProperty.call(stable.blocks, path)) {
       return null;
@@ -664,12 +708,18 @@ export function startShellBootstrap(
   attempt.stable = stableSource(identity, () => fetchShellBootstrap(identity), client)
     .catch(() => null)
     .then((payload) => {
-      if (payload && isCurrent()) seedShellBootstrapCaches(client, payload);
+      const wantsLive = !!payload && isStableOnlyPayload(payload) && !isPreviewMode();
+      if (payload && isCurrent()) {
+        seedShellBootstrapCaches(client, payload, { deferOverlays: wantsLive });
+      }
       // Decide o live JÁ (antes de quem espera o estável continuar).
-      if (payload && isStableOnlyPayload(payload) && !isPreviewMode()) {
+      if (payload && wantsLive) {
         attempt.live = fetchMeLive(identity)
           .then((live) => {
-            if (live && isCurrent()) seedLiveCaches(client, attempt.ctx, live);
+            if (isCurrent()) {
+              if (live) seedLiveCaches(client, attempt.ctx, live);
+              seedOverlaidBlocks(client, attempt.ctx, payload.blocks, live);
+            }
             return live;
           })
           .finally(() => {
