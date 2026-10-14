@@ -152,6 +152,10 @@ type Catalogs = {
   whatsappTemplates: Array<{ id: string; name: string }>;
   models: Array<{ id: string; name: string; provider?: "openai" | "anthropic"; hint?: string; inputPer1M?: number; outputPer1M?: number }>;
   contacts: Array<{ id: string; name: string; phone?: string | null; email?: string | null }>;
+  /** Papéis do CRM, para o repasse por leads. */
+  roles?: Array<{ id: string; name: string }>;
+  /** Quem está em cada departamento. */
+  departmentMembers?: Array<{ departmentId: string; userId: string }>;
 };
 
 type KnowledgeDoc = {
@@ -5873,6 +5877,77 @@ function StepOutputs({
 // Etapa 10 — Equipe e horários
 // ─────────────────────────────────────────────────────────────────────────────
 
+function LeadsHandoffCard({
+  config,
+  catalogs,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  catalogs: Catalogs;
+  onChange: (path: string, value: unknown) => void;
+}) {
+  const handoff = getPath(config, "handoff", {}) as Record<string, unknown>;
+  const leads = (handoff.leads ?? {}) as { enabled?: boolean; roleIds?: string[]; userIds?: string[] };
+  const dest = handoff.defaultDestination as { type?: string; id?: string } | undefined;
+  const departmentId = dest?.type === "department" ? dest.id ?? "" : "";
+  const members = catalogs.departmentMembers ?? [];
+  const inDepartment = new Set(
+    members.filter((m) => !departmentId || m.departmentId === departmentId).map((m) => m.userId),
+  );
+  const people = (catalogs.users ?? []).filter(
+    (u) => u.type === "HUMAN" && (departmentId && members.length > 0 ? inDepartment.has(u.id) : true),
+  );
+  const setLeads = (patch: Partial<typeof leads>) =>
+    onChange("handoff.leads", { roleIds: [], userIds: [], ...leads, ...patch });
+
+  return (
+    <SectionCard
+      title="Distribuir no modo por leads"
+      description="Só este agente. Desligado, o destino departamento segue a distribuição inteligente. Ligado, o sorteio usa o peso do modo por leads e só entra quem está naquele departamento, no papel escolhido e, se você marcar pessoas, só elas. A pessoa precisa estar no rodízio por leads (peso maior que zero), online e dentro do expediente: quem entra às 13h só recebe depois das 13h. Se ninguém estiver disponível, o card espera na fila do modo por leads — não vai para a fila inteligente."
+    >
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={!!leads.enabled}
+          onCheckedChange={(v) => setLeads({ enabled: v })}
+          id="handoff-leads"
+          aria-label="Distribuir no modo por leads"
+        />
+        <Label htmlFor="handoff-leads">Usar o modo por leads neste repasse</Label>
+      </div>
+      {leads.enabled && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field
+            label="Papéis que podem receber"
+            hint="Vazio: qualquer papel, desde que a pessoa esteja no departamento. O peso continua o do modo por leads."
+          >
+            <MultiSelectPopover
+              label="Escolha os papéis"
+              options={(catalogs.roles ?? []).map((r) => ({ value: r.id, label: r.name }))}
+              selected={leads.roleIds ?? []}
+              onChange={(v) => setLeads({ roleIds: v })}
+            />
+          </Field>
+          <Field
+            label="Pessoas do departamento"
+            hint={
+              departmentId
+                ? "Vazio: todas as pessoas desse departamento que passam no papel. Quem não está no departamento não recebe."
+                : "Escolha o departamento no destino acima para ver só as pessoas dele."
+            }
+          >
+            <MultiSelectPopover
+              label="Escolha as pessoas"
+              options={people.map((u) => ({ value: u.id, label: u.name || u.id }))}
+              selected={leads.userIds ?? []}
+              onChange={(v) => setLeads({ userIds: v })}
+            />
+          </Field>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function StepTeam({
   config,
   catalogs,
@@ -5906,6 +5981,8 @@ function StepTeam({
           />
         </Field>
       </SectionCard>
+
+      <LeadsHandoffCard config={config} catalogs={catalogs} onChange={onChange} />
 
       <SectionCard
         title="Quando o cliente pede uma pessoa e já diz o assunto"
