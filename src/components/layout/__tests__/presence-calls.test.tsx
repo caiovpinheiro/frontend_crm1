@@ -73,7 +73,7 @@ import { useSystemActivity } from "@/features/system-usage/use-system-activity";
 import { useAgentStatus } from "@/components/crm/agent-status";
 import { useSystemPresenceSync } from "@/hooks/use-system-presence-sync";
 import { useInboxRealtime } from "@/features/inbox-v2/hooks/use-realtime";
-import { startShellBootstrap } from "@/lib/shell-bootstrap";
+import { resetShellBootstrapForTests, startShellBootstrap } from "@/lib/shell-bootstrap";
 
 type Call = { at: number; method: string; path: string; body: unknown };
 let calls: Call[] = [];
@@ -130,6 +130,8 @@ function emit(event: string, data: unknown) {
 }
 
 beforeEach(() => {
+  // A carga do shell é por página: cada teste é uma página nova.
+  resetShellBootstrapForTests();
   // Backend sem `POST /api/presence/beat`: aqui vale o caminho do ping.
   __resetPresenceBeatHubForTests(new PresenceBeatHub({ readUnsupportedAt: () => Date.now() }));
   vi.useFakeTimers({
