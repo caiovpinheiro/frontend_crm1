@@ -156,6 +156,8 @@ type Catalogs = {
   roles?: Array<{ id: string; name: string }>;
   /** Quem está em cada departamento. */
   departmentMembers?: Array<{ departmentId: string; userId: string }>;
+  /** Motivos de perda ativos da organização. */
+  lossReasons?: Array<{ id: string; name: string }>;
 };
 
 type KnowledgeDoc = {
@@ -6267,6 +6269,46 @@ function SystemMessagesCard({ config, onChange }: { config: Record<string, unkno
 // Etapa 11 — Encerrar e classificar
 // ─────────────────────────────────────────────────────────────────────────────
 
+function LossReasonSettings({
+  config,
+  catalogs,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  catalogs: Catalogs;
+  onChange: (path: string, value: unknown) => void;
+}) {
+  const loss = (getPath(config, "closure.lossReasons", {}) ?? {}) as { enabled?: boolean; reasonIds?: string[] };
+  const set = (patch: Partial<typeof loss>) =>
+    onChange("closure.lossReasons", { reasonIds: [], ...loss, ...patch });
+  return (
+    <SectionCard
+      title="Motivo ao perder o negócio"
+      description="Quando ele move o card para uma etapa de perdido, grava um motivo desta lista. Diga nas regras qual motivo usar em cada caso, com o nome exatamente como está aqui. Motivo fora da lista não é gravado. Desligado, a etapa muda e o motivo fica vazio."
+    >
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={!!loss.enabled}
+          onCheckedChange={(v) => set({ enabled: v })}
+          id="loss-reasons"
+          aria-label="Gravar motivo ao perder"
+        />
+        <Label htmlFor="loss-reasons">Gravar o motivo ao mover para Perdido</Label>
+      </div>
+      {loss.enabled && (
+        <Field label="Motivos que ele pode usar" hint="Só estes. O texto gravado no card é o nome do motivo.">
+          <MultiSelectPopover
+            label="Escolha os motivos"
+            options={(catalogs.lossReasons ?? []).map((r) => ({ value: r.id, label: r.name }))}
+            selected={loss.reasonIds ?? []}
+            onChange={(v) => set({ reasonIds: v })}
+          />
+        </Field>
+      )}
+    </SectionCard>
+  );
+}
+
 function StepClosure({
   config,
   catalogs,
@@ -6307,6 +6349,7 @@ function StepClosure({
         </Field>
       </SectionCard>
 
+      <LossReasonSettings config={config} catalogs={catalogs} onChange={onChange} />
       <InactivitySettings config={config} onChange={onChange} />
       <SummarySettings config={config} onChange={onChange} />
       <TabulationSettings config={config} catalogs={catalogs} onChange={onChange} />
