@@ -13,8 +13,8 @@ import type { EntityViewer } from "./presence-sync";
  *  - `presence-sync` é a FONTE das entidades (as seguidoras já informam as
  *    suas à líder pelo `state` do `tab-coordinator`) e entrega os viewers
  *    (localmente e às seguidoras pelo canal);
- *  - o tique é o MOTOR: avisado de que as entidades mudaram, antecipa a
- *    próxima batida só se a última foi há 30 s ou mais;
+ *  - o tique é o MOTOR, em cadência estrita: mudar a lista de entidades
+ *    não antecipa nada (a próxima batida leva a lista nova);
  *  - 404 no beat (backend antigo): `markUnsupported` — o tique volta ao
  *    ping e o `presence-sync` ao heartbeat por entidade, e o navegador
  *    não tenta o beat por `PRESENCE_BEAT_RETRY_MS`.
@@ -61,8 +61,6 @@ export function beatKeyToPresenceKey(key: string): string | null {
 export class PresenceBeatHub {
   private unsupported: boolean;
   private source: PresenceBeatSource | null = null;
-  private driver: (() => void) | null = null;
-  private changePending = false;
   private readonly modeListeners = new Set<() => void>();
 
   constructor(private readonly env: PresenceBeatHubEnv = {}) {
@@ -88,13 +86,6 @@ export class PresenceBeatHub {
     };
   }
 
-  setDriver(onEntitiesChanged: () => void): () => void {
-    this.driver = onEntitiesChanged;
-    return () => {
-      if (this.driver === onEntitiesChanged) this.driver = null;
-    };
-  }
-
   onModeChange(fn: () => void): () => void {
     this.modeListeners.add(fn);
     return () => this.modeListeners.delete(fn);
@@ -110,20 +101,6 @@ export class PresenceBeatHub {
       .map(entityFromKey)
       .filter((e) => PRESENCE_BEAT_TYPES.has(e.type) && PRESENCE_BEAT_ID_RE.test(e.id))
       .slice(0, PRESENCE_BEAT_MAX_ENTITIES);
-  }
-
-  /**
-   * A fonte avisa: o conjunto de entidades mudou. Coalescido no fim da
-   * tarefa atual: abrir um negócio registra várias entidades no mesmo
-   * commit do React e deve virar no máximo UMA batida antecipada.
-   */
-  entitiesChanged(): void {
-    if (!this.active || this.changePending) return;
-    this.changePending = true;
-    void Promise.resolve().then(() => {
-      this.changePending = false;
-      if (this.active) this.driver?.();
-    });
   }
 
   /** Viewers da resposta do beat → quem assina cada entidade. */
