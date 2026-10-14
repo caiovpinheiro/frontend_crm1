@@ -332,6 +332,8 @@ describe("fallback", () => {
       () => json(makePayload({ user: { id: "outro", organizationId: "org-1", isSuperAdmin: false } })),
     ]) {
       cleanup();
+      // Cada resposta = uma carga de página nova (a carga é única por página).
+      resetShellBootstrapForTests();
       fetchMock.mockClear();
       bootstrapAnswer = answer;
       render(<App qc={makeClient()} />);

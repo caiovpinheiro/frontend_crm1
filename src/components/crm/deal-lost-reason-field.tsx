@@ -8,7 +8,7 @@
  * genérico desalinha neste aside por causa do zoom `.v2-root`.
  */
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -17,21 +17,12 @@ import { toast } from "sonner";
 import { updateDeal } from "@/features/pipeline-v2/api/deals";
 import { usePipelines } from "@/features/pipeline-v2/hooks";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
+import { usePipelineLossReasons } from "@/features/pipeline-v2/hooks/use-pipeline-loss-reasons";
 import {
   computePopoverPosition,
   usePortalPopover,
 } from "@/features/pipeline-v2/extras/use-portal-popover";
-import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-type LossReason = { id: string; label: string };
-
-async function fetchPipelineReasons(pipelineId: string): Promise<LossReason[]> {
-  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/loss-reasons`));
-  if (!res.ok) return [];
-  const data = (await res.json()) as { reasons?: LossReason[] };
-  return Array.isArray(data.reasons) ? data.reasons : [];
-}
 
 type Props = {
   dealId: string;
@@ -52,12 +43,13 @@ export function DealLostReasonField({ dealId, value, compact = true, className }
 
   const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines(open);
   const pipelineId = view.kind === "reasons" ? view.pipelineId : "";
-  const { data: reasons = [], isLoading: loadingReasons } = useQuery({
-    queryKey: ["deal-panel-pipeline-loss-reasons", pipelineId],
-    queryFn: () => fetchPipelineReasons(pipelineId),
-    enabled: open && view.kind === "reasons" && !!pipelineId,
-    staleTime: 60_000,
-  });
+  // Mesma chave do kanban/diálogo de perda (`pipeline-loss-reasons`): antes
+  // uma chave própria refazia o GET já em cache.
+  const { data: lossMeta, isLoading: loadingReasons } = usePipelineLossReasons(
+    pipelineId || null,
+    { enabled: open && view.kind === "reasons" },
+  );
+  const reasons = lossMeta?.reasons ?? [];
 
   useEffect(() => {
     if (!open) setView({ kind: "pipelines" });

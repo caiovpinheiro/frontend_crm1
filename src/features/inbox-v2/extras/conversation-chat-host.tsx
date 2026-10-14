@@ -331,7 +331,10 @@ export function ConversationChatHost({
     useChannelSession(
       conversationId,
       selectedChannelId,
-      applyWhatsappSession && !!conversationId && !!selectedChannelId,
+      // Espera as mensagens: antes delas o seletor cai no 1º canal e troca
+      // para o da última mensagem logo depois — 2 GETs de sessão por
+      // abertura em org com 2+ canais.
+      applyWhatsappSession && !!conversationId && !!selectedChannelId && !messagesPending,
       { provider: selectedChannelProvider },
     );
 

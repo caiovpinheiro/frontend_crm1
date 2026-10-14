@@ -12,10 +12,20 @@
  * toca estado React e não roda no servidor.
  */
 
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { startShellBootstrap } from "@/lib/shell-bootstrap";
+import { installBootstrapShare } from "@/lib/bootstrap-share";
+import {
+  holdSeedingUntilCommit,
+  releaseSeedingAfterCommit,
+  startShellBootstrap,
+} from "@/lib/shell-bootstrap";
+
+// Aba nova reaproveita o bootstrap (< 60 s, mesmo usuário/org) de uma aba
+// aberta, sem rede — ver `lib/bootstrap-share.ts`.
+if (typeof window !== "undefined") installBootstrapShare();
 
 export function ShellBootstrap() {
   const client = useQueryClient();
@@ -25,7 +35,10 @@ export function ShellBootstrap() {
     | undefined;
   const userId = status === "authenticated" ? user?.id : undefined;
 
+  // A rede sai já (render); a semeadura espera a página hidratar.
+  useEffect(() => releaseSeedingAfterCommit(), []);
   if (typeof window !== "undefined" && userId) {
+    holdSeedingUntilCommit();
     startShellBootstrap(client, {
       userId,
       organizationId: user?.organizationId ?? null,

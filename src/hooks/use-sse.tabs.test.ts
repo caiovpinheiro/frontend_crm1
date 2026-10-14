@@ -369,3 +369,43 @@ describe("SSE única por navegador (fallback sem Web Locks)", () => {
     expect(a.tab.liveEventSources.length + b.tab.liveEventSources.length).toBe(1);
   });
 });
+
+describe("aba nova com a líder já conectada", () => {
+  let hub: FakeTabHub;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    hub = new FakeTabHub();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("o `lead` que chega depois do `status` não é troca de líder: sem onReconnect (sem refetch)", async () => {
+    const a = abrirAba(hub, "a");
+    a.subscribe(["new_message"]);
+    await tick();
+    a.tab.es.open();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    const b = abrirAba(hub, "b");
+    const reconnectB = vi.fn();
+    b.subscribe(["new_message"], vi.fn(), reconnectB);
+    await tick();
+    expect(b.bridge.connection(URL).connected).toBe(true); // `status` da líder
+    expect(b.tabs.leaderId).toBeNull(); // o `lead` ainda não chegou
+
+    await vi.advanceTimersByTimeAsync(10_000); // batimentos `lead`
+    expect(b.tabs.leaderId).toBe(a.tabs.tabId);
+    expect(b.bridge.connection(URL).connected).toBe(true);
+    expect(reconnectB).not.toHaveBeenCalled();
+
+    // Troca de líder de verdade continua avisando.
+    a.tab.close();
+    await vi.advanceTimersByTimeAsync(2_000);
+    b.tab.es.open();
+    expect(reconnectB).toHaveBeenCalledTimes(1);
+  });
+});

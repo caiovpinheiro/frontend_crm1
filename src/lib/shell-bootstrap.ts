@@ -35,15 +35,50 @@
  * GET de `my-agent-status` (semeado, mas o hook em `agent-status.tsx`
  * — presença — não foi ligado ao wrapper nesta leva).
  *
- * ETag: o backend devolve `ETag` + `Cache-Control: private, no-store` e
- * aceita `If-None-Match` → 304. Como só há uma chamada por carga e o
- * payload (permissões, e-mails) não deve ficar em storage persistente,
- * o cliente não revalida — fica como evolução.
+ * `blocks` (contrato novo, opcional): `{ [url]: corpo }` com o corpo
+ * idêntico ao da rota individual, para as rotas que o app chama na
+ * abertura além do shell (canais, funis, usuários…). O mapa
+ * `url → queryKey` vive em `lib/bootstrap-blocks.ts`; aqui:
+ *   - cada bloco com chave conhecida é semeado (`setQueryData`, com
+ *     `updatedAt` agora) antes de a tentativa ser dada como encerrada;
+ *   - GETs dessas URLs feitos com a tentativa em voo esperam por ela e
+ *     recebem o corpo do bloco pelo `fetch` do app (`setApiGetResolver`
+ *     em `lib/api.ts`), sem rede — mesmo fora do React Query.
+ * Sem `blocks` (backend antigo): nada muda. Para não segurar esses GETs à
+ * toa a cada abertura, a página lembra (localStorage) que o backend não
+ * manda blocos e, da próxima vez, não espera.
+ *
+ * ETag: o backend devolve `ETag` + `Cache-Control: private, no-cache` e
+ * responde 304 a `If-None-Match`. O pedido vai com `cache: "no-cache"`: o
+ * cache HTTP do navegador guarda o corpo e revalida sozinho (o 304 chega
+ * ao JS como o 200 guardado) — sem storage próprio e sem precisar do
+ * `ETag` exposto no CORS.
+ *
+ * v2 (`x-bootstrap-version: 2`, opcional): o bootstrap passa a trazer só o
+ * estável + `blocks` (ETag estável → 304 frequente); os voláteis
+ * (`agentStatus`, `emailUnread`, salas do chat e o que mais o backend
+ * mover em `blocks`) vêm de UM `GET /api/me/live` por carga, no mesmo
+ * formato, semeados nas mesmas chaves. Depois disso eles seguem
+ * atualizados como hoje (SSE, polls). Backend antigo ignora o cabeçalho
+ * e manda o payload v1 → sem live. Live 404 → sem o cabeçalho por 6 h.
  */
 
 import type { QueryClient } from "@tanstack/react-query";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, setApiGetResolver, setRevalidatedApiPathMatcher } from "@/lib/api";
+import {
+  BOOTSTRAP_VERSION_HEADER,
+  liveOverlayFor,
+  mergeLiveIntoBlock,
+  rememberLive,
+} from "@/lib/bootstrap-live-merge";
+import {
+  BOOTSTRAP_BLOCKS,
+  findBootstrapBlock,
+  isRevalidatedApiPath,
+  resolveBlockUrl,
+  type BootstrapBlockContext,
+} from "@/lib/bootstrap-blocks";
 import {
   DEFAULT_INBOX_ALERT_CONFIG,
   type InboxAlertConfig,
@@ -150,21 +185,99 @@ export type BootstrapTeamChatRooms = {
 export type BootstrapWidgets = { activeSlugs: string[] };
 
 export type MeBootstrapPayload = {
-  version: 1;
+  /** 2 = só o estável + `blocks`; os voláteis vêm de `GET /api/me/live`. */
+  version: 1 | 2;
   user: { id: string; organizationId: string | null; isSuperAdmin: boolean };
   profile: BootstrapProfile | null;
   preferences: BootstrapPreferences | null;
   effectivePermissions: BootstrapEffectivePermissions | null;
   organization: BootstrapOrganization | null;
   alertConfig: BootstrapAlertConfig | null;
-  agentStatus: BootstrapAgentStatus | null;
-  emailUnread: BootstrapEmailUnread | null;
-  teamChatRooms: BootstrapTeamChatRooms | null;
+  /** Volátil: ausente na v2 (vem de `/api/me/live`). */
+  agentStatus?: BootstrapAgentStatus | null;
+  /** Volátil: ausente na v2 (vem de `/api/me/live`). */
+  emailUnread?: BootstrapEmailUnread | null;
+  /** Volátil: ausente na v2 (vem de `/api/me/live`). */
+  teamChatRooms?: BootstrapTeamChatRooms | null;
   widgets: BootstrapWidgets | null;
   failedBlocks: BootstrapBlockName[];
+  /**
+   * Corpos das rotas individuais por `path+query` exato (contrato novo;
+   * ausente em backend antigo). Valor `null` = sem permissão/falha: a
+   * rota individual é chamada como hoje.
+   */
+  blocks?: Record<string, unknown>;
 };
 
 export const SHELL_BOOTSTRAP_PATH = "/api/me/bootstrap";
+
+/**
+ * Bootstrap v2 (contrato novo, opcional): com este cabeçalho o backend
+ * devolve só o estável + `blocks` (ETag estável → 304 frequente) e os
+ * campos voláteis saem de `GET /api/me/live` (`no-store`), no MESMO
+ * formato dos campos antigos. Backend antigo ignora o cabeçalho e
+ * responde o payload completo (v1) — aí o live não é chamado.
+ */
+export { BOOTSTRAP_VERSION_HEADER };
+export const ME_LIVE_PATH = "/api/me/live";
+
+/**
+ * Corpo de `GET /api/me/live`: os voláteis do bootstrap v1, mesmo formato
+ * (`agentStatus` = GET /api/agents/:me/status; `emailUnread` = resumo de
+ * GET /api/email-accounts; `teamChatRooms`), e `blocks` para o que mais o
+ * backend mover (mesmo contrato `{ [url]: corpo }` do bootstrap).
+ */
+export type MeLivePayload = {
+  user?: { id?: string } | null;
+  agentStatus?: BootstrapAgentStatus | null;
+  emailUnread?: BootstrapEmailUnread | null;
+  teamChatRooms?: BootstrapTeamChatRooms | null;
+  /**
+   * `{ [url]: corpo }` (be #193: `/api/team-chat/rooms` e
+   * `/api/agents/<eu>/status`), semeados pelo mesmo mapa do bootstrap.
+   */
+  blocks?: Record<string, unknown>;
+  /** Voláteis por id dos blocos estáveis (`lib/bootstrap-live-merge.ts`). */
+  usersPresence?: Record<string, unknown> | null;
+  departmentCounts?: Record<string, unknown> | null;
+};
+
+/** localStorage: instante (ms) em que `/api/me/live` respondeu 404. */
+export const BOOTSTRAP_V2_UNSUPPORTED_KEY = "crm:bootstrap-v2-unsupported-at";
+/** Depois disto o navegador tenta a v2 de novo (o backend pode ter sido atualizado). */
+export const BOOTSTRAP_V2_RETRY_MS = 6 * 60 * 60_000;
+
+function readStoredAt(key: string): number | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(key);
+    const at = raw ? Number(raw) : NaN;
+    return Number.isFinite(at) ? at : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Manda o cabeçalho v2? Não, por `BOOTSTRAP_V2_RETRY_MS`, depois de um 404 do live. */
+export function bootstrapV2Enabled(now: number = Date.now()): boolean {
+  const at = readStoredAt(BOOTSTRAP_V2_UNSUPPORTED_KEY);
+  return at === null || now - at >= BOOTSTRAP_V2_RETRY_MS;
+}
+
+function markBootstrapV2Unsupported(): void {
+  try {
+    window.localStorage.setItem(BOOTSTRAP_V2_UNSUPPORTED_KEY, String(Date.now()));
+  } catch {
+    /* storage bloqueado: tenta de novo na próxima carga */
+  }
+}
+
+/** Resposta sem os voláteis (v2): os campos têm de vir do live. */
+export function isStableOnlyPayload(payload: MeBootstrapPayload): boolean {
+  if (payload.version === 2) return true;
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(payload, k);
+  return !has("agentStatus") && !has("emailUnread") && !has("teamChatRooms");
+}
 
 // ──────────────────────────────────────────────
 // Chaves semeadas (espelham os hooks consumidores)
@@ -217,10 +330,111 @@ export function normalizeAlertConfigBlock(raw: {
   };
 }
 
-/** Grava cada bloco não-nulo na chave/formato do hook que o consome. */
+function blockContext(payload: MeBootstrapPayload): BootstrapBlockContext {
+  return { userId: payload.user.id, organizationId: payload.user.organizationId ?? null };
+}
+
+/**
+ * Semeia as chaves de `lib/bootstrap-blocks.ts` com os `blocks` do
+ * payload (`updatedAt` agora: quem montar dentro do `staleTime` não
+ * busca). Devolve as URLs semeadas.
+ */
+export function seedBootstrapBlocks(
+  client: QueryClient,
+  payload: MeBootstrapPayload,
+  now: number = Date.now(),
+): string[] {
+  return seedBlocks(client, blockContext(payload), payload.blocks, now);
+}
+
+/** Semeia `{ [url]: corpo }` (bootstrap ou live) nas chaves do mapa. */
+function seedBlocks(
+  client: QueryClient,
+  ctx: BootstrapBlockContext,
+  blocks: Record<string, unknown> | undefined,
+  now: number,
+  opts: { only?: (url: string) => boolean; transform?: (url: string, body: unknown) => unknown } = {},
+): string[] {
+  if (!blocks || typeof blocks !== "object") return [];
+  const seeded: string[] = [];
+  for (const entry of BOOTSTRAP_BLOCKS) {
+    if (!entry.queryKey) continue;
+    const url = resolveBlockUrl(entry, ctx);
+    if (opts.only && !opts.only(url)) continue;
+    if (!Object.prototype.hasOwnProperty.call(blocks, url)) continue;
+    const raw = blocks[url];
+    const body = opts.transform && raw != null ? opts.transform(url, raw) : raw;
+    if (body === null || body === undefined) continue;
+    let data: unknown;
+    try {
+      data = entry.parse ? entry.parse(body) : body;
+    } catch {
+      continue; // formato inesperado: a query faz o GET de sempre
+    }
+    client.setQueryData(entry.queryKey(ctx), data, { updatedAt: now });
+    seeded.push(url);
+  }
+  return seeded;
+}
+
+/** Voláteis (v1 no bootstrap, v2 no live) → as mesmas chaves de sempre. */
+function seedVolatileCaches(
+  client: QueryClient,
+  userId: string,
+  fields: Pick<MeBootstrapPayload, "agentStatus" | "emailUnread">,
+): void {
+  const k = shellBootstrapKeys;
+  if (fields.agentStatus) {
+    client.setQueryData(k.agentStatus(userId), fields.agentStatus);
+  }
+  if (fields.emailUnread) {
+    client.setQueryData(k.navEmailAccounts(), fields.emailUnread.accounts);
+  }
+}
+
+/**
+ * Semeia o corpo de `GET /api/me/live` nas mesmas chaves que recebiam os
+ * campos voláteis do bootstrap v1 (e os `blocks` que o backend mover).
+ */
+export function seedLiveCaches(
+  client: QueryClient,
+  ctx: BootstrapBlockContext,
+  live: MeLivePayload,
+  now: number = Date.now(),
+): void {
+  seedVolatileCaches(client, ctx.userId, live);
+  seedBlocks(client, ctx, live.blocks, now);
+}
+
+/**
+ * v2: blocos estáveis que perderam campos voláteis (`/api/users`,
+ * `/api/settings/departments`) só são semeados com o live em mãos —
+ * reconstruídos pelo merge único de `lib/bootstrap-live-merge.ts`. Live
+ * falhou: não semeia (o hook faz o GET direto, corpo legado completo).
+ */
+function seedOverlaidBlocks(
+  client: QueryClient,
+  ctx: BootstrapBlockContext,
+  blocks: Record<string, unknown> | undefined,
+  live: MeLivePayload | null,
+  now: number = Date.now(),
+): void {
+  if (!live) return;
+  seedBlocks(client, ctx, blocks, now, {
+    only: (url) => !!liveOverlayFor(url),
+    transform: (url, body) => mergeLiveIntoBlock(url, body, live),
+  });
+}
+
+/**
+ * Grava cada bloco não-nulo na chave/formato do hook que o consome.
+ * `deferOverlays`: v2 — os blocos com voláteis no live esperam por ele
+ * (`seedOverlaidBlocks`).
+ */
 export function seedShellBootstrapCaches(
   client: QueryClient,
   payload: MeBootstrapPayload,
+  opts: { deferOverlays?: boolean } = {},
 ): void {
   const { user } = payload;
   const k = shellBootstrapKeys;
@@ -240,15 +454,13 @@ export function seedShellBootstrapCaches(
       normalizeAlertConfigBlock(payload.alertConfig),
     );
   }
-  if (payload.agentStatus) {
-    client.setQueryData(k.agentStatus(user.id), payload.agentStatus);
-  }
-  if (payload.emailUnread) {
-    client.setQueryData(k.navEmailAccounts(), payload.emailUnread.accounts);
-  }
+  seedVolatileCaches(client, user.id, payload);
   if (payload.widgets) {
     client.setQueryData(k.activeWidgetSlugs(), payload.widgets);
   }
+  seedBlocks(client, blockContext(payload), payload.blocks, Date.now(), {
+    only: opts.deferOverlays ? (url) => !liveOverlayFor(url) : undefined,
+  });
 }
 
 // ──────────────────────────────────────────────
@@ -262,8 +474,17 @@ export type ShellBootstrapIdentity = {
 
 type Attempt = {
   identity: string;
+  ctx: BootstrapBlockContext;
+  /** Tudo pronto (estável + live): `fromShellBootstrap` só espera até aqui. */
   settled: boolean;
+  /** Estável + voláteis (do live, quando v2). */
   promise: Promise<MeBootstrapPayload | null>;
+  /** Só o estável (blocos para o `fetch` do app). */
+  stable: Promise<MeBootstrapPayload | null>;
+  stableSettled: boolean;
+  /** `GET /api/me/live` (v2); `null` = não haverá (ou ainda não se sabe). */
+  live: Promise<MeLivePayload | null> | null;
+  liveSettled: boolean;
 };
 
 /** Uma tentativa viva por QueryClient (testes usam clients isolados). */
@@ -272,15 +493,93 @@ const attempts = new WeakMap<QueryClient, Attempt>();
 /** 404/501 nesta carga de página: backend sem o endpoint. Não insiste. */
 let unsupportedThisPage = false;
 
+/**
+ * Tentativa mais recente da página (para o `fetch` do app): só ela serve
+ * blocos a GETs em voo.
+ */
+let liveAttempt: Attempt | null = null;
+
+/** localStorage: "0" = o backend respondeu o bootstrap SEM `blocks`. */
+export const BOOTSTRAP_BLOCKS_HINT_KEY = "crm:bootstrap-blocks";
+
+function readBlocksHint(): string | null {
+  try {
+    return typeof window === "undefined"
+      ? null
+      : window.localStorage.getItem(BOOTSTRAP_BLOCKS_HINT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeBlocksHint(hasBlocks: boolean): void {
+  try {
+    window.localStorage.setItem(BOOTSTRAP_BLOCKS_HINT_KEY, hasBlocks ? "1" : "0");
+  } catch {
+    /* storage bloqueado: só perde a dica */
+  }
+}
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json", "x-crm-bootstrap-block": "1" },
+  });
+}
+
+function blockBody(blocks: Record<string, unknown> | undefined, path: string): unknown {
+  const body = blocks?.[path];
+  return body === null || body === undefined ? undefined : body;
+}
+
+/**
+ * Resolver do `fetch` do app: GET de uma URL do mapa com a tentativa em
+ * voo espera e recebe o bloco (sem rede) — do bootstrap ou, se o backend
+ * o moveu (URL ausente do bootstrap v2), do live. Tentativa encerrada,
+ * URL fora do mapa ou backend sem blocos → `null` (rede, como hoje).
+ */
+export function resolveFromBootstrap(path: string): Promise<Response | null> | null {
+  const attempt = liveAttempt;
+  if (!attempt || attempt.settled) return null;
+  if (!findBootstrapBlock(path, attempt.ctx)) return null;
+  if (attempt.stableSettled && !attempt.live) return null;
+  if (!attempt.stableSettled && readBlocksHint() === "0" && !attempt.live) return null;
+  return (async () => {
+    const stable = await attempt.stable;
+    const fromStable = blockBody(stable?.blocks, path);
+    if (fromStable !== undefined) {
+      // Bloco estável sem os voláteis (v2): espera o live e reconstrói.
+      if (attempt.live && liveOverlayFor(path)) {
+        const live = await attempt.live;
+        // Sem live o bloco estável não é o corpo legado: rede.
+        return live ? jsonResponse(mergeLiveIntoBlock(path, fromStable, live)) : null;
+      }
+      return jsonResponse(fromStable);
+    }
+    // No bootstrap com `null` = sem permissão/falha: rede, sem esperar o live.
+    if (stable?.blocks && Object.prototype.hasOwnProperty.call(stable.blocks, path)) {
+      return null;
+    }
+    // O live (se houver) já foi decidido quando o estável resolveu.
+    if (!attempt.live) return null;
+    const live = await attempt.live;
+    const fromLive = blockBody(live?.blocks, path);
+    return fromLive !== undefined ? jsonResponse(fromLive) : null;
+  })();
+}
+
+setApiGetResolver(resolveFromBootstrap);
+setRevalidatedApiPathMatcher(isRevalidatedApiPath);
+
 function identityKey(id: ShellBootstrapIdentity): string {
   return `${id.userId}|${id.organizationId ?? ""}`;
 }
 
-function isValidPayload(value: unknown): value is MeBootstrapPayload {
+export function isValidPayload(value: unknown): value is MeBootstrapPayload {
   if (!value || typeof value !== "object") return false;
   const v = value as Partial<MeBootstrapPayload>;
   return (
-    v.version === 1 &&
+    (v.version === 1 || v.version === 2) &&
     !!v.user &&
     typeof v.user === "object" &&
     typeof v.user.id === "string" &&
@@ -294,8 +593,12 @@ async function fetchShellBootstrap(
   if (typeof window === "undefined") return null;
   if (unsupportedThisPage || isPreviewMode()) return null;
   try {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (bootstrapV2Enabled()) headers[BOOTSTRAP_VERSION_HEADER] = "2";
     const res = await apiFetch(SHELL_BOOTSTRAP_PATH, {
-      headers: { Accept: "application/json" },
+      headers,
+      // ETag: o navegador revalida com `If-None-Match` (304 → corpo guardado).
+      cache: "no-cache",
     });
     if (res.status === 404 || res.status === 501) {
       unsupportedThisPage = true;
@@ -307,6 +610,10 @@ async function fetchShellBootstrap(
     // Sessão do cookie ≠ sessão do client (cookie trocado em outra aba):
     // os blocos seriam de outro usuário → caminho antigo.
     if (body.user.id !== identity.userId) return null;
+    const blocks = (body as { blocks?: unknown }).blocks;
+    const hasBlocks = !!blocks && typeof blocks === "object" && !Array.isArray(blocks);
+    if (!hasBlocks) delete (body as { blocks?: unknown }).blocks;
+    writeBlocksHint(hasBlocks);
     return body;
   } catch {
     // Rede / timeout: comportamento atual (cada hook faz o seu GET).
@@ -315,12 +622,195 @@ async function fetchShellBootstrap(
 }
 
 /**
- * Inicia (ou reaproveita) a tentativa para esta identidade. Idempotente
- * por `userId|organizationId`: trocar de org/usuário sem recarregar a
- * página cria uma tentativa nova e re-semeia os caches.
+ * `GET /api/me/live` (sem cache: muda a cada instante). 404/501 = backend
+ * sem a v2 → a página deixa de mandar o cabeçalho por
+ * `BOOTSTRAP_V2_RETRY_MS`. Qualquer falha → `null` (cada hook volátil faz
+ * o GET de sempre).
+ */
+async function fetchMeLive(identity: ShellBootstrapIdentity): Promise<MeLivePayload | null> {
+  try {
+    const res = await apiFetch(ME_LIVE_PATH, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (res.status === 404 || res.status === 501) {
+      markBootstrapV2Unsupported();
+      return null;
+    }
+    if (!res.ok) return null;
+    const body: unknown = await res.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+    const live = body as MeLivePayload;
+    // Mesmo cuidado do bootstrap: resposta de outro usuário não semeia nada.
+    if (live.user?.id && live.user.id !== identity.userId) return null;
+    rememberLive(live);
+    if (live.blocks !== undefined && (!live.blocks || typeof live.blocks !== "object" || Array.isArray(live.blocks))) {
+      delete live.blocks;
+    }
+    return live;
+  } catch {
+    return null;
+  }
+}
+
+/** Estável + voláteis do live (o live vence quando traz o campo). */
+function mergeLive(stable: MeBootstrapPayload, live: MeLivePayload | null): MeBootstrapPayload {
+  if (!live) return stable;
+  const merged: MeBootstrapPayload = { ...stable };
+  if (live.agentStatus !== undefined) merged.agentStatus = live.agentStatus;
+  if (live.emailUnread !== undefined) merged.emailUnread = live.emailUnread;
+  if (live.teamChatRooms !== undefined) merged.teamChatRooms = live.teamChatRooms;
+  if (live.blocks) merged.blocks = { ...live.blocks, ...(stable.blocks ?? {}) };
+  return merged;
+}
+
+/**
+ * De onde vem o estável de uma carga. Padrão: a rede. Outra aba pode
+ * fornecê-lo sem rede (`lib/bootstrap-share.ts`). `client()` = o
+ * QueryClient vivo mais recente desta página (para responder a outras
+ * abas com o cache atual).
+ */
+export type StableBootstrapSource = (
+  identity: ShellBootstrapIdentity,
+  fetchFromNetwork: () => Promise<MeBootstrapPayload | null>,
+  client: () => QueryClient,
+) => Promise<MeBootstrapPayload | null>;
+
+/** De onde vem o live de uma carga (mesma ideia: outra aba ou a rede). */
+export type LiveSource = (
+  identity: ShellBootstrapIdentity,
+  fetchFromNetwork: () => Promise<MeLivePayload | null>,
+  client: () => QueryClient,
+) => Promise<MeLivePayload | null>;
+
+const networkSource: StableBootstrapSource = (_identity, fromNetwork) => fromNetwork();
+const networkLiveSource: LiveSource = (_identity, fromNetwork) => fromNetwork();
+let stableSource: StableBootstrapSource = networkSource;
+let liveSource: LiveSource = networkLiveSource;
+
+export function setStableBootstrapSource(source: StableBootstrapSource | null): void {
+  stableSource = source ?? networkSource;
+}
+
+export function setLiveSource(source: LiveSource | null): void {
+  liveSource = source ?? networkLiveSource;
+}
+
+// ──────────────────────────────────────────────
+// Carga por PÁGINA (uma por identidade), semeada em cada QueryClient
+// ──────────────────────────────────────────────
+
+/**
+ * A rede (bootstrap + live) sai UMA vez por página e identidade, não uma
+ * vez por QueryClient: o `<ShellBootstrap/>` dispara no render, e um
+ * render descartado antes do commit (ex.: React refazendo a árvore do
+ * zero depois de um erro de hidratação recria o `QueryClient` de
+ * `app/providers.tsx`) ou uma identidade que vai e volta criavam outra
+ * tentativa — e outro bootstrap + live. Cada QueryClient continua com a
+ * sua tentativa (semeadura, `fromShellBootstrap`), alimentada pela carga
+ * da página. Uma carga vale por `PAGE_LOAD_REUSE_MS` depois de pronta.
+ */
+export const PAGE_LOAD_REUSE_MS = 60_000;
+
+type PageLoad = {
+  stable: Promise<MeBootstrapPayload | null>;
+  /** Decidido quando o estável resolve (`null` = sem live). */
+  live: Promise<MeLivePayload | null> | null;
+  doneAt: number | null;
+  client: QueryClient;
+};
+
+const pageLoads = new Map<string, PageLoad>();
+
+/**
+ * Semeadura só depois do PRIMEIRO commit da página. O bootstrap (ainda
+ * mais o vindo de outra aba, em milissegundos) podia chegar NO MEIO da
+ * hidratação: componentes ainda não hidratados liam o cache já semeado
+ * (ex.: `useCan` em `app/(app)/contacts/client-page.tsx:341-345`, que
+ * muda os itens do menu de ações) e renderizavam diferente do HTML do
+ * servidor → erro de hidratação → o React refaz a árvore do zero,
+ * `app/providers.tsx` cria outro `QueryClient` e o `<ShellBootstrap/>`
+ * disparava outra carga (3× bootstrap + 3× live em /contacts). Os
+ * `queryFn` só rodam depois do commit e, enquanto a porta está fechada,
+ * esperam a tentativa (`fromShellBootstrap` / blocos em voo) — nada vai à
+ * rede à toa. Teto de `COMMIT_GATE_MAX_MS` por segurança.
+ */
+export const COMMIT_GATE_MAX_MS = 3_000;
+let pageCommitted = false;
+let commitGate: { promise: Promise<void>; open: () => void } | null = null;
+
+/** `<ShellBootstrap/>` no render: segura a semeadura até o 1º commit. */
+export function holdSeedingUntilCommit(): void {
+  if (pageCommitted || commitGate || typeof window === "undefined") return;
+  let open!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  const timer = setTimeout(() => open(), COMMIT_GATE_MAX_MS);
+  commitGate = {
+    promise,
+    open: () => {
+      clearTimeout(timer);
+      open();
+    },
+  };
+}
+
+/** `<ShellBootstrap/>` no efeito (página hidratada): libera a semeadura. */
+export function releaseSeedingAfterCommit(): void {
+  pageCommitted = true;
+  commitGate?.open();
+}
+
+function afterCommit(): Promise<void> | null {
+  return pageCommitted || !commitGate ? null : commitGate.promise;
+}
+
+function pageLoadFor(identity: ShellBootstrapIdentity, client: QueryClient): PageLoad {
+  const key = identityKey(identity);
+  const existing = pageLoads.get(key);
+  if (existing && (existing.doneAt === null || Date.now() - existing.doneAt < PAGE_LOAD_REUSE_MS)) {
+    existing.client = client;
+    return existing;
+  }
+  const load: PageLoad = { stable: Promise.resolve(null), live: null, doneAt: null, client };
+  const currentClient = () => load.client;
+  load.stable = stableSource(identity, () => fetchShellBootstrap(identity), currentClient)
+    .catch(() => null)
+    .then((payload) => {
+      // Decide o live JÁ (antes de quem espera o estável continuar).
+      if (payload && isStableOnlyPayload(payload) && !isPreviewMode()) {
+        load.live = liveSource(identity, () => fetchMeLive(identity), currentClient)
+          .catch(() => null)
+          .then((live) => {
+            // Live de outra aba também alimenta o merge das chamadas diretas.
+            if (live) rememberLive(live);
+            return live;
+          });
+        void load.live.finally(() => {
+          load.doneAt = Date.now();
+        });
+      } else {
+        load.doneAt = Date.now();
+      }
+      return payload;
+    });
+  pageLoads.set(key, load);
+  return load;
+}
+
+/**
+ * Inicia (ou reaproveita) a tentativa deste QueryClient para esta
+ * identidade. Idempotente por `userId|organizationId`: trocar de
+ * org/usuário sem recarregar a página cria uma tentativa nova e re-semeia
+ * os caches. A rede vem da carga da página (`pageLoadFor`).
  *
- * Seguro no render (não lança, não muda estado React); só efeito
- * colateral é o fetch, deduplicado pela tentativa.
+ * Seguro no render (não lança, não muda estado React).
+ *
+ * v2: o estável chega primeiro (semeado na hora); se ele vier sem os
+ * voláteis, sai UM `GET /api/me/live` e o que ele trouxer é semeado nas
+ * mesmas chaves de antes. Quem espera um volátil (`fromShellBootstrap`)
+ * espera os dois.
  */
 export function startShellBootstrap(
   client: QueryClient,
@@ -332,20 +822,49 @@ export function startShellBootstrap(
 
   const attempt: Attempt = {
     identity: key,
+    ctx: { userId: identity.userId, organizationId: identity.organizationId ?? null },
     settled: false,
     promise: Promise.resolve(null),
+    stable: Promise.resolve(null),
+    stableSettled: false,
+    live: null,
+    liveSettled: false,
   };
-  attempt.promise = fetchShellBootstrap(identity)
-    .then((payload) => {
-      if (payload && attempts.get(client) === attempt) {
-        seedShellBootstrapCaches(client, payload);
+  const isCurrent = () => attempts.get(client) === attempt;
+  const load = pageLoadFor(identity, client);
+  attempt.stable = load.stable
+    .then(async (payload) => {
+      const gate = afterCommit();
+      if (gate) await gate;
+      const wantsLive = !!payload && !!load.live;
+      if (payload && isCurrent()) {
+        seedShellBootstrapCaches(client, payload, { deferOverlays: wantsLive });
+      }
+      if (payload && load.live) {
+        attempt.live = load.live
+          .then((live) => {
+            if (isCurrent()) {
+              if (live) seedLiveCaches(client, attempt.ctx, live);
+              seedOverlaidBlocks(client, attempt.ctx, payload.blocks, live);
+            }
+            return live;
+          })
+          .finally(() => {
+            attempt.liveSettled = true;
+          });
       }
       return payload;
     })
     .finally(() => {
+      attempt.stableSettled = true;
+    });
+  attempt.promise = attempt.stable
+    .then(async (stable) => (stable ? mergeLive(stable, await attempt.live) : stable))
+    .finally(() => {
       attempt.settled = true;
     });
   attempts.set(client, attempt);
+  liveAttempt = attempt;
   return attempt.promise;
 }
 
@@ -372,7 +891,14 @@ export function hasShellBootstrapAttempt(client: QueryClient): boolean {
   return attempts.has(client);
 }
 
-/** Limpa o estado por página (flag 404/501). Para testes. */
+/** Limpa o estado por página (flag 404/501, fontes, cargas). Para testes. */
 export function resetShellBootstrapForTests(): void {
   unsupportedThisPage = false;
+  liveAttempt = null;
+  stableSource = networkSource;
+  liveSource = networkLiveSource;
+  pageLoads.clear();
+  commitGate?.open();
+  commitGate = null;
+  pageCommitted = false;
 }

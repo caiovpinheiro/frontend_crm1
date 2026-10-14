@@ -65,8 +65,12 @@ export async function fetchInboxSettings(): Promise<InboxSettings> {
     credentials: "include",
   });
   if (!res.ok) return DEFAULTS;
-  const data: Record<string, string> = await res.json();
+  return parseInboxSettings(await res.json());
+}
 
+/** Corpo de `GET /api/settings/org?prefix=conversation.` (também usado pelo bootstrap). */
+export function parseInboxSettings(body: unknown): InboxSettings {
+  const data = (body ?? {}) as Record<string, string>;
   return {
     agentSignatureEnabled: data["conversation.agentSignatureEnabled"] !== "false",
     agentSignatureEditable: data["conversation.agentSignatureEditable"] !== "false",
