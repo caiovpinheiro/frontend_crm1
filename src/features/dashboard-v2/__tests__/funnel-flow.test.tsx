@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 /**
- * Funil e progresso: entradas, saídas e saldo por etapa. "+14 entraram"
+ * Funil e progresso: entradas, saídas e perdas por etapa. "+14 entraram"
  * contra "NOVOS +5" confundia — a maioria veio movida de outra etapa e os
  * novos são os criados no período (não é etapa). Com `exited`/`inflow`/
- * `outflow` do backend: entraram/saíram/saldo, detalhe de origens e destinos
- * e "Criados" no cabeçalho. Sem os campos (backend antigo), card como antes.
+ * `outflow` do backend: entraram, saíram e perdas para Perdido, detalhe de
+ * origens e destinos, e "Criados" no espaço da lista de funis. Sem os
+ * campos (backend antigo), card como antes.
  */
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +15,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 import { PainelDealWidget } from "@/components/crm/dashboard/painel-deals";
+import { FunnelPipelinePicker } from "@/features/dashboard-v2/components/funnel-pipeline-picker";
 import {
   funnelStageLookup,
   inflowRows,
@@ -68,7 +70,7 @@ const PIPELINES: FunnelFlowPipeline[] = [
   { id: "p2", name: "Pós-venda", stages: [{ id: "x1", name: "Onboarding" }] },
 ];
 
-/** Payload novo: Proposta recebeu 14 e perdeu 9 (saldo +5). */
+/** Payload novo: Proposta recebeu 14 e saíram 9. `lost` é o que a etapa mostra como perdas. */
 const FLOW_STAGES: PainelFunnelStage[] = [
   base("s1", "Qualificação", {
     entered: 6,
@@ -117,6 +119,7 @@ function data(funnel: Partial<PainelFunnel>): PainelDealsResult {
 function renderFunnel(
   funnel: Partial<PainelFunnel>,
   period?: { from: string; to: string; label?: string },
+  withPicker = false,
 ) {
   return render(
     <PainelDealWidget
@@ -126,6 +129,15 @@ function renderFunnel(
       period={period}
       pipelineId="p1"
       pipelines={PIPELINES}
+      funnelPicker={
+        withPicker ? (
+          <FunnelPipelinePicker
+            pipelines={PIPELINES.map((p) => ({ id: p.id, name: p.name ?? p.id }))}
+            selectedId="p1"
+            onSelect={() => {}}
+          />
+        ) : undefined
+      }
       onRetry={() => {}}
     />,
   );
@@ -204,23 +216,21 @@ describe("funil: rótulos de origem e destino", () => {
 });
 
 describe("funil com fluxo do backend", () => {
-  it("cada etapa mostra entraram, saíram e saldo; some a linha 'N perdas'", () => {
+  it("cada etapa mostra entraram, saíram e perdas; some o saldo", () => {
     renderFunnel({ stages: FLOW_STAGES });
     const proposta = flowButton("s2");
     expect(proposta.textContent).toContain("+14");
     expect(proposta.textContent).toContain("entraram");
     expect(proposta.textContent).toContain("−9");
     expect(proposta.textContent).toContain("saíram");
-    expect(proposta.querySelector("[data-funnel-balance]")!.textContent).toBe("saldo +5");
-    expect(proposta.querySelector("[data-funnel-balance]")!.className).toContain(
-      "--pipeline-success",
-    );
-    const qualif = flowButton("s1");
-    expect(qualif.querySelector("[data-funnel-balance]")!.textContent).toBe("saldo −2");
-    expect(qualif.querySelector("[data-funnel-balance]")!.className).toContain(
+    expect(proposta.querySelector("[data-funnel-lost]")!.textContent).toBe("2 perdas");
+    expect(proposta.querySelector("[data-funnel-lost]")!.className).toContain(
       "--pipeline-danger",
     );
-    expect(screen.queryByText(/\d perdas?$/)).toBeNull();
+    const qualif = flowButton("s1");
+    expect(qualif.querySelector("[data-funnel-lost]")!.textContent).toBe("2 perdas");
+    expect(proposta.textContent).not.toContain("saldo");
+    expect(qualif.textContent).not.toContain("saldo");
     expect(screen.getByText("Estoque aberto, entradas e saídas por etapa")).toBeTruthy();
   });
 
@@ -293,16 +303,20 @@ describe("funil com fluxo do backend", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("'Criados no período' fica no cabeçalho, fora das colunas de etapa", () => {
+  it("'Criados no período' fica na lista de funis, fora das colunas", () => {
     const view = renderFunnel(
       { stages: FLOW_STAGES },
       { from: "2026-10-01T00:00:00.000Z", to: "2026-10-07T23:59:59.000Z", label: "Últimos 7 dias" },
+      true,
     );
     const chip = view.container.querySelector("[data-funnel-created]")!;
     expect(chip.textContent).toContain("+5");
     expect(chip.textContent).toContain("Criados no período");
-    expect(chip.getAttribute("title")).toBe("Negócios criados no período, em qualquer etapa.");
-    expect(chip.closest("header")).not.toBeNull();
+    expect(chip.getAttribute("title")).toBe(
+      "Criados no período. Negócios criados no período, em qualquer etapa.",
+    );
+    expect(chip.closest("nav")?.getAttribute("aria-label")).toBe("Funil de vendas");
+    expect(chip.closest("header")).toBeNull();
     expect(chip.closest(".pipeline-progress-track")).toBeNull();
     // Nenhuma coluna "Novos" no trilho, nem o selo "Novo" ao lado da barra.
     const track = view.container.querySelector(".pipeline-progress-track")!;
@@ -318,8 +332,12 @@ describe("funil com fluxo do backend", () => {
     const view = renderFunnel(
       { stages: FLOW_STAGES },
       { from: "2026-10-12T00:00:00.000Z", to: "2026-10-12T23:59:59.000Z", label: "Hoje" },
+      true,
     );
     expect(view.container.querySelector("[data-funnel-created]")!.textContent).toContain(
+      "Criados hoje",
+    );
+    expect(view.container.querySelector("[data-funnel-created]")!.getAttribute("title")).toContain(
       "Criados hoje",
     );
   });

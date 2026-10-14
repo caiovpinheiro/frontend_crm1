@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -72,8 +72,24 @@ import {
 import type { DealCoreWidgetId } from "@/features/dashboard-v2/use-negocios-grid";
 import type { DashboardFiltersState } from "@/features/dashboard-v2/api";
 import { dashboardFiltersToPipelineHref } from "@/features/dashboard-v2/dashboard-to-pipeline";
+import type { FunnelCreatedSummary } from "@/features/dashboard-v2/components/funnel-pipeline-picker";
 import { cn } from "@/lib/utils";
 import { StageMetricCard } from "@/components/crm/dashboard/stage-metric-card";
+
+function withFunnelCreated(
+  picker: ReactNode,
+  novos: { count: number; value: number } | undefined,
+  today: boolean,
+  hasFlow: boolean,
+): ReactNode {
+  if (!hasFlow || !novos || !isValidElement(picker)) return picker;
+  const created: FunnelCreatedSummary = {
+    count: novos.count,
+    value: novos.value,
+    today,
+  };
+  return cloneElement(picker as ReactElement<{ created?: FunnelCreatedSummary }>, { created });
+}
 
 function deltaHint(delta: PainelDelta | undefined, asOf?: string) {
   if (asOf) return asOf;
@@ -107,7 +123,7 @@ export function PainelDealWidget({
   id: DealCoreWidgetId | "stages";
   data: PainelDealsResult | undefined;
   search: string;
-  period?: { from: string; to: string };
+  period?: { from: string; to: string; label?: string };
   pipelineId?: string;
   pipelineIds?: string[];
   userIds?: string[];
@@ -249,7 +265,7 @@ function DealFunnel({
   block: PainelDealsResult["funnel"];
   kpis: PainelDealsResult["kpis"];
   search: string;
-  period?: { from: string; to: string };
+  period?: { from: string; to: string; label?: string };
   pipelineId?: string;
   pipelineIds?: string[];
   filters?: DashboardFiltersState;
@@ -288,6 +304,12 @@ function DealFunnel({
   // Fluxo por etapa (backend novo): rótulos de origem/destino resolvidos aqui.
   const lookup = funnelStageLookup(funnel.stages, pipelines);
   const currentPipelineIds = pipelineIds?.length ? pipelineIds : pipelineId ? [pipelineId] : [];
+  const sidebar = withFunnelCreated(
+    funnelPicker,
+    funnel.novos,
+    period?.label === "Hoje",
+    funnel.stages.some((stage) => stage.exited != null),
+  );
 
   if (funnel.empty) {
     return (
@@ -303,10 +325,10 @@ function DealFunnel({
           </Link>
         }
       >
-        <div className={funnelPicker ? "flex min-h-0 items-stretch max-md:flex-col" : undefined}>
-          {funnelPicker ? (
+        <div className={sidebar ? "flex min-h-0 items-stretch max-md:flex-col" : undefined}>
+          {sidebar ? (
             <aside className="w-[196px] shrink-0 border-r border-border py-2 max-md:w-full max-md:border-b max-md:border-r-0">
-              {funnelPicker}
+              {sidebar}
             </aside>
           ) : null}
           <div className="min-w-0 flex-1">
@@ -354,7 +376,7 @@ function DealFunnel({
       pipelineHref={pipelineHref}
       period={period}
       novos={funnel.novos}
-      sidebar={funnelPicker}
+      sidebar={sidebar}
     />
   );
 }
@@ -437,7 +459,7 @@ function DealEvolution({
   onRetry,
 }: {
   block: PainelDealsResult["evolution"];
-  period?: { from: string; to: string };
+  period?: { from: string; to: string; label?: string };
   onRetry: () => void;
 }) {
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;

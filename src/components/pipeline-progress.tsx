@@ -34,8 +34,8 @@ export type PipelineProgressStage = {
   href?: string;
   /**
    * Saíram da etapa no período (inclui Perdido/Ganho e outros funis).
-   * Presente = mostra entraram/saíram/saldo no lugar de "+N entraram" e
-   * "N perdas"; ausente (backend antigo) = coluna como antes.
+   * Presente = mostra entraram, saíram e as perdas para Perdido.
+   * Ausente (backend antigo) = coluna como antes.
    */
   exited?: number;
   /** Origens de quem entrou, já com rótulo ("de Qualificação", "criados aqui"). */
@@ -48,7 +48,8 @@ export type PipelineProgressFlowRow = { key: string; label: string; count: numbe
 
 const ENTERED_TITLE =
   "Negócios que chegaram a esta etapa no período — criados nela ou movidos de outra.";
-const CREATED_TITLE = "Negócios criados no período, em qualquer etapa.";
+const LOST_FROM_STAGE_TITLE =
+  "Negócios desta etapa que foram para Perdido no período.";
 
 export type PipelineProgressSummary = {
   wonCount: number;
@@ -145,12 +146,6 @@ function MetricLink({
   );
 }
 
-function signed(value: number) {
-  if (value > 0) return `+${formatCount(value)}`;
-  if (value < 0) return `−${formatCount(Math.abs(value))}`;
-  return "0";
-}
-
 function FlowList({
   title,
   total,
@@ -201,7 +196,7 @@ const POPOVER_WIDTH = 264;
 const POPOVER_GAP = 6;
 
 /**
- * "+N entraram · −M saíram · saldo" com o detalhe de origens e destinos:
+ * "+N entraram · −M saíram · N perdas" com o detalhe de origens e destinos:
  * passar o mouse mostra; clicar/tocar/Enter fixa e leva o foco ao popover;
  * Esc fecha e devolve o foco ao botão. O popover vai para o `body` porque o
  * trilho do funil corta o que passa da altura da coluna.
@@ -209,7 +204,7 @@ const POPOVER_GAP = 6;
 function StageFlow({ stage }: { stage: PipelineProgressStage }) {
   const entered = Math.max(0, stage.entered);
   const exited = Math.max(0, stage.exited ?? 0);
-  const balance = entered - exited;
+  const lost = Math.max(0, stage.lost);
   const popoverId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -281,7 +276,7 @@ function StageFlow({ stage }: { stage: PipelineProgressStage }) {
     else pin();
   };
 
-  const summary = `${formatCount(entered)} ${entered === 1 ? "entrou" : "entraram"}, ${formatCount(exited)} ${exited === 1 ? "saiu" : "saíram"}, saldo ${signed(balance)}`;
+  const summary = `${formatCount(entered)} ${entered === 1 ? "entrou" : "entraram"}, ${formatCount(exited)} ${exited === 1 ? "saiu" : "saíram"}, ${formatCount(lost)} ${lost === 1 ? "perda" : "perdas"}`;
 
   return (
     <div className="mt-auto">
@@ -346,17 +341,16 @@ function StageFlow({ stage }: { stage: PipelineProgressStage }) {
           </span>
         </span>
         <span
-          data-funnel-balance
+          data-funnel-lost
+          title={LOST_FROM_STAGE_TITLE}
           className={cn(
             "mt-1 block font-body text-[11px] tabular-nums",
-            balance > 0
-              ? "text-[var(--pipeline-success)]"
-              : balance < 0
-                ? "text-[var(--pipeline-danger)]"
-                : "text-[var(--pipeline-text-muted)]",
+            lost > 0
+              ? "font-semibold text-[var(--pipeline-danger)]"
+              : "text-[var(--pipeline-text-muted)]",
           )}
         >
-          {`saldo ${signed(balance)}`}
+          {`${formatCount(lost)} ${lost === 1 ? "perda" : "perdas"}`}
         </span>
       </button>
       {open && typeof document !== "undefined"
@@ -431,8 +425,8 @@ function StageColumn({ stage }: { stage: PipelineProgressStage }) {
           {formatMoney(stage.value)}
         </p>
       </MetricLink>
-      {/* Com o fluxo do backend: entraram/saíram/saldo (as perdas viram destino
-          no detalhe). Sem ele: bloco "+N entraram" e "N perdas" como antes. */}
+      {/* Com o fluxo do backend: entraram, saíram e perdas para Perdido.
+          Sem ele: bloco "+N entraram" e "N perdas" como antes. */}
       {stage.exited != null ? (
         <StageFlow stage={stage} />
       ) : (
@@ -583,40 +577,6 @@ function NovosColumn({
         {caption}
       </p>
     </article>
-  );
-}
-
-/**
- * Criados no período: não é etapa (podem ter nascido em qualquer uma), por
- * isso fica no cabeçalho, sem a barra colorida das colunas.
- */
-function CreatedChip({
-  count,
-  value,
-  today,
-}: {
-  count: number;
-  value: number;
-  today: boolean;
-}) {
-  const label = today ? "Criados hoje" : "Criados no período";
-  return (
-    <p
-      data-funnel-created
-      title={CREATED_TITLE}
-      className="inline-flex shrink-0 items-baseline gap-1.5 rounded-full border border-[var(--pipeline-border)] bg-[var(--pipeline-surface-summary)] px-2.5 py-0.5 font-body text-[11px] text-[var(--pipeline-text-secondary)]"
-    >
-      <span className="font-display text-[12px] font-bold tabular-nums text-[var(--pipeline-success)]">
-        {count > 0 ? `+${formatCount(count)}` : "0"}
-      </span>
-      <span>{label}</span>
-      {value > 0 ? (
-        <span className="tabular-nums text-[var(--pipeline-text-muted)]">
-          {`· ${formatMoney(value)}`}
-        </span>
-      ) : null}
-      <span className="sr-only">{`. ${CREATED_TITLE}`}</span>
-    </p>
   );
 }
 
@@ -789,8 +749,8 @@ export function PipelineProgress({
     }
   };
 
-  // Backend com o fluxo por etapa: "Criados" sai das colunas e vai para o
-  // cabeçalho. Sem o fluxo (backend antigo), o card fica como antes.
+  // Backend com o fluxo por etapa: "Criados" fica no espaço da lista de funis.
+  // Sem o fluxo (backend antigo), o card fica como antes.
   const hasFlow = stages.some((s) => s.exited != null);
   const fromLabel = period ? formatDay(period.from) : "";
   const toLabel = period ? formatDay(period.to) : "";
@@ -810,28 +770,12 @@ export function PipelineProgress({
       <div className="min-w-0 flex-1">
       <header className="flex items-start justify-between gap-3 border-b border-[var(--pipeline-border)] px-3.5 py-2.5">
         <div className="min-w-0">
-          {hasFlow && novos ? (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h2
-                id={labelId}
-                className="font-display text-[14px] font-bold tracking-tight text-[var(--pipeline-text)]"
-              >
-                Funil e progresso
-              </h2>
-              <CreatedChip
-                count={novos.count}
-                value={novos.value}
-                today={period?.label === "Hoje"}
-              />
-            </div>
-          ) : (
-            <h2
-              id={labelId}
-              className="font-display text-[14px] font-bold tracking-tight text-[var(--pipeline-text)]"
-            >
-              Funil e progresso
-            </h2>
-          )}
+          <h2
+            id={labelId}
+            className="font-display text-[14px] font-bold tracking-tight text-[var(--pipeline-text)]"
+          >
+            Funil e progresso
+          </h2>
           <p className="mt-0.5 font-body text-[11px] text-[var(--pipeline-text-muted)]">
             {hasFlow
               ? "Estoque aberto, entradas e saídas por etapa"
