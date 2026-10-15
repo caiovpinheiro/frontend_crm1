@@ -810,7 +810,8 @@ export function isStepIncomplete(
     case "send_whatsapp_flow":
       return !str(c.flowDefinitionId);
     case "send_email":
-      return !str(c.to) || !str(c.subject) || !str(c.body);
+      // `to` vazio = e-mail do contato (resolvido no motor).
+      return !str(c.subject) || !str(c.body);
     case "webhook":
       return !str(c.url);
     case "create_conversation_note":
