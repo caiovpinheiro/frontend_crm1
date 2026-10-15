@@ -105,7 +105,9 @@ describe("sse_connection_evicted (teto por usuário)", () => {
 
     a.tab.es.open();
     await tick();
+    // A volta do despejo já foi sorteada: a líder refaz no open; a seguidora, no sorteio dela.
     expect(reconnectA).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(reconnectB).toHaveBeenCalledTimes(1);
     a.tab.es.emit("new_message", { id: "m1" });
     await tick();
@@ -238,8 +240,8 @@ describe("handshake recusado: 429 (teto da org) e 401 (sessão)", () => {
     const a = abrirAba(hub, "a", { isolada: true, extras: { probe, onUnauthorized } });
     a.subscribe(["new_message"]);
     a.tab.es.open();
-    a.tab.es.fail(); // queda (deploy): backoff normal de 5s
-    await vi.advanceTimersByTimeAsync(5_000);
+    a.tab.es.fail(); // queda (deploy): volta sorteada em [0, 20 s] (0,5 → 10 s)
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(a.tab.eventSources).toHaveLength(2);
     a.tab.es.fail(); // reconexão recusada sem abrir
     await tick();
@@ -279,13 +281,13 @@ describe("handshake recusado: 429 (teto da org) e 401 (sessão)", () => {
     expect(a.bridge.connection(URL).holdReason).toBe("session-ended");
   });
 
-  it("queda de conexão ABERTA (deploy) não sonda: backoff normal de 5s", async () => {
+  it("queda de conexão ABERTA (deploy) não sonda: volta sorteada em [0, 20 s]", async () => {
     const probe = vi.fn(async (): Promise<SseProbeResult | null> => ({ status: 429 }));
     const a = abrirAba(hub, "a", { isolada: true, extras: { probe } });
     a.subscribe(["new_message"]);
     a.tab.es.open();
     a.tab.es.fail();
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(probe).not.toHaveBeenCalled();
     expect(a.tab.eventSources).toHaveLength(2);
   });
