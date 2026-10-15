@@ -205,6 +205,11 @@ function walkSimulation(
       return { events, wait: "reply", currentId: id, title }
     }
 
+    if (stepType === "wait_for_document") {
+      events.push({ id: eid("sys"), kind: "system", text: "Aguardando documento ou texto" })
+      return { events, wait: "branch", currentId: id, title }
+    }
+
     if (BRANCH_TYPES.has(stepType)) {
       events.push({
         id: eid("sys"),

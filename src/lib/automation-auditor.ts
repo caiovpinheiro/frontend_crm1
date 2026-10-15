@@ -78,6 +78,7 @@ const TERMINAL_TYPES = new Set(["finish", "stop_automation", "transfer_automatio
  */
 const PAUSING_TYPES = new Set([
   "wait_for_reply",
+  "wait_for_document",
   "question",
   "send_whatsapp_interactive",
   "send_whatsapp_list",
@@ -154,6 +155,11 @@ export function getStepOutgoing(step: StepLike): StepOutgoing {
     case "wait_for_reply": {
       push("recebeu resposta", c.receivedGotoStepId);
       push("timeout (cronômetro)", c.timeoutGotoStepId);
+      break;
+    }
+    case "wait_for_document": {
+      push("documento recebido", c.documentGotoStepId);
+      push("mensagem de texto", c.textGotoStepId);
       break;
     }
     case "question":
@@ -349,7 +355,7 @@ export function auditAutomation(automation: AutomationLike): AuditReport {
     const isTerminal = TERMINAL_TYPES.has(step.type);
     const hasExplicitEdges = cfg.__hasExplicitEdges === true;
     const hasAnyOut = local.length > 0 || crossAutomation.length > 0;
-    const isLinearStep = !["condition", "wait_for_reply", "question", "send_whatsapp_interactive", "send_whatsapp_list", "business_hours", "check_agent_status", "goto"].includes(step.type);
+    const isLinearStep = !["condition", "wait_for_reply", "wait_for_document", "question", "send_whatsapp_interactive", "send_whatsapp_list", "business_hours", "check_agent_status", "goto"].includes(step.type);
     const nextId = strOrEmpty(cfg.nextStepId);
     const isDeadEndLinear = isLinearStep && hasExplicitEdges && !hasAnyOut && nextId !== NONE_ID && !isTerminal;
     if (isDeadEndLinear) {
