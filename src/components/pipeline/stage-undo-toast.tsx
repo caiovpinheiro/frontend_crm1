@@ -59,12 +59,12 @@ export function StageUndoToast({
         setHolding(false);
         setCycle((n) => n + 1);
       }}
-      className="pointer-events-auto fixed right-4 top-4 z-[80] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
+      className="pointer-events-auto fixed right-4 top-4 z-[80] w-max max-w-[min(36rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
     >
-      <div className="flex items-center gap-3 p-3">
-        <div className="min-w-0 flex-1">
+      <div className="flex items-start gap-3 p-3">
+        <div className="min-w-0 max-w-[28rem]">
           <p className="text-sm font-semibold text-foreground">Fila alterada</p>
-          <p className="truncate text-sm text-muted-foreground">
+          <p className="break-words text-sm text-muted-foreground">
             {title} foi para {stageName}
           </p>
         </div>

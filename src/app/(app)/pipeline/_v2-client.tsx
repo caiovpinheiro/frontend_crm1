@@ -97,7 +97,7 @@ import {
 } from "@/features/pipeline-v2/stage-visibility";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
+import { fetchBoardDealIds, getDeal, updateDeal } from "@/features/pipeline-v2/api";
 import { createContact } from "@/features/directory-v2/api";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 import { useCan, useMyPermissions } from "@/hooks/use-my-permissions";
@@ -340,13 +340,16 @@ export default function KanbanV2ClientPage({
   const commitMove = useCallback(
     (vars: MoveVars) => {
       const stageChange = vars.fromStageId !== vars.toStageId;
+      // Só no quadro, com a conversa fechada. No painel do negócio o toast
+      // de sucesso continua e o desfazer não aparece.
+      const offerUndo = stageChange && !vars.skipSuccessToast && !activeDealId;
       let undo: {
         key: string;
         title: string;
         stageName: string;
         reverse: MoveVars;
       } | null = null;
-      if (stageChange && !vars.skipSuccessToast) {
+      if (offerUndo) {
         const from = board.find((s) => s.id === vars.fromStageId);
         const fromIndex = from?.deals.findIndex((d) => d.id === vars.dealId) ?? -1;
         const deal = fromIndex >= 0 ? from?.deals[fromIndex] : undefined;
@@ -366,13 +369,13 @@ export default function KanbanV2ClientPage({
         };
       }
       const seq = ++moveSeqRef.current;
-      moveDeal.mutate(stageChange ? { ...vars, skipSuccessToast: true } : vars, {
+      moveDeal.mutate(offerUndo ? { ...vars, skipSuccessToast: true } : vars, {
         onSuccess: () => {
           if (undo && moveSeqRef.current === seq) setStageUndo(undo);
         },
       });
     },
-    [board, moveStages, moveDeal],
+    [board, moveStages, moveDeal, activeDealId],
   );
 
   const commitMoveRef = useRef(commitMove);
@@ -406,6 +409,10 @@ export default function KanbanV2ClientPage({
     },
     [moveStages, commitMove, canChangeStage],
   );
+
+  useEffect(() => {
+    if (activeDealId) setStageUndo(null);
+  }, [activeDealId]);
 
   const stageUndoRef = useRef(stageUndo);
   stageUndoRef.current = stageUndo;
@@ -781,21 +788,31 @@ export default function KanbanV2ClientPage({
   );
 
   // Quando dealDetail carrega via lookup por número sequencial (?deal=102),
-  // troca activeDealId para o CUID real (mutations usam CUID). Semeia o
-  // cache do CUID com o mesmo detail — evita o 2º GET /deals/:cuid e o
-  // detail "sumir" por um render (que duplicava presença e POST /read).
+  // troca activeDealId para o CUID real (mutations usam CUID). A resposta
+  // pelo número pode ter vindo sem os valores dos campos personalizados;
+  // rebusca pelo id interno e só então troca a chave, sem fechar o painel.
   useEffect(() => {
     if (
-      dealDetail?.id &&
-      activeDealId &&
-      /^\d+$/.test(activeDealId) &&
-      dealDetail.id !== activeDealId
+      !dealDetail?.id ||
+      !activeDealId ||
+      !/^\d+$/.test(activeDealId) ||
+      dealDetail.id === activeDealId
     ) {
-      queryClient.setQueryData(dealDetailKey(dealDetail.id), dealDetail);
-      setActiveDealId(dealDetail.id);
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealDetail?.id]);
+    const numericId = activeDealId;
+    const cuid = dealDetail.id;
+    let cancelled = false;
+    void getDeal(cuid).then((fresh) => {
+      if (cancelled || !fresh) return;
+      queryClient.setQueryData(dealDetailKey(numericId), fresh);
+      queryClient.setQueryData(dealDetailKey(cuid), fresh);
+      setActiveDealId(cuid);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dealDetail?.id, activeDealId, queryClient]);
 
   // URL só com número: após detail (ou legado com CUID), replaceState.
   useEffect(() => {
