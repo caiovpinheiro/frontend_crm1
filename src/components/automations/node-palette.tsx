@@ -82,6 +82,7 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
     items: [
       { type: "question" },
       { type: "wait_for_reply" },
+      { type: "wait_for_document" },
       { type: "closing_protocol" },
       { type: "set_variable" },
       { type: "goto" },

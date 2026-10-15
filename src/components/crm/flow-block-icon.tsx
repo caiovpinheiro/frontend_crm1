@@ -131,6 +131,7 @@ export const blockMeta: Record<string, BlockMeta> = {
   // Salesbot
   "ask-lead": def("Pergunta ao lead", IconHelpCircle, "blue", "salesbot"),
   "wait-reply": def("Aguardar resposta", IconPlayerPause, "orange", "salesbot"),
+  "wait-document": def("Aguardar documento", IconFileText, "orange", "salesbot"),
   "set-variable": def("Definir variável", IconVariable, "pink", "salesbot"),
   goto: def("Ir para (Goto)", IconCornerDownRight, "blue", "salesbot"),
   "transfer-automation": def("Transferir automação", IconTransfer, "indigo", "salesbot"),
@@ -170,6 +171,7 @@ const apiTypeToBlockKey: Record<string, string> = {
   condition: "condition",
   question: "ask-lead",
   wait_for_reply: "wait-reply",
+  wait_for_document: "wait-document",
   closing_protocol: "wait-reply",
   set_variable: "set-variable",
   goto: "goto",

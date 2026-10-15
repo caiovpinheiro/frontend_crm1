@@ -86,6 +86,7 @@ export const ACTION_STEP_TYPES = [
   "update_lead_score",
   "question",
   "wait_for_reply",
+  "wait_for_document",
   "closing_protocol",
   "set_variable",
   "goto",
@@ -266,6 +267,7 @@ export function stepTypeLabel(t: string): string {
     update_lead_score: "Atualizar lead score",
     question: "Pergunta ao lead",
     wait_for_reply: "Aguardar resposta",
+    wait_for_document: "Aguardar documento",
     closing_protocol: "Encerramento (aguardar + agente)",
     set_variable: "Definir variável",
     goto: "Ir para (Goto)",
@@ -677,6 +679,8 @@ export function summarizeStepConfig(stepType: string, config: unknown, lookup?: 
       }
       return parts.join(" · ");
     }
+    case "wait_for_document":
+      return "Arquivo ou mensagem de texto";
     case "closing_protocol": {
       const waitMs = Number(c.waitMs ?? c.timeoutMs ?? 0);
       const closeMs = Number(c.closingWaitMs ?? 0);
@@ -954,6 +958,12 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
     case "wait_for_reply":
       return {
         timeoutMs: 60_000, receivedGotoStepId: "", timeoutGotoStepId: "", saveToVariable: "",
+      };
+    case "wait_for_document":
+      return {
+        documentGotoStepId: "",
+        textGotoStepId: "",
+        saveToVariable: "lastDocument",
       };
     case "closing_protocol":
       return {

@@ -37,6 +37,7 @@ export const stepIcon: Record<string, ComponentType<{ className?: string; stroke
   update_lead_score: TrendingUp,
   question: MessageCircleQuestion,
   wait_for_reply: Pause,
+  wait_for_document: FileText,
   closing_protocol: Hourglass,
   set_variable: Variable,
   goto: CornerDownRight,
@@ -83,6 +84,8 @@ export const stepDescription: Record<string, string> = {
   update_lead_score: "Soma ou subtrai pontos no lead score.",
   question: "Faz uma pergunta com opcoes de resposta.",
   wait_for_reply: "Aguarda o contato responder antes de seguir.",
+  wait_for_document:
+    "Aguarda um arquivo (foto, PDF, Word ou outra mídia). Texto segue pela outra saída.",
   closing_protocol:
     "Aguarda resposta; sem resposta inicia encerramento. Agente lê o contexto e sai em Encerrar ou Devolver.",
   set_variable: "Cria ou atualiza uma variavel do fluxo.",
@@ -131,6 +134,7 @@ export const stepColor: Record<string, string> = {
   update_lead_score: "text-[var(--color-pink)]",
   question: "text-[var(--color-info)]",
   wait_for_reply: "text-[var(--color-warning)]",
+  wait_for_document: "text-[var(--color-warning)]",
   closing_protocol: "text-[var(--color-warning)]",
   set_variable: "text-[var(--color-fuchsia)]",
   goto: "text-[var(--color-sky)]",
@@ -178,7 +182,7 @@ export const STEP_GROUPS: StepGroup[] = [
   },
   {
     title: "Salesbot",
-    items: ["question", "wait_for_reply", "closing_protocol", "set_variable", "goto", "transfer_automation", "finish"],
+    items: ["question", "wait_for_reply", "wait_for_document", "closing_protocol", "set_variable", "goto", "transfer_automation", "finish"],
   },
   {
     title: "Ações",

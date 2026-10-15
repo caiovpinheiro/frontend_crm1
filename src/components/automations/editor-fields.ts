@@ -368,6 +368,13 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "step", key: "receivedGotoStepId", label: "Mensagem recebida → ir para", optional: true },
     { kind: "step", key: "timeoutGotoStepId", label: "Sem resposta (timeout) → ir para", optional: true },
   ],
+  wait_for_document: [
+    {
+      kind: "info",
+      text: "Pausa até o contato enviar. Arquivo (foto, PDF, Word, imagem ou outra mídia) segue por Documento recebido. Texto segue por Mensagem de texto. O arquivo fica em {{documentMediaUrl}} e o texto ou nome em {{lastDocument}}.",
+    },
+    { kind: "text", key: "saveToVariable", label: "Salvar texto ou nome do arquivo em variável", optional: true },
+  ],
   closing_protocol: [
     { kind: "duration", key: "waitMs", label: "Aguardar resposta" },
     { kind: "duration", key: "closingWaitMs", label: "Janela do encerramento" },

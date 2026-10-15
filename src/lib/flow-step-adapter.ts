@@ -80,7 +80,7 @@ export function nodeFamily(type: string): NodeFamily {
   if (type === "execute_distribution" || type === "distribution") return "distribution"
   if (CONDITION_TYPES.has(type as ActionStepType) || type === "condition") return "condition"
   if (FINISH_TYPES.has(type as ActionStepType) || type === "finish") return "finish"
-  if (MESSAGE_TYPES.has(type as ActionStepType) || INTERACTIVE_TYPES.has(type as ActionStepType) || type === "wait_for_reply" || type === "closing_protocol") {
+  if (MESSAGE_TYPES.has(type as ActionStepType) || INTERACTIVE_TYPES.has(type as ActionStepType) || type === "wait_for_reply" || type === "wait_for_document" || type === "closing_protocol") {
     return "message"
   }
   return "action"
@@ -111,6 +111,7 @@ export function isMessageStepType(type: string | undefined): boolean {
     MESSAGE_TYPES.has(type as ActionStepType) ||
     INTERACTIVE_TYPES.has(type as ActionStepType) ||
     type === "wait_for_reply" ||
+    type === "wait_for_document" ||
     type === "closing_protocol" ||
     type === "template" ||
     type === "media" ||
@@ -123,7 +124,7 @@ export function stepTypeToNodeKind(type: ActionStepType): NodeKind {
   if (type === "send_whatsapp_template") return "template"
   if (type === "send_whatsapp_media") return "media"
   if (INTERACTIVE_TYPES.has(type)) return "interactive"
-  if (type === "send_whatsapp_message" || type === "send_product" || type === "send_email" || type === "wait_for_reply" || type === "closing_protocol") {
+  if (type === "send_whatsapp_message" || type === "send_product" || type === "send_email" || type === "wait_for_reply" || type === "wait_for_document" || type === "closing_protocol") {
     return "message"
   }
   if (type === "execute_distribution") return "distribution"
@@ -217,6 +218,12 @@ export function outputsFromStepConfig(
     return [
       { key: "received", label: "Quando responder", kind: "response", target: t("received", cfg.receivedGotoStepId) ?? t("next", cfg.receivedGotoStepId) },
       { key: "timeout", label: "Caso o contato não responda", kind: "error", target: t("timeout", cfg.timeoutGotoStepId) },
+    ]
+  }
+  if (type === "wait_for_document") {
+    return [
+      { key: "document", label: "Documento recebido", kind: "response", target: t("document", cfg.documentGotoStepId) },
+      { key: "text", label: "Mensagem de texto", kind: "navigation", target: t("text", cfg.textGotoStepId) },
     ]
   }
   if (type === "closing_protocol") {
@@ -468,6 +475,16 @@ export function applyHandleToConfig(
     return rec as NodeConfig
   }
 
+  if (handle === "document" && type === "wait_for_document") {
+    rec.documentGotoStepId = targetId
+    return rec as NodeConfig
+  }
+
+  if (handle === "text" && type === "wait_for_document") {
+    rec.textGotoStepId = targetId
+    return rec as NodeConfig
+  }
+
   if (handle === "received" || (handle === "next" && type === "wait_for_reply")) {
     rec.receivedGotoStepId = targetId
     return rec as NodeConfig
@@ -557,6 +574,16 @@ export function clearHandleFromConfig(
     return rec as NodeConfig
   }
 
+  if (handle === "document" && type === "wait_for_document") {
+    delete rec.documentGotoStepId
+    return rec as NodeConfig
+  }
+
+  if (handle === "text" && type === "wait_for_document") {
+    delete rec.textGotoStepId
+    return rec as NodeConfig
+  }
+
   if (handle === "received" || (handle === "next" && type === "wait_for_reply")) {
     delete rec.receivedGotoStepId
     return rec as NodeConfig
@@ -613,6 +640,8 @@ export function stripDeletedStepTargets(
   drop("elseStepId")
   drop("timeoutGotoStepId")
   drop("receivedGotoStepId")
+  drop("documentGotoStepId")
+  drop("textGotoStepId")
   if (typeof rec.failureGotoStepId === "string" && deleted.has(rec.failureGotoStepId)) {
     delete rec.failureGotoStepId
     rec.failureAction = "stop"
