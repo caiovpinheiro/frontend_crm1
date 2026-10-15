@@ -3,22 +3,20 @@
  *
  * - Evento de outro funil não toca o board aberto (nem patch, nem refetch).
  * - Evento com `dealIds` atualiza só os cards afetados.
- * - Card do escopo fora da página carregada não refaz board nenhum — exceto
- *   o board paginado "mais recentes" (`lastInteraction:desc`) do funil, onde
- *   quem recebe mensagem sobe para o topo no servidor.
- * - Sem os campos (backend antigo) vale o comportamento anterior.
+ * - Nenhum evento de mensagem invalida ou refaz board (gate C): o retorno
+ *   de `applyBoardNewMessage` só informa o que ficou fora do patch — o board
+ *   paginado "mais recentes" (`lastInteraction:desc`) do funil, onde quem
+ *   recebe mensagem sobe para o topo no servidor, e o evento sem escopo
+ *   (backend antigo) com card fora da página.
  *
- * Node, sem React: `applyBoardNewMessage` e `createBoardRefreshScheduler`
- * só leem/escrevem no `QueryClient`.
+ * Node, sem React: `applyBoardNewMessage` só lê/escreve no `QueryClient`.
  */
 import { QueryClient } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import {
   applyBoardNewMessage,
-  BOARD_REFRESH_DEBOUNCE_MS,
-  createBoardRefreshScheduler,
   patchBoardLastMessage,
 } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 
@@ -109,14 +107,6 @@ describe("applyBoardNewMessage — evento com escopo do board", () => {
     expect(request).toBeNull();
     expect(setSpy).not.toHaveBeenCalled();
     expect(board(qc, "p1")).toBe(p1);
-
-    vi.useFakeTimers();
-    try {
-      createBoardRefreshScheduler(qc).schedule(request);
-      vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    } finally {
-      vi.useRealTimers();
-    }
     expect(invalidated(qc, pagedKey("p1"))).toBe(false);
     expect(invalidated(qc, pagedKey("p2"))).toBe(false);
     expect(board(qc, "p1")).toBe(p1);
@@ -202,16 +192,6 @@ describe("applyBoardNewMessage — evento com escopo do board", () => {
     expect(request).toBeNull();
     expect(board(qc, "p1")).toBe(p1);
     expect(board(qc, "p2")).toBe(p2);
-
-    vi.useFakeTimers();
-    try {
-      const scheduler = createBoardRefreshScheduler(qc);
-      scheduler.schedule(request);
-      vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS * 100);
-    } finally {
-      vi.useRealTimers();
-    }
-
     expect(invalidate).not.toHaveBeenCalled();
     expect(invalidated(qc, pagedKey("p2"))).toBe(false);
     expect(invalidated(qc, filteredKey("p2"))).toBe(false);
@@ -344,7 +324,7 @@ describe("applyBoardNewMessage — board 'mais recentes' (Flow / Kanban)", () =>
     return { qc, data };
   }
 
-  it("lead do funil fora da página: pede a recarga do funil", () => {
+  it("lead do funil fora da página: informa o funil (a revalidação traz o lead)", () => {
     const { qc } = withRecent();
 
     expect(
@@ -420,29 +400,21 @@ describe("applyBoardNewMessage — sem escopo (backend antigo): comportamento an
     expect(next[1]).toBe(p1[1]);
   });
 
-  it("contato fora da página: refaz todo board paginado em cache", () => {
+  it("contato fora da página: informa \"all\", mas nada é invalidado (gate C)", () => {
     const { qc, p1, p2 } = setup();
     qc.setQueryData(filteredKey("p1"), p1);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
 
     const request = applyBoardNewMessage(qc, inbound({ contactId: "contact-z" }));
     expect(request).toBe("all");
     expect(board(qc, "p1")).toBe(p1);
     expect(board(qc, "p2")).toBe(p2);
-
-    vi.useFakeTimers();
-    try {
-      const scheduler = createBoardRefreshScheduler(qc);
-      scheduler.schedule(request);
-      vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    } finally {
-      vi.useRealTimers();
-    }
-    expect(invalidated(qc, pagedKey("p1"))).toBe(true);
-    expect(invalidated(qc, pagedKey("p2"))).toBe(true);
-    expect(invalidated(qc, filteredKey("p1"))).toBe(false);
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidated(qc, pagedKey("p1"))).toBe(false);
+    expect(invalidated(qc, pagedKey("p2"))).toBe(false);
   });
 
-  it("evento sem contactId: refaz todo board paginado", () => {
+  it("evento sem contactId: informa \"all\" (sem patch possível)", () => {
     const { qc } = setup();
 
     expect(applyBoardNewMessage(qc, inbound({ contactId: undefined }))).toBe("all");
@@ -463,60 +435,5 @@ describe("applyBoardNewMessage — sem escopo (backend antigo): comportamento an
       false,
     );
     expect(patchBoardLastMessage(qc, { direction: "out", timestamp: T_NEW })).toBe(false);
-  });
-});
-
-describe("createBoardRefreshScheduler", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("junta os funis pedidos na janela em uma invalidação", () => {
-    const { qc } = setup();
-    qc.setQueryData(pagedKey("p3"), []);
-    const invalidate = vi.spyOn(qc, "invalidateQueries");
-    const scheduler = createBoardRefreshScheduler(qc);
-
-    scheduler.schedule(["p1"]);
-    scheduler.schedule(null);
-    scheduler.schedule(["p2"]);
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-
-    expect(invalidate).toHaveBeenCalledTimes(1);
-    expect(invalidated(qc, pagedKey("p1"))).toBe(true);
-    expect(invalidated(qc, pagedKey("p2"))).toBe(true);
-    expect(invalidated(qc, pagedKey("p3"))).toBe(false);
-  });
-
-  it("um pedido sem escopo na janela vence: refaz todos", () => {
-    const { qc } = setup();
-    const scheduler = createBoardRefreshScheduler(qc);
-
-    scheduler.schedule(["p1"]);
-    scheduler.schedule("all");
-    scheduler.schedule(["p1"]);
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-
-    expect(invalidated(qc, pagedKey("p1"))).toBe(true);
-    expect(invalidated(qc, pagedKey("p2"))).toBe(true);
-  });
-
-  it("sem pedido não agenda nada; cancel descarta o que estava pendente", () => {
-    const { qc } = setup();
-    const invalidate = vi.spyOn(qc, "invalidateQueries");
-    const scheduler = createBoardRefreshScheduler(qc);
-
-    scheduler.schedule(null);
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    expect(invalidate).not.toHaveBeenCalled();
-
-    scheduler.schedule(["p1"]);
-    scheduler.cancel();
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(invalidated(qc, pagedKey("p1"))).toBe(false);
   });
 });

@@ -206,13 +206,16 @@ export function useBoard(params: {
     },
     enabled: preview ? true : ((params.enabled ?? true) && !!params.pipelineId),
     // Alinhado ao cache Redis do board (45s) + padrão inbox-v2.
-    // SSE (`usePipelineRealtime`) patcha lastMessage em new_message;
-    // polling fica só como safety-net — evita refetch storm no remount.
+    // SSE (`usePipelineRealtime`) patcha lastMessage em new_message e o card
+    // em deal_moved; nenhum evento de mensagem recarrega o board.
+    // Revalidação (gate C): ao voltar à tela/aba e no poll de 120 s, com o
+    // board já velho (> staleTime). O GET vai com `If-None-Match` (cache do
+    // navegador) e custa 304 sem banco quando o quadro não mudou.
     staleTime: 45_000,
     refetchInterval: visible ? 120_000 : false,
     refetchIntervalInBackground: false,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
     // [jul/26] Mantém o quadro anterior VISÍVEL enquanto refaz o fetch
     // (troca de funil/ordenação, poll de 120 s, invalidação pós-move).
     // Evita o "flash" de tela vazia/"Carregando..." — a query mais cara do
@@ -386,8 +389,10 @@ export function useBoardFiltered(params: {
     },
     enabled: (params.enabled ?? true) && !!params.pipelineId && active,
     staleTime: 30_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    // Revalida ao voltar à tela/aba (gate C): POST com `If-None-Match` do
+    // último 200 (`board-conditional.ts`) — 304 quando nada mudou.
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     retry: 1,
     // Troca rápida de critério cancela o POST anterior (signal no queryFn).
     // [jul/26] Mantém o quadro filtrado anterior enquanto reaplica filtros
