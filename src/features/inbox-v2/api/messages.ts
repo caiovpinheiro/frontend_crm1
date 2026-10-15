@@ -7,6 +7,7 @@ import { apiUrl, apiFetch, ApiError, parseApiResponse } from "@/lib/api";
 
 import type {
   InboxMessageDto,
+  MessagesDelta,
   MessagesResponse,
   ReactionDto,
   SessionInfo,
@@ -35,9 +36,51 @@ export async function getChannelSession(
   };
 }
 
+/** Corpo da página (`GET …/messages`) → `MessagesResponse` normalizado. */
+function toMessagesResponse(
+  data: Record<string, unknown>,
+  opts?: { history?: boolean; limit?: number },
+): MessagesResponse {
+  const messages: InboxMessageDto[] = Array.isArray(data.messages)
+    ? (data.messages as InboxMessageDto[])
+    : [];
+  const requested = opts?.limit ?? 50;
+  return {
+    messages,
+    hasMore:
+      typeof data.hasMore === "boolean"
+        ? data.hasMore
+        : opts?.history !== true &&
+          messages.filter((m) => m.messageType !== "ticket-separator").length >=
+            requested,
+    hasOlderTickets: data.hasOlderTickets === true,
+    pinnedNoteId: (data.pinnedNoteId as string | null | undefined) ?? null,
+    // Fixadas da conversa (várias, estilo WhatsApp). Aceita o array novo
+    // (`pinnedMessageIds`) e cai no campo único legado (`pinnedMessageId`)
+    // enquanto o backend não estiver atualizado em todos os ambientes.
+    pinnedMessageIds: Array.isArray(data.pinnedMessageIds)
+      ? (data.pinnedMessageIds as string[])
+      : data.pinnedMessageId
+        ? [data.pinnedMessageId as string]
+        : [],
+    channelProvider: (data.channelProvider as string | null | undefined) ?? null,
+    channel: (data.channel as MessagesResponse["channel"]) ?? null,
+    channels:
+      data.channels && typeof data.channels === "object"
+        ? (data.channels as MessagesResponse["channels"])
+        : {},
+    canReply: typeof data.canReply === "boolean" ? data.canReply : true,
+    session: (data.session as SessionInfo | undefined) ?? undefined,
+    cursor: typeof data.cursor === "string" && data.cursor ? data.cursor : null,
+  };
+}
+
 /** GET /api/conversations/:id/messages
  *  Cold path: últimas N do ticket (sem history). Scroll-up usa `before`;
  *  tickets anteriores só com `history=1` quando o operador pede.
+ *
+ *  `cache: "no-cache"`: o navegador guarda a resposta (ETag do backend) e
+ *  revalida — sem mudança, o 304 vira o 200 guardado sem o JS ver.
  */
 export async function getMessages(
   conversationId: string,
@@ -51,7 +94,7 @@ export async function getMessages(
   const q = params.size > 0 ? `?${params.toString()}` : "";
   const res = await fetch(
     apiUrl(`/api/conversations/${conversationId}/messages${q}`),
-    { cache: "no-store" },
+    { cache: "no-cache" },
   );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -59,35 +102,55 @@ export async function getMessages(
       typeof data?.message === "string" ? data.message : "Erro ao carregar mensagens",
     );
   }
-  const messages: InboxMessageDto[] = Array.isArray(data.messages)
-    ? data.messages
-    : [];
-  const requested = opts?.limit ?? 50;
-  return {
-    messages,
-    hasMore:
-      typeof data.hasMore === "boolean"
-        ? data.hasMore
-        : opts?.history !== true &&
-          messages.filter((m) => m.messageType !== "ticket-separator").length >=
-            requested,
-    hasOlderTickets: data.hasOlderTickets === true,
-    pinnedNoteId: data.pinnedNoteId ?? null,
-    // Fixadas da conversa (várias, estilo WhatsApp). Aceita o array novo
-    // (`pinnedMessageIds`) e cai no campo único legado (`pinnedMessageId`)
-    // enquanto o backend não estiver atualizado em todos os ambientes.
-    pinnedMessageIds: Array.isArray(data.pinnedMessageIds)
-      ? data.pinnedMessageIds
-      : data.pinnedMessageId
-        ? [data.pinnedMessageId]
-        : [],
-    channelProvider: data.channelProvider ?? null,
-    channel: data.channel ?? null,
-    channels:
-      data.channels && typeof data.channels === "object" ? data.channels : {},
-    canReply: typeof data.canReply === "boolean" ? data.canReply : true,
-    session: data.session ?? undefined,
-  };
+  return toMessagesResponse(data, opts);
+}
+
+export type MessagesDeltaResult =
+  | { kind: "delta"; delta: MessagesDelta }
+  /** O backend não garantiu o delta (`reset`): veio a página inteira. */
+  | { kind: "page"; page: MessagesResponse };
+
+/**
+ * GET /api/conversations/:id/messages?after=<cursor> — só o que mudou
+ * desde o cursor. A URL fica a mesma enquanto o cursor-base não muda, e
+ * `no-cache` deixa o navegador revalidar com `If-None-Match` (304 sem
+ * banco no backend). Sem `delta: true` no corpo (backend antigo ou
+ * `reset`), é a página inteira.
+ */
+export async function getMessagesDelta(
+  conversationId: string,
+  cursor: string,
+  opts?: { limit?: number },
+): Promise<MessagesDeltaResult> {
+  const params = new URLSearchParams({ after: cursor });
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  const res = await fetch(
+    apiUrl(`/api/conversations/${conversationId}/messages?${params.toString()}`),
+    { cache: "no-cache" },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.message === "string" ? data.message : "Erro ao carregar mensagens",
+    );
+  }
+  if (data?.delta === true && data.reset !== true) {
+    const list = (v: unknown): InboxMessageDto[] => (Array.isArray(v) ? (v as InboxMessageDto[]) : []);
+    return {
+      kind: "delta",
+      delta: {
+        items: list(data.items),
+        changed: list(data.changed),
+        deleted: Array.isArray(data.deleted) ? (data.deleted as unknown[]).map(String) : [],
+        cursor: typeof data.cursor === "string" && data.cursor ? data.cursor : null,
+        ...("pinnedNoteId" in data ? { pinnedNoteId: data.pinnedNoteId ?? null } : {}),
+        ...(Array.isArray(data.pinnedMessageIds) ? { pinnedMessageIds: data.pinnedMessageIds } : {}),
+        ...(data.session ? { session: data.session as SessionInfo } : {}),
+        ...(data.channels && typeof data.channels === "object" ? { channels: data.channels } : {}),
+      },
+    };
+  }
+  return { kind: "page", page: toMessagesResponse(data, opts) };
 }
 
 /** POST /api/conversations/:id/messages */
