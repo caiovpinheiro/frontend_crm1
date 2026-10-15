@@ -15,6 +15,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectNative } from "@/components/ui/select";
+import { resolveChatMediaUrl } from "@/lib/chat-media-url";
 
 export type FieldWithValue = {
   fieldId: string;
@@ -25,6 +26,71 @@ export type FieldWithValue = {
   required: boolean;
   value: string | null;
 };
+
+function storedFileUrl(value: string): boolean {
+  const v = value.trim();
+  return v.includes("/api/storage/") || v.startsWith("/uploads/");
+}
+
+function storedImageUrl(value: string): boolean {
+  const path = (value.split("?")[0] ?? value).trim();
+  return storedFileUrl(value) && /\.(jpe?g|png|gif|webp)$/i.test(path);
+}
+
+/** Valor gravado no campo. URL de arquivo do storage vira a imagem ou o link do anexo. */
+export function CustomFieldValueView({
+  value,
+  align = "left",
+}: {
+  value: string | null;
+  align?: "left" | "right";
+}) {
+  const text = value?.trim() ?? "";
+  if (!text) {
+    return <span className="font-normal text-[var(--color-ink-muted)]">—</span>;
+  }
+  const alignClass = align === "right" ? "ml-auto text-right" : "";
+  if (storedImageUrl(text)) {
+    const src = resolveChatMediaUrl(text);
+    if (src) {
+      return (
+        <a href={src} target="_blank" rel="noreferrer" className={`inline-flex min-w-0 ${alignClass}`}>
+          <img src={src} alt="" className="h-10 max-w-full rounded-md object-cover" />
+        </a>
+      );
+    }
+  }
+  if (storedFileUrl(text)) {
+    const src = resolveChatMediaUrl(text) ?? text;
+    const rawName = text.split("/").pop()?.split("?")[0] ?? "Arquivo";
+    let name = rawName;
+    try {
+      name = decodeURIComponent(rawName) || "Arquivo";
+    } catch {
+      name = rawName || "Arquivo";
+    }
+    return (
+      <a
+        href={src}
+        target="_blank"
+        rel="noreferrer"
+        className={`block min-w-0 truncate text-sm font-medium text-[var(--text-primary)] underline ${alignClass}`}
+      >
+        {name}
+      </a>
+    );
+  }
+  return (
+    <DelayedHoverLegend text={text} className={`min-w-0 ${align === "right" ? "max-w-[65%]" : "flex-1"}`}>
+      <span
+        data-legend-measure
+        className={`block min-w-0 truncate text-sm font-medium text-[var(--text-primary)] ${align === "right" ? "text-right" : ""}`}
+      >
+        {text}
+      </span>
+    </DelayedHoverLegend>
+  );
+}
 
 export function CustomFieldRow({
   field: f,
@@ -94,20 +160,9 @@ export function CustomFieldRow({
           )}
         </div>
       ) : (
-        f.value ? (
-          <DelayedHoverLegend text={f.value} className="min-w-0 flex-1">
-            <span
-              data-legend-measure
-              className="block min-w-0 truncate text-sm font-medium text-[var(--text-primary)]"
-            >
-              {f.value}
-            </span>
-          </DelayedHoverLegend>
-        ) : (
-          <span className="min-w-0 flex-1 text-sm font-normal text-[var(--color-ink-muted)]">
-            —
-          </span>
-        )
+        <div className="min-w-0 flex-1">
+          <CustomFieldValueView value={f.value} />
+        </div>
       )}
     </div>
   );

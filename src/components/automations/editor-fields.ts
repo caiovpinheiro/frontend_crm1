@@ -377,7 +377,7 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
   wait_for_document: [
     {
       kind: "info",
-      text: "Pausa até o contato enviar. Arquivo (foto, PDF, Word, imagem ou outra mídia) segue por Documento recebido. Texto segue por Mensagem de texto. O arquivo fica em {{documentMediaUrl}} e o texto ou nome em {{lastDocument}}.",
+      text: "Pausa até o contato enviar. Arquivo (foto, PDF, Word, imagem ou outra mídia) segue por Documento recebido. Texto segue por Mensagem de texto. A imagem ou o arquivo fica em {{lastResponse}} (e em {{documentMediaUrl}}). O texto ou o nome fica em {{lastDocument}}. No Atualizar campo, {{lastResponse}} grava esse arquivo no campo do negócio.",
     },
     { kind: "text", key: "saveToVariable", label: "Salvar texto ou nome do arquivo em variável", optional: true },
   ],
