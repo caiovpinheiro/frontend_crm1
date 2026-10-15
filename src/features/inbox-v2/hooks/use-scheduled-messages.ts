@@ -3,16 +3,19 @@
 /*
  * Mensagens agendadas pendentes da conversa aberta.
  *
- * O backend publica `scheduled_message_updated` ao criar/cancelar/enviar
- * (handler em `use-realtime.ts` invalida `scheduledMessagesKey`). O poll
- * de 60 s fica só como fallback: roda quando o SSE está desconectado —
- * com a aba visível e com conversa aberta (`enabled`). Quem cria/cancela
- * nesta aba invalida a mesma chave na hora, sem esperar o evento.
+ * O backend publica `scheduled_message_updated` (com `conversationId`) ao
+ * criar/cancelar/enviar/falhar (handler em `use-realtime.ts` invalida
+ * `scheduledMessagesKey`). O poll de 60 s fica só como fallback: roda
+ * quando o SSE está desconectado — com a aba visível e com conversa aberta
+ * (`enabled`). Quem cria/cancela nesta aba invalida a mesma chave na hora,
+ * sem esperar o evento.
  *
- * Com a SSE conectada o cache se mantém por evento (e a reconexão com gap
- * marca todas como velhas): voltar a uma conversa / remontar o composer
- * dentro de `SCHEDULED_MESSAGES_STALE_MS_SSE` não refaz o GET (F3, 05/10;
- * antes o prazo era 15 s e cada abertura buscava).
+ * Gate de carga (15/10): com a SSE conectada o cache vale até um evento
+ * da conversa ou a reconexão com gap (que marca todas como velhas) — abrir
+ * a conversa de novo NÃO busca (`SCHEDULED_MESSAGES_STALE_MS_SSE` é só a
+ * rede de segurança, 30 min, e o cache fica guardado o mesmo tanto). Quando
+ * busca, o GET vai com `no-cache`: o navegador revalida o `ETag` e o
+ * backend responde 304 sem ler a lista.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -26,7 +29,9 @@ import {
 
 export const SCHEDULED_MESSAGES_POLL_MS = 60_000;
 export const SCHEDULED_MESSAGES_STALE_MS = 15_000;
-export const SCHEDULED_MESSAGES_STALE_MS_SSE = 5 * 60_000;
+export const SCHEDULED_MESSAGES_STALE_MS_SSE = 30 * 60_000;
+/** Cache da lista guardado depois de fechar a conversa (reabrir não busca). */
+export const SCHEDULED_MESSAGES_GC_MS = 30 * 60_000;
 
 /** Mesma chave que o ChatWindow legado usa — os caches convergem. */
 export function scheduledMessagesKey(conversationId: string | null) {
@@ -45,6 +50,7 @@ export function scheduledMessagesQueryOptions(
       listScheduledMessages(conversationId as string),
     enabled,
     staleTime: sseConnected ? SCHEDULED_MESSAGES_STALE_MS_SSE : SCHEDULED_MESSAGES_STALE_MS,
+    gcTime: SCHEDULED_MESSAGES_GC_MS,
     refetchInterval:
       enabled && visible && !sseConnected ? SCHEDULED_MESSAGES_POLL_MS : false,
     refetchIntervalInBackground: false,

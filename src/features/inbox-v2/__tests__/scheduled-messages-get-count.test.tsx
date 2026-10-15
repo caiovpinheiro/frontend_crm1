@@ -63,6 +63,12 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
 });
 
+function requests(conversationId: string) {
+  return fetchMock.mock.calls.filter(([input]) =>
+    String(input).includes(`/api/scheduled-messages?conversationId=${conversationId}`),
+  ) as unknown as Array<[RequestInfo | URL, RequestInit | undefined]>;
+}
+
 function gets(conversationId: string): number {
   return fetchMock.mock.calls.filter(([input]) =>
     String(input).includes(`/api/scheduled-messages?conversationId=${conversationId}`),
@@ -179,6 +185,43 @@ describe("agendadas — SSE conectada", () => {
     view.rerender({ id: "c2" });
     await flush();
     expect(gets("c2")).toBe(2);
+  });
+});
+
+describe("agendadas — gate de carga (15/10): cache válido não busca, GET revalida", () => {
+  it("reabrir a conversa 20 min depois, sem evento: nenhum GET (cache válido)", async () => {
+    const { view } = mount("c1");
+    await flush();
+    view.rerender({ id: "c2" });
+    await flush(20 * 60_000);
+    view.rerender({ id: "c1" });
+    await flush();
+    view.rerender({ id: "c2" });
+    await flush(1_000);
+    expect(gets("c1")).toBe(1);
+    expect(gets("c2")).toBe(1);
+  });
+
+  it("o GET vai com no-cache (o navegador revalida o ETag → 304)", async () => {
+    const { qc } = mount("c1");
+    await flush();
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: scheduledMessagesKey("c1") });
+    });
+    const calls = requests("c1");
+    expect(calls).toHaveLength(2);
+    expect(calls.every(([, init]) => init?.cache === "no-cache")).toBe(true);
+  });
+
+  it("só o evento da conversa refaz a busca; evento de outra conversa não", async () => {
+    mount("c1");
+    await flush();
+    emit("scheduled_message_updated", { conversationId: "c9", status: "SENT" });
+    await flush(1_000);
+    expect(gets("c1")).toBe(1);
+    emit("scheduled_message_updated", { conversationId: "c1", status: "CANCELLED" });
+    await flush(1_000);
+    expect(gets("c1")).toBe(2);
   });
 });
 
