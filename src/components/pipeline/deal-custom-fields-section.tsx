@@ -13,6 +13,7 @@ import { SelectNative } from "@/components/ui/select";
 import { SidebarSection } from "@/components/pipeline/deal-detail/shared";
 import { cn } from "@/lib/utils";
 import { CustomFieldsGroupedView } from "@/components/crm/fields/custom-fields-grouped-view";
+import { CustomFieldValueView } from "@/components/crm/fields/custom-field-row";
 import { useFieldLayout, type FieldLayoutContext } from "@/hooks/use-field-layout";
 import { resolveCustomFieldGroups } from "@/lib/field-layout";
 
@@ -172,9 +173,9 @@ export function DealCustomFieldsSection({
               )}
             </div>
           ) : (
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--text-primary)]">
-              {f.value || <span className="font-normal text-[var(--color-ink-muted)]">—</span>}
-            </span>
+            <div className="min-w-0 flex-1">
+              <CustomFieldValueView value={f.value} />
+            </div>
           )}
         </div>
       ))}
@@ -224,9 +225,7 @@ export function DealCustomFieldsSection({
           fields.map((f) => (
             <div key={f.fieldId} className="flex items-center justify-between gap-2">
               <span className="shrink-0 text-[11px] text-[var(--color-ink-muted)]">{f.label}</span>
-              <span className="truncate text-right text-[12px] text-foreground">
-                {f.value || <span className="text-[var(--color-ink-muted)]">—</span>}
-              </span>
+              <CustomFieldValueView value={f.value} align="right" />
             </div>
           ))
         )}
@@ -279,9 +278,7 @@ export function DealCustomFieldsSection({
           fields.map((f) => (
             <div key={f.fieldId} className={kommoRow}>
               <span className="text-[12px] text-[var(--color-ink-muted)]">{f.label}</span>
-              <span className="max-w-[65%] truncate text-right text-[12px] font-medium text-[var(--color-ink-soft)]">
-                {f.value || <span className="font-normal text-[var(--color-ink-muted)]">—</span>}
-              </span>
+              <CustomFieldValueView value={f.value} align="right" />
             </div>
           ))
         )}
