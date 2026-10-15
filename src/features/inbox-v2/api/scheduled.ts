@@ -13,12 +13,19 @@ export interface ScheduledMessage {
   fallbackTemplateName?: string | null;
 }
 
-/** GET /api/scheduled-messages?conversationId=... */
+/**
+ * GET /api/scheduled-messages?conversationId=...
+ *
+ * `cache: "no-cache"`: o backend manda `ETag` (versão da lista no Redis,
+ * gate de carga 15/10); o navegador guarda a resposta e revalida — sem
+ * mudança, o 304 vira o 200 guardado sem o JS ver.
+ */
 export async function listScheduledMessages(
   conversationId: string,
 ): Promise<{ items: ScheduledMessage[] }> {
   const res = await fetch(
     apiUrl(`/api/scheduled-messages?conversationId=${encodeURIComponent(conversationId)}`),
+    { cache: "no-cache" },
   );
   if (!res.ok) return { items: [] };
   return res.json() as Promise<{ items: ScheduledMessage[] }>;
