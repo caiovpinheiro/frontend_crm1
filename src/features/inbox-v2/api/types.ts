@@ -478,4 +478,28 @@ export interface MessagesResponse {
    */
   canReply?: boolean;
   session?: SessionInfo;
+  /**
+   * Cursor opaco do backend (gate de carga 15/10): base do delta
+   * `GET …/messages?after=<cursor>`. Fica o da última página inteira (o
+   * delta é cumulativo e a URL estável deixa o navegador revalidar → 304);
+   * troca quando o delta acumula muita coisa ou o backend devolve `reset`.
+   * Ausente com backend antigo ou sem Redis: o cliente busca a página.
+   */
+  cursor?: string | null;
+}
+
+/**
+ * Resposta de `GET …/messages?after=<cursor>`: só o que mudou desde o
+ * cursor (`items` novas, `changed` alteradas — status, edição, reação,
+ * favorito —, `deleted` ids excluídos) e o estado leve da conversa.
+ */
+export interface MessagesDelta {
+  items: InboxMessageDto[];
+  changed: InboxMessageDto[];
+  deleted: string[];
+  cursor: string | null;
+  pinnedNoteId?: string | null;
+  pinnedMessageIds?: string[];
+  session?: SessionInfo;
+  channels?: Record<string, ConnectionRef>;
 }

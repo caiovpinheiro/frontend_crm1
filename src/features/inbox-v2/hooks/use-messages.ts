@@ -15,6 +15,7 @@ import {
   forwardMessage,
   getFavoriteMessages,
   getMessages,
+  getMessagesDelta,
   pinMessage,
   unpinMessage,
   pinNote,
@@ -25,6 +26,7 @@ import {
   updateNote,
   type FavoriteMessageDto,
   type InboxMessageDto,
+  type MessagesDelta,
   type MessagesResponse,
   type ReactionDto,
 } from "../api";
@@ -150,6 +152,86 @@ function mergeTail(
   }
 }
 
+/** Ordem dos ticks: um status mais avançado não volta atrás. */
+const STATUS_RANK: Record<string, number> = { PENDING: 0, SENT: 1, DELIVERED: 2, READ: 3 };
+
+/**
+ * Bolha alterada pelo delta. O SSE `message_status` pode ter adiantado o
+ * tick antes de o banco gravar (buffer de status do webhook, ~2 s): o
+ * status mais avançado fica; `FAILED` sempre vale.
+ */
+function mergeChangedMessage(prev: InboxMessageDto, next: InboxMessageDto): InboxMessageDto {
+  const merged = { ...prev, ...next };
+  const a = prev.status ? STATUS_RANK[prev.status] : undefined;
+  const b = next.status ? STATUS_RANK[next.status] : undefined;
+  if (a !== undefined && b !== undefined && a > b) {
+    merged.status = prev.status;
+    merged.sendStatus = prev.sendStatus;
+  }
+  return merged;
+}
+
+/** Posição da mensagem nova: depois da última com `createdAt` ≤ o dela. */
+function insertChronological(list: InboxMessageDto[], item: InboxMessageDto): InboxMessageDto[] {
+  const at = item.createdAt ?? "";
+  let i = list.length;
+  while (i > 0) {
+    const prev = list[i - 1]!;
+    if (isTicketSeparator(prev) || !prev.createdAt || !at || prev.createdAt <= at) break;
+    i -= 1;
+  }
+  return [...list.slice(0, i), item, ...list.slice(i)];
+}
+
+/**
+ * Mudanças acumuladas no delta a partir das quais o cliente troca a base
+ * (`cursor`) pela do delta — senão cada revalidação traria tudo de novo.
+ */
+export const DELTA_REBASE_AT = 25;
+
+/**
+ * Aplica `GET …/messages?after=` no cache: novas entram (no lugar do stub
+ * do SSE, se houver), alteradas são trocadas (só as que já estão na tela),
+ * excluídas saem. O delta é cumulativo desde o cursor-base: reaplicar é
+ * idempotente.
+ */
+export function applyMessagesDelta(
+  prev: MessagesResponse,
+  delta: MessagesDelta,
+): MessagesResponse {
+  const deleted = new Set(delta.deleted.map(String));
+  const changed = new Map(delta.changed.map((m) => [String(m.id), m]));
+  let messages = prev.messages
+    .filter((m) => !deleted.has(String(m.id)))
+    .map((m) => {
+      const next = changed.get(String(m.id));
+      return next ? mergeChangedMessage(m, next) : m;
+    });
+  for (const item of delta.items) {
+    const id = String(item.id);
+    if (deleted.has(id)) continue;
+    const idx = messages.findIndex((m) => String(m.id) === id);
+    if (idx >= 0) {
+      messages[idx] = mergeChangedMessage(messages[idx]!, item);
+      continue;
+    }
+    messages = insertChronological(
+      messages.filter((m) => !stubMatchesMessage(m, item)),
+      item,
+    );
+  }
+  const size = delta.items.length + delta.changed.length + delta.deleted.length;
+  return {
+    ...prev,
+    messages,
+    ...(delta.pinnedNoteId !== undefined ? { pinnedNoteId: delta.pinnedNoteId } : {}),
+    ...(delta.pinnedMessageIds ? { pinnedMessageIds: delta.pinnedMessageIds } : {}),
+    ...(delta.session ? { session: delta.session } : {}),
+    ...(delta.channels ? { channels: { ...(prev.channels ?? {}), ...delta.channels } } : {}),
+    cursor: size >= DELTA_REBASE_AT && delta.cursor ? delta.cursor : prev.cursor,
+  };
+}
+
 function mergeOlder(
   prev: MessagesResponse | undefined,
   page: MessagesResponse,
@@ -225,8 +307,27 @@ export function useMessages(conversationId: string | null) {
   const query = useQuery<MessagesResponse>({
     queryKey: messagesKey(conversationId),
     queryFn: async () => {
+      const key = messagesKey(conversationId);
+      // Conversa já em cache com cursor (gate de carga 15/10): pede só o
+      // que mudou. Reabrir, hidratar o `new_message` do SSE e o
+      // `invalidateQueries` das mutações passam por aqui — nenhum refaz a
+      // lista inteira. Falha ou backend sem cursor: página inteira.
+      const cached = qc.getQueryData<MessagesResponse>(key);
+      if (cached?.cursor) {
+        try {
+          const res = await getMessagesDelta(conversationId as string, cached.cursor, {
+            limit: MESSAGE_PAGE,
+          });
+          const prev = qc.getQueryData<MessagesResponse>(key) ?? cached;
+          return res.kind === "delta"
+            ? applyMessagesDelta(prev, res.delta)
+            : mergeTail(prev, res.page);
+        } catch (e) {
+          logger.warn("useMessages", "delta falhou — página inteira", e);
+        }
+      }
       const page = await getMessages(conversationId as string, { limit: MESSAGE_PAGE });
-      const prev = qc.getQueryData<MessagesResponse>(messagesKey(conversationId));
+      const prev = qc.getQueryData<MessagesResponse>(key);
       return mergeTail(prev, page);
     },
     enabled: !!conversationId && !isInboxConversationNumberParam(conversationId),
