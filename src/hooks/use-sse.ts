@@ -51,6 +51,19 @@ export type SSEReconnectHandler = () => void;
  * para sempre. Reabrir depois de um gap dispara `onReconnect`
  * (inbox/pipeline reidratam).
  *
+ * Deploy sem pico (gate de carga, item E): a 1ª reconexão depois da QUEDA
+ * de uma conexão que estava aberta (servidor reiniciou, proxy derrubou,
+ * stream parado) sai num instante UNIFORME em [0, `SSE_RECONNECT_SPREAD_MS`]
+ * (20 s) — antes era 5 s ±30%, e todas as abas da org voltavam na mesma
+ * janela de 3 s, junto com o processo novo ainda frio. As tentativas
+ * seguintes seguem o backoff (10 s, 20 s… ±30%). A primeira conexão da
+ * página e a troca de líder (a anterior fechou) conectam na hora. O refetch
+ * em massa do `onReconnect` usa o mesmo espalhamento: na líder cuja volta
+ * já saiu num instante sorteado (queda, despejo) ou foi pedida pelo usuário
+ * (`resume`) ele roda no open; nos demais casos (seguidoras, troca de
+ * líder) espera o seu próprio sorteio em [0, 20 s] — várias abas do mesmo
+ * navegador não refazem tudo no mesmo instante.
+ *
  * Stream parado (N-MA-1): conexão meio-aberta (proxy, rede móvel, Safari)
  * não dispara `onerror` — a aba ficaria "conectada" sem receber nada. A
  * líder vigia a atividade (abertura, eventos e o batimento do servidor):
@@ -91,6 +104,14 @@ const SSE_STALE_CHECK_MS = 5_000;
 const RECONNECT_BASE_MS = 5_000;
 const RECONNECT_MAX_MS = 60_000;
 const RECONNECT_JITTER = 0.3;
+
+/** Queda de uma conexão aberta: 1ª reconexão uniforme em [0, isto]. */
+export const SSE_RECONNECT_SPREAD_MS = 20_000;
+
+/** Atraso uniforme em [0, `SSE_RECONNECT_SPREAD_MS`] (reconexão e refetch em massa). */
+export function sseReconnectSpreadMs(random = Math.random): number {
+  return Math.round(random() * SSE_RECONNECT_SPREAD_MS);
+}
 
 /** Espera da tentativa `attempt` (0 = primeira): exponencial + jitter. */
 export function sseReconnectDelayMs(attempt: number, random = Math.random): number {
@@ -217,6 +238,10 @@ class SharedSSEConnection {
   /** O servidor manda batimento nomeado: só então o vigia de stream parado arma. */
   private heartbeatSupported = false;
   private staleTimer: ReturnType<typeof setInterval> | null = null;
+  /** A reconexão em curso já esperou o sorteio (queda): o refetch roda no open. */
+  private spreadWaited = false;
+  /** Refetch em massa do `onReconnect` agendado (sorteio em [0, 20 s]). */
+  private reconnectNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     readonly url: string,
@@ -272,6 +297,8 @@ class SharedSSEConnection {
     if (this.hold?.reason !== "superseded") return;
     this.hold = null;
     this.failures = 0;
+    // Pedido do usuário (não é onda): o refetch roda no open.
+    this.spreadWaited = true;
     if (this.retryTimer) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
@@ -417,9 +444,28 @@ class SharedSSEConnection {
 
   private afterOpen(): void {
     const shouldNotify = this.everOpened && this.sawGap;
+    const waited = this.spreadWaited;
     this.everOpened = true;
     this.sawGap = false;
+    this.spreadWaited = false;
     if (!shouldNotify) return;
+    if (waited) {
+      // A reconexão desta líder já saiu num instante sorteado.
+      this.notifyReconnect();
+      return;
+    }
+    if (this.reconnectNotifyTimer) return; // já agendado: um refetch só
+    this.reconnectNotifyTimer = setTimeout(() => {
+      this.reconnectNotifyTimer = null;
+      this.notifyReconnect();
+    }, this.spreadDelay());
+  }
+
+  private notifyReconnect(): void {
+    if (this.reconnectNotifyTimer) {
+      clearTimeout(this.reconnectNotifyTimer);
+      this.reconnectNotifyTimer = null;
+    }
     for (const fn of this.reconnectHandlers) {
       try {
         fn();
@@ -427,6 +473,10 @@ class SharedSSEConnection {
         /* isola um assinante dos demais */
       }
     }
+  }
+
+  private spreadDelay(): number {
+    return sseReconnectSpreadMs(this.env.random ?? Math.random);
   }
 
   private setOpen(open: boolean, broadcast: boolean): void {
@@ -531,9 +581,18 @@ class SharedSSEConnection {
         void this.probeThenRetry();
         return;
       }
-      this.scheduleRetry(sseReconnectDelayMs(this.failures));
+      this.scheduleRetry(opened ? this.dropRetryDelay() : sseReconnectDelayMs(this.failures));
       this.failures += 1;
     };
+  }
+
+  /**
+   * Queda de uma conexão que estava aberta (deploy, proxy, stream parado):
+   * 1ª reconexão num instante uniforme em [0, 20 s].
+   */
+  private dropRetryDelay(): number {
+    this.spreadWaited = true;
+    return this.spreadDelay();
   }
 
   private touch(): void {
@@ -566,7 +625,7 @@ class SharedSSEConnection {
     if (this.everOpened) this.sawGap = true;
     this.setOpen(false, true);
     if (this.retryTimer || this.neededEvents().size === 0 || !this.isLeader()) return;
-    this.scheduleRetry(sseReconnectDelayMs(this.failures));
+    this.scheduleRetry(this.dropRetryDelay());
     this.failures += 1;
   }
 
@@ -640,6 +699,8 @@ class SharedSSEConnection {
     if (this.everOpened) this.sawGap = true;
     const delay = this.holdDelay(Math.max(SSE_EVICTED_MIN_RETRY_MS, retryAfterMs));
     this.hold = { reason: "evicted", until: Date.now() + delay };
+    // A volta já sai num instante sorteado (≥ 60 s + até 30%).
+    this.spreadWaited = true;
     this.setOpen(false, true);
     this.scheduleRetry(delay);
   }
@@ -691,6 +752,7 @@ class SharedSSEConnection {
     this.es?.close();
     this.es = null;
     this.attached.clear();
+    this.spreadWaited = false;
     if (this.retryTimer) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
