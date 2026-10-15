@@ -313,26 +313,33 @@ describe("contrato do beat (be #194)", () => {
 });
 
 describe("backend sem o beat (404)", () => {
-  it("cai no ping no mesmo tique, no heartbeat por entidade, e memoriza", async () => {
+  it("cai no ping no mesmo tique; 3 seguidos → heartbeat por entidade, e memoriza", async () => {
     io.beatReply = () => ({ status: 404 });
     const a = abrir(hub, "a", io);
     a.sync.register("deal", "1", () => undefined);
     await vi.advanceTimersByTimeAsync(1_000);
     expect(io.beats).toHaveLength(1);
     expect(io.pings).toHaveLength(1);
+    // Um 404 solto (deploy) não troca de modo.
+    expect(io.heartbeats).toHaveLength(0);
+    expect(hub.storage.get(PRESENCE_BEAT_UNSUPPORTED_KEY)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(2 * PRESENCE_BEAT_DEFAULT_MS);
+    expect(io.beats).toHaveLength(3);
+    expect(io.pings).toHaveLength(3);
     expect(io.heartbeats.map((h) => h.key)).toEqual(["deal|1"]);
     expect(hub.storage.get(PRESENCE_BEAT_UNSUPPORTED_KEY)).toBeDefined();
 
     await vi.advanceTimersByTimeAsync(5 * 60_000);
-    expect(io.beats).toHaveLength(1);
-    expect(io.pings.length).toBeGreaterThanOrEqual(3);
+    expect(io.beats).toHaveLength(3);
+    expect(io.pings.length).toBeGreaterThanOrEqual(5);
 
     // Aba nova no mesmo navegador: nem tenta o beat.
     a.tab.close();
     const b = abrir(hub, "b", io);
     b.sync.register("deal", "1", () => undefined);
     await vi.advanceTimersByTimeAsync(3 * 60_000);
-    expect(io.beats).toHaveLength(1);
+    expect(io.beats).toHaveLength(3);
   });
 });
 

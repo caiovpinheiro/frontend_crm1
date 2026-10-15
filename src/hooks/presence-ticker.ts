@@ -86,7 +86,23 @@ import {
  * 150 s). No `pagehide` da ÚLTIMA aba do navegador sai um `sendBeacon`
  * do beat com `entities: []` (a saída de tudo, 1 chamada). Ociosidade,
  * 401, 429/503 com prazo e `x-tab-id` como no ping. 404 → volta ao ping
- * (no mesmo tique) e ao heartbeat por entidade.
+ * (no mesmo tique) e, só depois de 3 seguidos, ao heartbeat por entidade.
+ *
+ * Gate de carga (item 3, heartbeat + ping ≤ 30/min na org):
+ *  - todas as abas do navegador ocultas há mais de
+ *    `PRESENCE_ALL_HIDDEN_AFTER_MS` (5 min) → a líder espaça a batida para
+ *    `PRESENCE_HIDDEN_TICK_MS` (120 s), com a lista que as abas reportam
+ *    (vazia: aba oculta há mais de 30 s não reporta entidade). Mantém o
+ *    "CRM aberto" (o backend dá offline depois de 300 s sem batida gravada:
+ *    120 s cabem duas vezes, com folga para um timer estrangulado) e corta
+ *    metade das chamadas de quem deixa o CRM em segundo plano. Uma aba que
+ *    volta a ficar visível traz a cadência de 60 s de volta na hora;
+ *  - 204 (backend: mesma lista da última batida gravada há < 45 s) é
+ *    sucesso sem corpo: segue a cadência e NÃO mexe no limite de
+ *    ociosidade (antes `sessionIdleMs` ausente voltava o limite ao padrão);
+ *  - a batida final do `pagehide` só sai se o servidor pode ter entidades
+ *    deste navegador (alguma batida levou entidade, ou há entidade aberta):
+ *    fechar/recarregar sem nada aberto não custa chamada.
  */
 
 /** Cadência do tique (sweeper do backend: offline após 300 s sem ping). */
@@ -108,6 +124,10 @@ export const PRESENCE_BEAT_DEFAULT_MS = 60_000;
 export const PRESENCE_BEAT_MIN_GAP_MS = 30_000;
 /** Teto aceito para o `nextBeatMs` do backend. */
 export const PRESENCE_BEAT_MAX_MS = 5 * 60_000;
+/** Todas as abas ocultas há isto ou mais → cadência espaçada. */
+export const PRESENCE_ALL_HIDDEN_AFTER_MS = 5 * 60_000;
+/** Cadência com todas as abas ocultas (backend: offline após 300 s sem batida). */
+export const PRESENCE_HIDDEN_TICK_MS = 120_000;
 
 /** Resposta de ping/activity/beat que importa ao tique (sem valor = sucesso). */
 export type PresenceCallResult = {
@@ -198,9 +218,14 @@ export class PresenceTicker {
   private wasLeader = false;
   /** Cadência da batida única (do `nextBeatMs` da última resposta). */
   private beatIntervalMs = PRESENCE_BEAT_DEFAULT_MS;
+  /** Desde quando esta aba está oculta (`null` = visível). */
+  private hiddenSince: number | null = null;
+  /** Alguma batida deste navegador levou entidade (a final tem o que tirar). */
+  private sentEntities = false;
   private readonly offs: Array<() => void> = [];
 
   constructor(private readonly env: PresenceTickerEnv) {
+    this.hiddenSince = env.isVisible() ? null : Date.now();
     const tabs = env.tabs;
     if (tabs) {
       this.offs.push(
@@ -209,6 +234,9 @@ export class PresenceTicker {
           if (msg.t === "activity") this.receive(msg.count);
         }),
         tabs.onSuspend((wasLeader) => this.onSuspend(wasLeader)),
+        tabs.registerStateProvider(() => ({ hiddenSince: this.hiddenSince })),
+        // Seguidora voltou a ficar visível: a cadência espaçada acaba já.
+        tabs.onFollowerStatesChange(() => this.reschedule()),
       );
     }
     this.offs.push(env.onVisibilityChange(() => this.onVisibility()));
@@ -220,9 +248,36 @@ export class PresenceTicker {
     return !!this.env.beat && !!this.env.hub?.active;
   }
 
-  /** Intervalo entre tiques: o do beat ou o do ping. */
+  /**
+   * Intervalo entre tiques: o do beat ou o do ping; com todas as abas do
+   * navegador ocultas há 5 min ou mais, no mínimo `PRESENCE_HIDDEN_TICK_MS`.
+   */
   private interval(): number {
-    return this.usingBeat() ? this.beatIntervalMs : PRESENCE_TICK_MS;
+    const base = this.usingBeat() ? this.beatIntervalMs : PRESENCE_TICK_MS;
+    return this.allHiddenLong() ? Math.max(base, PRESENCE_HIDDEN_TICK_MS) : base;
+  }
+
+  /** Esta aba e todas as seguidoras ocultas há `PRESENCE_ALL_HIDDEN_AFTER_MS` ou mais? */
+  private allHiddenLong(now = Date.now()): boolean {
+    const longAgo = (since: number | null | undefined) =>
+      typeof since === "number" && now - since >= PRESENCE_ALL_HIDDEN_AFTER_MS;
+    if (!longAgo(this.hiddenSince)) return false;
+    const tabs = this.env.tabs;
+    if (!tabs) return true;
+    for (const entry of tabs.followerStates().values()) {
+      if (!longAgo(entry.state.hiddenSince)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * A cadência encurtou (uma aba voltou a ficar visível): traz o próximo
+   * tique para `último + intervalo`, respeitando um 429.
+   */
+  private reschedule(): void {
+    if (this.dead || !this.isLeader() || this.inFlight || !this.nextTimer) return;
+    const at = Math.max(this.lastTick() + this.interval(), this.holdUntilAt());
+    if (at < this.nextAt) this.scheduleNext(at, true);
   }
 
   private isLeader(): boolean {
@@ -401,7 +456,8 @@ export class PresenceTicker {
       this.onUnauthorizedResponse();
       return;
     }
-    if (pingResult && pingResult.status >= 200 && pingResult.status < 300) {
+    // 204 (no-op do backend) não tem corpo: o limite conhecido continua.
+    if (pingResult && pingResult.status >= 200 && pingResult.status < 300 && pingResult.status !== 204) {
       this.env.idle?.setLimitMs(pingResult.sessionIdleMs);
     }
     if (activityResult?.status === 429) this.pending += count; // não se perde
@@ -422,12 +478,16 @@ export class PresenceTicker {
     const hub = this.env.hub;
     if (!this.env.beat || !hub?.active) return this.env.ping(lastInteractionAt);
     const entities = hub.entities();
+    if (entities.length > 0) this.sentEntities = true;
     const result = await this.env.beat({ lastInteractionAt, entities });
     if (result.status === 404 || result.status === 405 || result.status === 501) {
-      hub.markUnsupported();
+      // Um 404 solto (deploy) só troca ESTE tique pelo ping; o modo antigo
+      // (heartbeat por entidade) só depois de 3 seguidos.
+      hub.noteUnsupportedResponse();
       return this.env.ping(lastInteractionAt);
     }
     if (result.status >= 200 && result.status < 300) {
+      hub.noteSupported();
       const next = result.nextBeatMs;
       const interval =
         typeof next === "number" && Number.isFinite(next) && next > 0
@@ -435,7 +495,7 @@ export class PresenceTicker {
           : PRESENCE_BEAT_DEFAULT_MS;
       if (interval !== this.beatIntervalMs) {
         this.beatIntervalMs = interval;
-        if (!this.dead && this.isLeader()) this.scheduleNext(at + interval, true);
+        if (!this.dead && this.isLeader()) this.scheduleNext(at + this.interval(), true);
       }
       // Deduplicada (200): nada a antecipar — a próxima do ciclo leva a
       // lista atual.
@@ -483,7 +543,17 @@ export class PresenceTicker {
   }
 
   private onVisibility(): void {
-    if (this.env.isVisible()) this.requestTick("visible");
+    const visible = this.env.isVisible();
+    if (visible === (this.hiddenSince === null)) {
+      if (visible) this.requestTick("visible");
+      return;
+    }
+    this.hiddenSince = visible ? null : Date.now();
+    // Seguidora: a líder precisa saber (cadência espaçada só com TODAS ocultas).
+    this.env.tabs?.scheduleStateSync();
+    if (!visible) return;
+    this.requestTick("visible");
+    this.reschedule();
   }
 
   /**
@@ -499,6 +569,8 @@ export class PresenceTicker {
     const tabs = this.env.tabs;
     if (tabs && tabs.followerStates().size > 0) return;
     if (this.env.isSessionEnded?.()) return;
+    // Nada a tirar no servidor: fechar/recarregar não custa chamada.
+    if (!this.sentEntities && (this.env.hub?.entities().length ?? 0) === 0) return;
     try {
       this.env.finalBeacon({
         lastInteractionAt: this.env.idle?.lastInteractionAt() ?? null,

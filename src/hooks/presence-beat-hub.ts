@@ -15,9 +15,14 @@ import type { EntityViewer } from "./presence-sync";
  *    (localmente e às seguidoras pelo canal);
  *  - o tique é o MOTOR, em cadência estrita: mudar a lista de entidades
  *    não antecipa nada (a próxima batida leva a lista nova);
- *  - 404 no beat (backend antigo): `markUnsupported` — o tique volta ao
- *    ping e o `presence-sync` ao heartbeat por entidade, e o navegador
- *    não tenta o beat por `PRESENCE_BEAT_RETRY_MS`.
+ *  - 404 no beat (backend antigo): depois de
+ *    `PRESENCE_BEAT_UNSUPPORTED_STRIKES` respostas seguidas (tiques
+ *    diferentes), `markUnsupported` — o tique volta ao ping e o
+ *    `presence-sync` ao heartbeat por entidade, e o navegador não tenta o
+ *    beat por `PRESENCE_BEAT_RETRY_MS`. Um 404 solto (deploy: o proxy
+ *    responde 404 enquanto o contêiner novo sobe) não derruba o navegador
+ *    para o modo antigo — antes bastava um para ficar 6 h no ping 90 s +
+ *    heartbeat 25 s POR ENTIDADE (gate de carga, item 3).
  */
 
 export type PresenceEntity = { type: string; id: string };
@@ -40,7 +45,9 @@ export interface PresenceBeatHubEnv {
 /** localStorage: instante (ms) do último 404 do beat neste navegador. */
 export const PRESENCE_BEAT_UNSUPPORTED_KEY = "crm:presence-beat-unsupported-at";
 /** Depois disto o navegador tenta o beat de novo (backend pode ter sido atualizado). */
-export const PRESENCE_BEAT_RETRY_MS = 6 * 60 * 60_000;
+export const PRESENCE_BEAT_RETRY_MS = 30 * 60_000;
+/** 404/405/501 seguidos no beat até desistir dele (um por tique). */
+export const PRESENCE_BEAT_UNSUPPORTED_STRIKES = 3;
 /** Contrato do beat (be #194): tipos aceitos, formato do id e teto por batida. */
 export const PRESENCE_BEAT_TYPES: ReadonlySet<string> = new Set(["deal", "conversation"]);
 export const PRESENCE_BEAT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -60,6 +67,7 @@ export function beatKeyToPresenceKey(key: string): string | null {
 
 export class PresenceBeatHub {
   private unsupported: boolean;
+  private strikes = 0;
   private source: PresenceBeatSource | null = null;
   private readonly modeListeners = new Set<() => void>();
 
@@ -113,7 +121,25 @@ export class PresenceBeatHub {
     }
   }
 
-  /** 404: backend sem o beat. Volta ao ping + heartbeat por entidade. */
+  /**
+   * Beat respondeu 404/405/501. Devolve `true` quando desistiu do beat
+   * (`PRESENCE_BEAT_UNSUPPORTED_STRIKES` seguidos); antes disso o tique só
+   * manda o ping daquele tique e tenta o beat de novo no próximo.
+   */
+  noteUnsupportedResponse(): boolean {
+    if (this.unsupported) return true;
+    this.strikes += 1;
+    if (this.strikes < PRESENCE_BEAT_UNSUPPORTED_STRIKES) return false;
+    this.markUnsupported();
+    return true;
+  }
+
+  /** Beat respondeu (2xx): zera a contagem de 404. */
+  noteSupported(): void {
+    this.strikes = 0;
+  }
+
+  /** Backend sem o beat: volta ao ping + heartbeat por entidade. */
   markUnsupported(): void {
     if (this.unsupported) return;
     this.unsupported = true;
