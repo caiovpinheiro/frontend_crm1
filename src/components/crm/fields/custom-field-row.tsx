@@ -32,9 +32,25 @@ function storedFileUrl(value: string): boolean {
   return v.includes("/api/storage/") || v.startsWith("/uploads/");
 }
 
-function storedImageUrl(value: string): boolean {
-  const path = (value.split("?")[0] ?? value).trim();
-  return storedFileUrl(value) && /\.(jpe?g|png|gif|webp)$/i.test(path);
+export function resolveStoredFieldFile(value: string | null | undefined): {
+  href: string;
+  kind: "image" | "file";
+  name: string;
+} | null {
+  const text = value?.trim() ?? "";
+  if (!text || !storedFileUrl(text)) return null;
+  const href = resolveChatMediaUrl(text);
+  if (!href) return null;
+  const path = (text.split("?")[0] ?? text).trim();
+  const kind = /\.(jpe?g|png|gif|webp)$/i.test(path) ? "image" : "file";
+  const rawName = text.split("/").pop()?.split("?")[0] ?? "Arquivo";
+  let name = rawName || "Arquivo";
+  try {
+    name = decodeURIComponent(rawName) || "Arquivo";
+  } catch {
+    name = rawName || "Arquivo";
+  }
+  return { href, kind, name };
 }
 
 /** Valor gravado no campo. URL de arquivo do storage vira a imagem ou o link do anexo. */
@@ -50,33 +66,23 @@ export function CustomFieldValueView({
     return <span className="font-normal text-[var(--color-ink-muted)]">—</span>;
   }
   const alignClass = align === "right" ? "ml-auto text-right" : "";
-  if (storedImageUrl(text)) {
-    const src = resolveChatMediaUrl(text);
-    if (src) {
-      return (
-        <a href={src} target="_blank" rel="noreferrer" className={`inline-flex min-w-0 ${alignClass}`}>
-          <img src={src} alt="" className="h-10 max-w-full rounded-md object-cover" />
-        </a>
-      );
-    }
+  const file = resolveStoredFieldFile(text);
+  if (file?.kind === "image") {
+    return (
+      <a href={file.href} target="_blank" rel="noreferrer" className={`inline-flex min-w-0 ${alignClass}`} aria-label="Abrir imagem">
+        <img src={file.href} alt="" className="h-10 w-10 rounded-[var(--radius-sm)] object-cover" />
+      </a>
+    );
   }
-  if (storedFileUrl(text)) {
-    const src = resolveChatMediaUrl(text) ?? text;
-    const rawName = text.split("/").pop()?.split("?")[0] ?? "Arquivo";
-    let name = rawName;
-    try {
-      name = decodeURIComponent(rawName) || "Arquivo";
-    } catch {
-      name = rawName || "Arquivo";
-    }
+  if (file) {
     return (
       <a
-        href={src}
+        href={file.href}
         target="_blank"
         rel="noreferrer"
         className={`block min-w-0 truncate text-sm font-medium text-[var(--text-primary)] underline ${alignClass}`}
       >
-        {name}
+        {file.name}
       </a>
     );
   }

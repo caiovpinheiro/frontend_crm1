@@ -23,6 +23,7 @@ import { apiUrl } from "@/lib/api";
 import { useCan } from "@/hooks/use-my-permissions";
 import { CopyValueButton } from "@/components/crm/copy-value-button";
 import { DelayedHoverLegend } from "@/components/crm/delayed-hover-legend";
+import { resolveStoredFieldFile } from "@/components/crm/fields/custom-field-row";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 
@@ -154,6 +155,38 @@ export function InlineFieldEditor({
 
   /* ── Modo de exibição ── */
   if (!editing) {
+    const file = resolveStoredFieldFile(value);
+    if (file) {
+      return (
+        <div className="group flex w-full min-w-0 items-center gap-1.5">
+          <a
+            href={file.href}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-w-0 shrink-0"
+            aria-label={file.kind === "image" ? "Abrir imagem" : "Abrir arquivo"}
+          >
+            {file.kind === "image" ? (
+              <img src={file.href} alt="" className="h-10 w-10 rounded-[var(--radius-sm)] object-cover" />
+            ) : (
+              <span className="truncate text-[12px] font-semibold text-[var(--text-primary)] underline">
+                {file.name}
+              </span>
+            )}
+          </a>
+          {canEditEntity ? (
+            <button
+              type="button"
+              onClick={startEdit}
+              className="shrink-0 text-[11px] text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100"
+            >
+              Trocar
+            </button>
+          ) : null}
+          <CopyValueButton text={file.href} />
+        </div>
+      );
+    }
     const isEmpty = !value?.trim();
     const displayValue = isEmpty
       ? placeholder
