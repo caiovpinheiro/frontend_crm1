@@ -31,7 +31,7 @@ import type {
   BoardSortParam,
   BoardStageDto,
 } from "@/features/pipeline-v2/api";
-import { boardKey } from "@/features/pipeline-v2/hooks/use-board";
+import { boardKey, boardsOfPipeline } from "@/features/pipeline-v2/hooks/use-board";
 import { useKanbanBoard } from "@/features/pipeline-v2/hooks/use-kanban-board";
 import {
   useCreateDeal,
@@ -42,7 +42,6 @@ import {
 import {
   applyBoardNewMessage,
   applyDealMoved,
-  createBoardRefreshScheduler,
 } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import type { RealtimePayload } from "@/lib/realtime-contract";
 
@@ -141,8 +140,10 @@ describe("Kanban: identidade do funil no board (N-FE-7)", () => {
     await boardLoaded(view);
     expect(api.getBoard).toHaveBeenCalledTimes(1);
 
-    const scheduler = createBoardRefreshScheduler(qc, 0);
-    act(() => scheduler.schedule([CUID]));
+    // Revalidação (foco, poll, mutação) pelo CUID do funil.
+    act(() => {
+      void qc.invalidateQueries({ predicate: boardsOfPipeline(CUID) });
+    });
 
     await waitFor(() => expect(api.getBoard).toHaveBeenCalledTimes(2));
   });
@@ -179,17 +180,14 @@ describe("Kanban: identidade do funil no board (N-FE-7)", () => {
   it("SSE de outro funil não refaz o board do Kanban", async () => {
     const { qc, view } = setup();
     await boardLoaded(view);
-    const scheduler = createBoardRefreshScheduler(qc, 0);
-    act(() =>
-      scheduler.schedule(
-        applyBoardNewMessage(qc, {
-          contactId: "ct-fora",
-          direction: "in",
-          content: "oi",
-          pipelineIds: ["cm_outro"],
-        } as unknown as RealtimePayload<"new_message">),
-      ),
-    );
+    act(() => {
+      applyBoardNewMessage(qc, {
+        contactId: "ct-fora",
+        direction: "in",
+        content: "oi",
+        pipelineIds: ["cm_outro"],
+      } as unknown as RealtimePayload<"new_message">);
+    });
     await new Promise((r) => setTimeout(r, 20));
     expect(api.getBoard).toHaveBeenCalledTimes(1);
   });

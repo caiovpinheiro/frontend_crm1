@@ -40,10 +40,10 @@ vi.mock("@/hooks/use-sse", async () => {
 });
 
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
-import {
-  BOARD_REFRESH_DEBOUNCE_MS,
-  usePipelineRealtime,
-} from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { usePipelineRealtime } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+
+/** O antigo debounce do refetch por mensagem (800 ms) — hoje não há refetch. */
+const BOARD_REFRESH_DEBOUNCE_MS = 800;
 
 const T_OLD = "2026-10-01T10:00:00.000Z";
 const T_NEW = "2026-10-01T12:00:00.000Z";
@@ -224,7 +224,7 @@ describe("usePipelineRealtime", () => {
     expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("fallback: três mensagens sem escopo na janela de 800 ms = um GET, debounced", async () => {
+  it("fallback: três mensagens sem escopo = nenhum GET (gate C: mensagem não recarrega)", async () => {
     const { fetchBoard } = await setup();
 
     await act(async () => {
@@ -234,15 +234,15 @@ describe("usePipelineRealtime", () => {
       await vi.advanceTimersByTimeAsync(BOARD_REFRESH_DEBOUNCE_MS + 50);
     });
 
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("fallback (evento sem pipelineIds/dealIds): contato fora da página refaz o board", async () => {
+  it("fallback (evento sem pipelineIds/dealIds): contato fora da página não refaz o board", async () => {
     const { fetchBoard } = await setup();
 
     await emit("new_message", message({ contactId: "contact-z" }));
 
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
   it("fallback: contato na página só recebe o patch", async () => {
@@ -255,7 +255,7 @@ describe("usePipelineRealtime", () => {
     expect(after[0].deals[1].lastMessage).toMatchObject({ content: "oi" });
   });
 
-  it("desmontar cancela o refetch pendente", async () => {
+  it("desmontar: nada pendente", async () => {
     const { fetchBoard, view } = await setup();
 
     await act(async () => {

@@ -43,10 +43,7 @@ import {
   useBoard,
 } from "@/features/pipeline-v2/hooks/use-board";
 import { useBoardLoadMore } from "@/features/pipeline-v2/hooks/use-board-load-more";
-import {
-  applyBoardNewMessage,
-  createBoardRefreshScheduler,
-} from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { applyBoardNewMessage } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import { createFakeBoardServer, type ColumnsRequest } from "@/test-support/fake-board-server";
 import {
   bindScroller,
@@ -256,7 +253,7 @@ describe("Kanban — rolagem da coluna × requisições", { timeout: 30_000 }, (
     expect(columnRequests().length).toBe(1);
   });
 
-  it("SSE: card já carregado não gera requisição; rajada de cards de fora = um refetch (1 GET + 1 POST)", async () => {
+  it("SSE: mensagem (dentro ou fora da página) não gera requisição; revalidação = 1 GET + 1 POST", async () => {
     const t = mount({ s1: 400 });
     await t.settle();
     await t.scrollBy("s1", 300);
@@ -264,35 +261,37 @@ describe("Kanban — rolagem da coluna × requisições", { timeout: 30_000 }, (
     expect(columnRequests().length).toBe(1);
     const loaded = t.qc.getQueryData<BoardStageDto[]>(KEY)![0]!.deals.length;
 
-    const scheduler = createBoardRefreshScheduler(t.qc, 20);
     // Mensagem de um contato cujo card está na página anexada: só patch.
     await act(async () => {
-      scheduler.schedule(
-        applyBoardNewMessage(t.qc, {
-          contactId: "ct-s1-d15",
-          direction: "in",
-          content: "oi",
-          timestamp: "2026-10-01T10:00:00.000Z",
-        } as Parameters<typeof applyBoardNewMessage>[1]),
-      );
+      applyBoardNewMessage(t.qc, {
+        contactId: "ct-s1-d15",
+        direction: "in",
+        content: "oi",
+        timestamp: "2026-10-01T10:00:00.000Z",
+      } as Parameters<typeof applyBoardNewMessage>[1]);
       await sleep(60);
     });
     expect(api.getBoard).toHaveBeenCalledTimes(1);
     expect(columnRequests().length).toBe(1);
 
-    // Cinco mensagens de contatos fora da página, na mesma janela.
+    // Cinco mensagens de contatos fora da página: nenhuma recarga (gate C).
     await act(async () => {
       for (let i = 0; i < 5; i += 1) {
-        scheduler.schedule(
-          applyBoardNewMessage(t.qc, {
-            contactId: `ct-fora-${i}`,
-            direction: "in",
-            content: "oi",
-            timestamp: "2026-10-01T10:00:01.000Z",
-          } as Parameters<typeof applyBoardNewMessage>[1]),
-        );
+        applyBoardNewMessage(t.qc, {
+          contactId: `ct-fora-${i}`,
+          direction: "in",
+          content: "oi",
+          timestamp: "2026-10-01T10:00:01.000Z",
+        } as Parameters<typeof applyBoardNewMessage>[1]);
       }
       await sleep(120);
+    });
+    expect(api.getBoard).toHaveBeenCalledTimes(1);
+
+    // Revalidação (foco/poll): o board volta e as colunas expandidas também.
+    await act(async () => {
+      void t.qc.invalidateQueries({ queryKey: KEY });
+      await sleep(20);
     });
     await t.settle(2);
     expect(api.getBoard).toHaveBeenCalledTimes(2);
@@ -302,7 +301,6 @@ describe("Kanban — rolagem da coluna × requisições", { timeout: 30_000 }, (
       { stageId: "s1", cursor: "s1@10", limit: loaded - BOARD_PAGE_SIZE },
     ]);
     expect(t.cards("s1").length).toBe(loaded);
-    scheduler.cancel();
   });
 
   it("backend sem cursor: cada pedido soma uma página de 30 ao offset (1ª página segue com 10)", async () => {
