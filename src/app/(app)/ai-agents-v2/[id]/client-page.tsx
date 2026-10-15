@@ -5966,7 +5966,7 @@ function LeadsHandoffCard({
   return (
     <SectionCard
       title="Distribuir no modo por leads"
-      description="Só este agente. Desligado, o destino departamento segue a distribuição inteligente. Ligado, o sorteio usa o peso do modo por leads e só entra quem tem o papel escolhido — o cargo atribuído, não só quem está na tabela do departamento — e, se você marcar pessoas, só elas. A pessoa precisa estar no rodízio por leads com peso maior que zero. Horário e presença não entram nesse sorteio. Se ninguém tiver peso, o card espera na fila do modo por leads — não vai para a fila inteligente."
+      description="Só este agente. Desligado, o destino departamento segue a distribuição inteligente. Ligado, o sorteio usa o peso do modo por leads e só entra quem tem o papel escolhido — o cargo atribuído, não só quem está na tabela do departamento — e, se você marcar pessoas, só elas. A pessoa precisa estar no rodízio por leads com peso maior que zero. Horário e presença não entram nesse sorteio. Se ninguém tiver peso, o card fica sem responsável. Não entra em fila — fila de espera é só da distribuição inteligente."
     >
       <div className="flex items-center gap-3">
         <Switch
