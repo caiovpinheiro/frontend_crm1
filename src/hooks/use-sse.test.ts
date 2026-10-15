@@ -190,13 +190,13 @@ describe("SharedSSEConnection", () => {
     expect(onReconnect).not.toHaveBeenCalled();
   });
 
-  it("onerror espera 5 → 10 → 20 → 40 → 60 s e volta a 5 s depois do onopen", async () => {
-    vi.spyOn(Math, "random").mockReturnValue(0.5); // sem variação
+  it("queda de conexão aberta: sorteio em [0, 20 s]; depois 10 → 20 → 40 → 60 s; depois do onopen, sorteio de novo", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5); // sorteio = 10 s; backoff sem variação
     const onReconnect = vi.fn();
     subscribeSSE(url, ["new_message"], vi.fn(), onReconnect);
     connections()[0].open();
 
-    for (const wait of [5_000, 10_000, 20_000, 40_000, 60_000, 60_000]) {
+    for (const wait of [10_000, 10_000, 20_000, 40_000, 60_000, 60_000]) {
       const before = connections().length;
       connections()[before - 1].fail();
       await vi.advanceTimersByTimeAsync(wait - 1);
@@ -207,10 +207,13 @@ describe("SharedSSEConnection", () => {
 
     const current = connections()[connections().length - 1];
     current.open();
+    // A volta já saiu num instante sorteado: o refetch roda no open.
     expect(onReconnect).toHaveBeenCalledTimes(1);
     current.fail();
     const before = connections().length;
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(connections()).toHaveLength(before);
+    await vi.advanceTimersByTimeAsync(1);
     expect(connections()).toHaveLength(before + 1);
   });
 
