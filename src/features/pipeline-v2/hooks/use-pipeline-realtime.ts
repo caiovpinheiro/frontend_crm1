@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { useSSE } from "@/hooks/use-sse";
@@ -294,11 +294,17 @@ function reorderByActivity(
 }
 
 /**
- * O que um evento pede ao board, além do patch in-place:
- * - `null`: nada a refazer;
- * - `"all"`: refazer todo board em cache do agendador (evento sem escopo —
- *   backend antigo — e card fora da página, ou sem `contactId`);
- * - lista de funis: refazer só o board desses funis.
+ * O que ficou de fora do patch in-place de um `new_message` (informativo —
+ * nenhum evento de mensagem recarrega o board, gate C 15/10):
+ * - `null`: nada;
+ * - `"all"`: evento sem escopo (backend antigo) com card fora da página, ou
+ *   sem `contactId`;
+ * - lista de funis: board "mais recentes" desses funis em que o card do
+ *   escopo não está na página carregada (subiria para o topo no servidor).
+ *
+ * Esses casos convergem na revalidação do board (foco/volta à aba, poll de
+ * 120 s, abrir a tela), que custa 304 quando nada mudou: o ETag do board
+ * ordenado por última interação acompanha a atividade do funil (1/min).
  */
 export type BoardRefreshRequest = null | "all" | string[];
 
@@ -314,20 +320,17 @@ function isRecentActivityPagedBoard(key: readonly unknown[]): boolean {
 }
 
 /**
- * Aplica um `new_message` nos boards em cache e diz o que precisa ser
- * refeito. Puro em relação ao React: só lê/escreve no `QueryClient`.
+ * Aplica um `new_message` nos boards em cache (só patch in-place) e diz o
+ * que ficou de fora (`BoardRefreshRequest`, informativo). Puro em relação ao
+ * React: só lê/escreve no `QueryClient`; nunca invalida nem refaz query.
  *
  * Com escopo (`pipelineIds`/`dealIds` no evento): patch dos cards do
- * contato/negócios do evento que já estão em cache. Recarga só quando o
- * card do escopo não está num board PAGINADO ordenado por "mais recentes"
- * (`lastInteraction:desc`) de um funil do escopo: ali o negócio sobe para o
- * topo da coluna no servidor e só entra na página refazendo o board (sai
- * pelo agendador: piso de `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e nada
- * com a aba oculta). Nas outras ordenações e nos boards filtrado/busca o
- * card fora do cache continua sem recarga: além da página ele não muda de
- * lugar na janela, e fora do filtro não deve aparecer; negócio novo chega
- * pelo `deal_moved` de criação.
- * Sem escopo (backend antigo): comportamento anterior.
+ * contato/negócios do evento que já estão em cache. Card do escopo fora de
+ * um board PAGINADO "mais recentes" (`lastInteraction:desc`) de um funil do
+ * escopo entra na lista devolvida. Nas outras ordenações e nos boards
+ * filtrado/busca o card fora do cache não muda de lugar na janela (ou não
+ * deve aparecer); negócio novo chega pelo `deal_moved` de criação.
+ * Sem escopo (backend antigo): patch pelo `contactId`.
  */
 export function applyBoardNewMessage(
   qc: QueryClient,
@@ -355,142 +358,6 @@ export function applyBoardNewMessage(
   // a janela (mais recentes primeiro). Quem já está na fila só recebe o
   // patch — sem o GET do board inteiro.
   return patchBoardMessage(qc, payload, null).found ? null : "all";
-}
-
-/** Atraso do refetch do board depois de um `new_message` fora da página. */
-export const BOARD_REFRESH_DEBOUNCE_MS = 800;
-
-/**
- * Intervalo mínimo entre dois refetches do board do MESMO funil causados
- * por eventos: `new_message` SEM escopo (backend antigo) e, com escopo, o
- * card fora da página num board "mais recentes". O evento não traz o card
- * do negócio (etapa, posição), então card fora da página carregada só entra
- * refazendo o board; sem teto, um funil movimentado refazia o board a cada
- * mensagem. Com 10 s, numa organização movimentada toda aba visível
- * recarregava o board a cada 10 s.
- */
-export const BOARD_REFRESH_MIN_INTERVAL_MS = 30_000;
-
-/** Pedido sem escopo (`"all"`): refaz todo board paginado em cache. */
-const ALL_BOARDS = "*";
-
-function documentVisible(): boolean {
-  return typeof document === "undefined" || document.visibilityState !== "hidden";
-}
-
-/**
- * Invalidação do board paginado pedida por eventos, coalescida:
- * - junta os pedidos da janela (`delayMs`): vários funis viram uma
- *   invalidação por funil; um pedido `"all"` cobre todos;
- * - no máximo um refetch a cada `minIntervalMs` por funil — o que chega no
- *   intervalo fica pendente e sai quando ele fecha (o primeiro pedido de um
- *   funil parado continua saindo em `delayMs`);
- * - com a aba oculta não refaz nada: o pendente sai quando a aba volta.
- *
- * Não inclui o POST filtrado/busca: quem não está no filtro não pode refazer
- * essa query (no Flow a tela ficava em refresh o tempo todo).
- */
-export function createBoardRefreshScheduler(
-  qc: QueryClient,
-  delayMs = BOARD_REFRESH_DEBOUNCE_MS,
-  minIntervalMs = BOARD_REFRESH_MIN_INTERVAL_MS,
-) {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  /** Funis (ou `ALL_BOARDS`) à espera de refetch. */
-  const pending = new Set<string>();
-  /** Último refetch por funil (e de `ALL_BOARDS`), em ms. */
-  const lastRun = new Map<string, number>();
-  let waitingVisible = false;
-
-  /** Quando `key` pode ser refeito de novo. */
-  function dueAt(key: string): number {
-    const lastAll = lastRun.get(ALL_BOARDS);
-    let last = lastAll;
-    if (key === ALL_BOARDS) {
-      // "Todos" inclui cada funil: respeita o refetch mais recente de qualquer um.
-      for (const at of lastRun.values()) last = last == null ? at : Math.max(last, at);
-    } else {
-      const own = lastRun.get(key);
-      if (own != null) last = last == null ? own : Math.max(last, own);
-    }
-    return last == null ? 0 : last + minIntervalMs;
-  }
-
-  function onVisibility() {
-    if (!documentVisible()) return;
-    stopWaitingVisible();
-    arm();
-  }
-
-  function stopWaitingVisible() {
-    if (!waitingVisible) return;
-    waitingVisible = false;
-    document.removeEventListener("visibilitychange", onVisibility);
-  }
-
-  function arm() {
-    if (timer || pending.size === 0) return;
-    if (!documentVisible()) {
-      if (!waitingVisible) {
-        waitingVisible = true;
-        document.addEventListener("visibilitychange", onVisibility);
-      }
-      return;
-    }
-    const now = Date.now();
-    let earliest = Infinity;
-    for (const key of pending) earliest = Math.min(earliest, dueAt(key));
-    timer = setTimeout(flush, Math.max(delayMs, earliest - now));
-  }
-
-  function flush() {
-    timer = null;
-    if (!documentVisible()) {
-      arm();
-      return;
-    }
-    const now = Date.now();
-    const ready = new Set<string>();
-    for (const key of pending) {
-      if (dueAt(key) <= now) ready.add(key);
-    }
-    if (ready.size > 0) {
-      const all = ready.has(ALL_BOARDS);
-      if (all) {
-        pending.clear();
-        lastRun.set(ALL_BOARDS, now);
-      } else {
-        for (const key of ready) {
-          pending.delete(key);
-          lastRun.set(key, now);
-        }
-      }
-      qc.invalidateQueries({
-        predicate: (q) => {
-          if (!isPagedBoardQueryKey(q.queryKey)) return false;
-          if (all) return true;
-          const pipelineId = boardPipelineId(q.queryKey);
-          return pipelineId != null && ready.has(pipelineId);
-        },
-      });
-    }
-    arm();
-  }
-
-  return {
-    schedule(request: BoardRefreshRequest) {
-      if (!request) return;
-      if (request === "all") pending.add(ALL_BOARDS);
-      else for (const id of request) pending.add(id);
-      arm();
-    },
-    cancel() {
-      if (timer) clearTimeout(timer);
-      timer = null;
-      pending.clear();
-      stopWaitingVisible();
-    },
-  };
 }
 
 type BoardSortSpec = { field: "position" | "createdAt" | "lastInteraction"; direction: "asc" | "desc" };
@@ -575,6 +442,19 @@ function dealFromCard(
   };
 }
 
+/** Campos do `card` do `deal_moved` que substituem os do card em cache. */
+function editableCardFields(card: Partial<BoardDealDto>): Partial<BoardDealDto> {
+  const out: Partial<BoardDealDto> = {};
+  if (typeof card.title === "string" && card.title) out.title = card.title;
+  if (card.value !== undefined) out.value = card.value;
+  if (card.expectedClose !== undefined) out.expectedClose = card.expectedClose;
+  if (card.contact !== undefined) out.contact = card.contact;
+  if (card.owner !== undefined) out.owner = card.owner;
+  // Sem `tags` (backend antigo omitia a lista vazia): mantém as do cache.
+  if (Array.isArray(card.tags)) out.tags = card.tags;
+  return out;
+}
+
 function movedDeal(
   existing: BoardDealDto | null,
   card: (Partial<BoardDealDto> & { id: string; title: string }) | null,
@@ -584,6 +464,10 @@ function movedDeal(
   if (existing) {
     return {
       ...existing,
+      // Edição/dono/tags (`deal_moved` na mesma etapa): os campos do card
+      // que o evento traz. Prévia, não lidas, produto, tarefas e o resto
+      // continuam os do cache (não viajam no evento).
+      ...(card ? editableCardFields(card) : {}),
       number: existing.number ?? cardNumber(card),
       position,
       updatedAt: updatedAt || existing.updatedAt,
@@ -893,15 +777,11 @@ export function applyDealMoved(
  * O board carrega `lastMessage`, que define o rodapé "aguardando resposta"
  * e os ticks enviado/entregue/lido no `DealCard`.
  *
- * - `new_message` → patch in-place do card (a fila do Flow reordena).
- *   Com `pipelineIds`/`dealIds` no evento: patch dos cards em cache; card
- *   fora da página só refaz o board paginado "mais recentes" do funil (o
- *   Flow, o Kanban "mais recentes"). Sem esses campos (backend antigo):
- *   contato fora da página dispara um refetch do board paginado. Ver
+ * - `new_message` → SÓ patch in-place do card (prévia, não lidas, posição
+ *   na fila do Flow). Nunca recarrega o board (gate C, 15/10): card fora da
+ *   página carregada entra na revalidação seguinte (foco/volta à aba, poll,
+ *   abrir a tela), que custa 304 quando o board não mudou. Ver
  *   `applyBoardNewMessage`.
- *   O refetch é coalescido: no máximo um a cada
- *   `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e só com a aba visível
- *   (`createBoardRefreshScheduler`).
  * - `conversation_updated` → ignora (ticket assign/status/consent não
  *   muda estágio do deal; poll de 120 s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
@@ -910,21 +790,12 @@ export function applyDealMoved(
  *   pela `position`, só nas caches daqueles funis. Sem `invalidateQueries`.
  *   Negócio criado (sem origem) entra pelo mesmo caminho; no board
  *   filtrado, só se o card casa com um filtro que o cliente confere.
+ *   Edição/dono/tags sem troca de etapa chegam pelo mesmo evento
+ *   (`fromStageId === toStageId`, com `card`): o card em cache recebe os
+ *   campos novos, sem GET.
  */
 export function usePipelineRealtime(enabled = true) {
   const qc = useQueryClient();
-  const refreshRef = useRef<ReturnType<typeof createBoardRefreshScheduler> | null>(
-    null,
-  );
-
-  useEffect(() => {
-    const scheduler = createBoardRefreshScheduler(qc);
-    refreshRef.current = scheduler;
-    return () => {
-      scheduler.cancel();
-      refreshRef.current = null;
-    };
-  }, [qc]);
 
   const handler = useCallback(
     (event: string, data: unknown) => {
@@ -946,7 +817,8 @@ export function usePipelineRealtime(enabled = true) {
 
       if (event === "new_message") {
         const payload = (data ?? {}) as RealtimePayload<"new_message">;
-        refreshRef.current?.schedule(applyBoardNewMessage(qc, payload));
+        // Só patch: mensagem nunca recarrega o board.
+        applyBoardNewMessage(qc, payload);
         return;
       }
 

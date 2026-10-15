@@ -1,20 +1,12 @@
 /** @vitest-environment jsdom */
 /**
- * KF3 — eventos de mensagem × refetch do board.
+ * KF3 / gate C — eventos de mensagem × refetch do board.
  *
- * `new_message` de um contato cujo card está na página carregada só faz
- * patch no card. Evento COM escopo (`pipelineIds`) não refaz o board na
- * ordem manual/por criação: card fora do cache está além da página, fora do
- * filtro ou é negócio novo (que entra pelo `deal_moved` de criação). Com o
- * refetch por escopo e piso de 10 s, uma organização movimentada recarregava
- * o board de toda aba visível a cada 10 s (produção, 10/10: 4–6 cargas por
- * minuto por aba). Exceção: board "mais recentes" (Flow) — ver o bloco
- * próprio abaixo.
- *
- * Evento SEM escopo (backend antigo) e card fora da página: o board
- * paginado é refeito, no máximo 1 vez a cada `BOARD_REFRESH_MIN_INTERVAL_MS`
- * (30 s) por funil, e nenhuma com a aba oculta (o pendente sai quando a aba
- * volta).
+ * `new_message` NUNCA recarrega o board (gate C, 15/10): o card em cache
+ * recebe o patch (prévia, não lidas, posição no Flow) e o resto converge na
+ * revalidação seguinte (foco/volta à aba, poll de 120 s, abrir a tela), que
+ * custa 304 quando o quadro não mudou. Vale com ou sem escopo
+ * (`pipelineIds`), com a aba visível ou oculta e no board "mais recentes".
  */
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
@@ -31,12 +23,10 @@ vi.mock("@/hooks/use-sse", () => ({
 }));
 
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
-import {
-  BOARD_REFRESH_DEBOUNCE_MS,
-  BOARD_REFRESH_MIN_INTERVAL_MS,
-  createBoardRefreshScheduler,
-  usePipelineRealtime,
-} from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { usePipelineRealtime } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+
+/** Janela bem maior que qualquer debounce/piso antigo (800 ms / 30 s). */
+const LONG_WAIT_MS = 120_000;
 
 const T_OLD = "2026-10-01T10:00:00.000Z";
 const T_NEW = "2026-10-01T12:00:00.000Z";
@@ -160,7 +150,7 @@ describe("board sob rajada de mensagens (20 eventos, 1 por segundo)", () => {
       dealIds: [i % 2 === 0 ? "deal-a1" : "deal-b1"],
       content: `msg ${i}`,
     }));
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
+    await advance(LONG_WAIT_MS * 2);
 
     expect(fetchBoard).toHaveBeenCalledTimes(1);
     const board = qc.getQueryData<BoardStageDto[]>(P1_KEY)!;
@@ -176,48 +166,60 @@ describe("board sob rajada de mensagens (20 eventos, 1 por segundo)", () => {
       pipelineIds: ["p1"],
       dealIds: [`deal-fora-${i}`],
     }));
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
+    await advance(LONG_WAIT_MS * 2);
 
     // Card além da página, fora do filtro ou negócio fechado: só o patch do
     // que está em cache, nunca recarga.
     expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("backend antigo (evento sem escopo): no máximo 1 GET a cada 30 s", async () => {
+  it("backend antigo (evento sem escopo) e card fora da página: 0 GETs", async () => {
     const { fetchBoard } = await setup();
 
     await burst(20, (i) => ({ contactId: `contact-fora-${i}` }));
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
+    await advance(LONG_WAIT_MS * 2);
 
-    // 1º refetch 800 ms depois do 1º evento; o seguinte quando os 30 s fecham.
-    expect(BOARD_REFRESH_MIN_INTERVAL_MS).toBe(30_000);
-    expect(fetchBoard).toHaveBeenCalledTimes(1 + 2);
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("aba oculta: nenhum GET; ao voltar, um só", async () => {
+  it("aba oculta e de volta: nenhum GET por mensagem", async () => {
     const { fetchBoard } = await setup();
 
     act(() => setVisibility("hidden"));
     await burst(20, (i) => ({ contactId: `contact-fora-${i}` }));
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 3);
-    expect(fetchBoard).toHaveBeenCalledTimes(1);
-
+    await advance(LONG_WAIT_MS);
     act(() => setVisibility("visible"));
-    await advance(BOARD_REFRESH_DEBOUNCE_MS + 50);
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 3);
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    await advance(LONG_WAIT_MS);
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("evento isolado sem escopo continua rápido: refetch 800 ms depois", async () => {
+  it("evento isolado sem contactId (legado): nenhum GET", async () => {
     const { fetchBoard } = await setup();
 
     await act(async () => {
-      sse.handler?.("new_message", message({ contactId: "contact-z" }));
-      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_DEBOUNCE_MS + 50);
+      sse.handler?.("new_message", message({ contactId: undefined }));
+      await vi.advanceTimersByTimeAsync(LONG_WAIT_MS);
     });
 
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
+  });
+
+  it("message_status (ticks): nenhum GET", async () => {
+    const { fetchBoard } = await setup();
+
+    for (let i = 0; i < 20; i += 1) {
+      await act(async () => {
+        sse.handler?.("message_status", {
+          organizationId: "org-1",
+          conversationId: "conv-1",
+          messageId: `wamid-${i}`,
+          status: "delivered",
+        });
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+    }
+    await advance(LONG_WAIT_MS);
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -248,9 +250,9 @@ describe("cargas do board por minuto (20 mensagens em 1 min)", () => {
     expect(loads).toBe(0);
   });
 
-  it("evento sem escopo (backend antigo): 2 cargas", async () => {
+  it("evento sem escopo (backend antigo): 0 cargas", async () => {
     const loads = await perMinute((i) => ({ contactId: `contact-fora-${i}` }));
-    expect(loads).toBe(2);
+    expect(loads).toBe(0);
   });
 
   it("aba oculta: 0 cargas, com ou sem escopo", async () => {
@@ -267,10 +269,10 @@ describe("cargas do board por minuto (20 mensagens em 1 min)", () => {
 /**
  * Flow (status ALL, `lastInteraction:desc`, 10 por etapa) e Kanban "mais
  * recentes": quem responde e está além da página carregada sobe para o topo
- * da coluna no servidor. Evento com escopo do funil e card fora do cache →
- * uma recarga do board, no máximo 1 a cada 30 s por funil.
+ * no servidor, mas a mensagem não recarrega o board — o lead entra na
+ * revalidação seguinte (o ETag desse board acompanha a atividade do funil).
  */
-describe("board 'mais recentes': quem responde fora da página sobe", () => {
+describe("board 'mais recentes': mensagem de lead fora da página", () => {
   const FLOW_KEY = ["pipeline-board", "p1", "ALL", "lastInteraction:desc"] as const;
 
   async function perMinute(
@@ -293,26 +295,8 @@ describe("board 'mais recentes': quem responde fora da página sobe", () => {
     dealIds: [`deal-fora-${i}`],
   });
 
-  it("lead fora da página: sobe em 800 ms; rajada = no máximo 1 recarga a cada 30 s", async () => {
-    const { fetchBoard } = await setup(FLOW_KEY);
-
-    await act(async () => {
-      sse.handler?.("new_message", message(fora(0)));
-      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_DEBOUNCE_MS + 50);
-    });
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
-
-    // Mais 19 em 19 s: nada antes de os 30 s fecharem; depois, 1 só.
-    await burst(19, (i) => fora(i + 1));
-    expect(fetchBoard).toHaveBeenCalledTimes(2);
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS);
-    expect(fetchBoard).toHaveBeenCalledTimes(3);
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 3);
-    expect(fetchBoard).toHaveBeenCalledTimes(3);
-  });
-
-  it("20 mensagens em 1 min de leads fora da página: 2 cargas", async () => {
-    expect(await perMinute(FLOW_KEY, fora)).toBe(2);
+  it("20 mensagens em 1 min de leads fora da página: 0 cargas", async () => {
+    expect(await perMinute(FLOW_KEY, fora)).toBe(0);
   });
 
   it("card já em cache: só patch, 0 recargas", async () => {
@@ -368,7 +352,7 @@ describe("negócio criado (deal_moved sem origem) no board aberto", () => {
 
     await act(async () => {
       sse.handler?.("deal_moved", created({ fromStageId: null, fromPipelineId: null }));
-      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
+      await vi.advanceTimersByTimeAsync(LONG_WAIT_MS * 2);
     });
 
     const board = qc.getQueryData<BoardStageDto[]>(P1_KEY)!;
@@ -379,7 +363,7 @@ describe("negócio criado (deal_moved sem origem) no board aberto", () => {
         "new_message",
         message({ contactId: "contact-novo", pipelineIds: ["p1"], dealIds: ["deal-novo"] }),
       );
-      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
+      await vi.advanceTimersByTimeAsync(LONG_WAIT_MS * 2);
     });
     const after = qc.getQueryData<BoardStageDto[]>(P1_KEY)!;
     expect(after[0]!.deals.find((d) => d.id === "deal-novo")!.lastMessage).toMatchObject({
@@ -426,7 +410,7 @@ describe("negócio criado (deal_moved sem origem) no board aberto", () => {
         await vi.advanceTimersByTimeAsync(1_000);
       });
     }
-    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 3);
+    await advance(LONG_WAIT_MS * 3);
   }
 
   it("busca 'maria' + criação de 'João': o card não entra e nenhum POST", async () => {
@@ -478,63 +462,11 @@ describe("negócio criado (deal_moved sem origem) no board aberto", () => {
 
     await act(async () => {
       sse.handler?.("deal_moved", created({ created: true }));
-      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
+      await vi.advanceTimersByTimeAsync(LONG_WAIT_MS * 2);
     });
 
     const board = qc.getQueryData<BoardStageDto[]>(P1_KEY)!;
     expect(board[0]!.deals.filter((d) => d.id === "deal-novo")).toHaveLength(1);
     expect(fetchBoard).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("createBoardRefreshScheduler — intervalo mínimo por funil", () => {
-  function invalidatedKeys(qc: QueryClient) {
-    return [P1_KEY, P2_KEY].filter((key) => qc.getQueryState(key)?.isInvalidated);
-  }
-
-  function boards() {
-    const qc = new QueryClient();
-    qc.setQueryData(P1_KEY, []);
-    qc.setQueryData(P2_KEY, []);
-    return qc;
-  }
-
-  it("o intervalo de um funil não segura o primeiro refetch de outro", () => {
-    const qc = boards();
-    const scheduler = createBoardRefreshScheduler(qc);
-
-    scheduler.schedule(["p1"]);
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    expect(invalidatedKeys(qc)).toEqual([P1_KEY]);
-    qc.setQueryData(P1_KEY, []);
-
-    // 2 s depois: p1 de novo (dentro do intervalo) e p2 pela 1ª vez.
-    vi.advanceTimersByTime(2_000);
-    scheduler.schedule(["p1", "p2"]);
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    expect(invalidatedKeys(qc)).toEqual([P2_KEY]);
-
-    // p1 sai quando o intervalo dele fecha.
-    vi.advanceTimersByTime(BOARD_REFRESH_MIN_INTERVAL_MS);
-    expect(invalidatedKeys(qc)).toEqual([P1_KEY, P2_KEY]);
-    scheduler.cancel();
-  });
-
-  it("cancel descarta o pendente que esperava o intervalo ou a aba", () => {
-    const qc = boards();
-    const invalidate = vi.spyOn(qc, "invalidateQueries");
-    const scheduler = createBoardRefreshScheduler(qc);
-
-    scheduler.schedule(["p1"]);
-    vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS);
-    expect(invalidate).toHaveBeenCalledTimes(1);
-
-    scheduler.schedule(["p1"]);
-    scheduler.cancel();
-    vi.advanceTimersByTime(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
-    setVisibility("hidden");
-    setVisibility("visible");
-    vi.advanceTimersByTime(BOARD_REFRESH_MIN_INTERVAL_MS * 2);
-    expect(invalidate).toHaveBeenCalledTimes(1);
   });
 });

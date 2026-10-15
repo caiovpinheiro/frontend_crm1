@@ -8,6 +8,8 @@
 
 import { apiUrl } from "@/lib/api";
 
+import { postJsonConditional } from "./board-conditional";
+
 import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
 
 import type {
@@ -104,10 +106,12 @@ export async function getBoard(
     params.set("limit", String(perStage));
   }
   const q = params.toString();
-  const res = await fetch(
-    apiUrl(`/api/pipelines/${pipelineId}/board${q ? `?${q}` : ""}`),
-    signal ? { signal } : undefined,
-  );
+  // ETag (gate C): o navegador guarda o corpo e revalida com `If-None-Match`;
+  // 304 vira o 200 guardado sem o JS ver.
+  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/board${q ? `?${q}` : ""}`), {
+    cache: "no-cache",
+    ...(signal ? { signal } : {}),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
@@ -162,13 +166,14 @@ export async function getBoardFiltered(
     body.offsetByStage = opts.offsetByStage;
   }
 
-  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/board`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  });
-  const data = await res.json().catch(() => ({}));
+  // POST condicional (gate C): `If-None-Match` do último 200 deste pedido;
+  // 304 = mesmo quadro, reaproveita o corpo guardado.
+  const res = await postJsonConditional(
+    apiUrl(`/api/pipelines/${pipelineId}/board`),
+    JSON.stringify(body),
+    opts.signal,
+  );
+  const data = (res.data ?? {}) as { message?: unknown; stages?: unknown };
   if (!res.ok) {
     throw new Error(
       typeof data?.message === "string" ? data.message : "Erro ao buscar no quadro",
@@ -226,13 +231,13 @@ export async function getBoardColumns(
     body.sort = opts.sort.field;
     body.direction = opts.sort.direction;
   }
-  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/board/columns`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  });
-  const data = await res.json().catch(() => ({}));
+  // POST condicional (gate C), como o do board.
+  const res = await postJsonConditional(
+    apiUrl(`/api/pipelines/${pipelineId}/board/columns`),
+    JSON.stringify(body),
+    opts.signal,
+  );
+  const data = (res.data ?? {}) as { message?: unknown; code?: unknown; columns?: unknown };
   if (!res.ok) {
     throw new BoardColumnsError(
       typeof data?.message === "string" ? data.message : "Erro ao carregar mais cards",

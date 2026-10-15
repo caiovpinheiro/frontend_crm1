@@ -144,7 +144,9 @@ describe("applyDealMoved", () => {
     expect(qc.getQueryData<BoardStageDto[]>(originKey)![0].deals).toEqual([]);
     const dest = qc.getQueryData<BoardStageDto[]>(destKey)!;
     expect(dest[0].deals.map((d) => d.id)).toEqual(["b", "d1"]);
-    expect(dest[0].deals[1].title).toBe("d1");
+    // Card do cache reaproveitado, com os campos do `card` do evento (estado
+    // gravado no servidor); prévia/não lidas continuam as locais.
+    expect(dest[0].deals[1].title).toBe("Lead novo");
     expect(dest[0].deals[1].lastMessage?.content).toBe("oi");
     expect(qc.getQueryData(otherKey)).toBe(other);
   });
