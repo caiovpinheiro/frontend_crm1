@@ -20,6 +20,8 @@ import {
   IconColumns,
   IconRotateClockwise,
   IconAdjustmentsHorizontal,
+  IconTag,
+  IconArrowsSort,
   IconDownload,
   IconFileImport,
   IconSettings,
@@ -49,7 +51,7 @@ import {
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { FilterChip } from "@/components/crm/filter-popover";
-import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
+import { FilterSidebarDialog } from "@/components/crm/filter-sidebar-dialog";
 import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
@@ -1005,72 +1007,91 @@ function ContactsSearchFilterBar({
         </OmnisearchResultsPanel>
       )}
 
-      <FilterColumnsModal
+      <FilterSidebarDialog
         open={open}
         onClose={() => setOpen(false)}
         onClear={handleClear}
         onApply={handleApply}
-        count={draftActiveCount || activeCount}
         clearDisabled={draftActiveCount === 0 && activeCount === 0}
-        title="Filtros"
-        labelledBy="Filtros de contatos"
-      >
-        <FilterCategoryColumn title="Tags" hint="Incluir contatos com estas tags">
-          <div className="relative w-full">
-            <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={tagQuery}
-              onChange={(e) => setTagQuery(e.target.value)}
-              placeholder="Localizar tags..."
-              className={cn(formControlClass, "h-9 pl-8 text-sm")}
-            />
-          </div>
-          {visibleTags.length === 0 ? (
-            <span className="px-1 py-1 text-sm text-muted-foreground">Nenhuma tag.</span>
-          ) : visibleTags.map((t) => {
-            const on = tagSet.has(t.id);
-            const colored = Boolean(t.color);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => toggleDraftTag(t.id)}
-                aria-pressed={on}
-                style={tagChipStyle(t.color, on)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-sm font-semibold transition-colors",
-                  !colored &&
-                    (on
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card text-muted-foreground hover:bg-secondary"),
-                )}
-              >
-                {t.name}
-                <span className={colored || on ? "opacity-70" : "text-muted-foreground"}>{t.contactCount}</span>
-              </button>
-            );
-          })}
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Ordenar">
-          {SORT_OPTIONS.map((opt) => (
-            <FilterChip
-              key={opt.value}
-              tone="fill"
-              selected={sortKey === opt.value}
-              onClick={() => {
-                const [f, o] = opt.value.split(":");
-                setDraft((prev) => ({
-                  ...prev,
-                  sortBy: f as SortField,
-                  sortOrder: o as "asc" | "desc",
-                }));
-              }}
-            >
-              {opt.label}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-      </FilterColumnsModal>
+        ariaLabel="Filtros de contatos"
+        groups={[
+          {
+            id: "tags",
+            label: "Tags",
+            hint: "Incluir contatos com estas tags",
+            icon: IconTag,
+            count: tagsCount ? 1 : 0,
+            body: (
+              <div className="space-y-3">
+                <div className="relative w-full max-w-sm">
+                  <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={tagQuery}
+                    onChange={(e) => setTagQuery(e.target.value)}
+                    placeholder="Localizar tags..."
+                    className={cn(formControlClass, "h-9 pl-8 text-sm")}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {visibleTags.length === 0 ? (
+                    <span className="px-1 py-1 text-sm text-muted-foreground">Nenhuma tag.</span>
+                  ) : visibleTags.map((t) => {
+                    const on = tagSet.has(t.id);
+                    const colored = Boolean(t.color);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => toggleDraftTag(t.id)}
+                        aria-pressed={on}
+                        style={tagChipStyle(t.color, on)}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-sm font-semibold transition-colors",
+                          !colored &&
+                            (on
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-card text-muted-foreground hover:bg-secondary"),
+                        )}
+                      >
+                        {t.name}
+                        <span className={colored || on ? "opacity-70" : "text-muted-foreground"}>{t.contactCount}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: "sort",
+            label: "Ordenar",
+            hint: "Ordem da lista de contatos",
+            icon: IconArrowsSort,
+            count: 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                {SORT_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    tone="fill"
+                    selected={sortKey === opt.value}
+                    onClick={() => {
+                      const [f, o] = opt.value.split(":");
+                      setDraft((prev) => ({
+                        ...prev,
+                        sortBy: f as SortField,
+                        sortOrder: o as "asc" | "desc",
+                      }));
+                    }}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -4,7 +4,8 @@ import * as React from "react";
 
 import { FilterSearchTrigger } from "@/components/crm/filter-search-trigger";
 import { FilterChip } from "@/components/crm/filter-popover";
-import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
+import { FilterSidebarDialog } from "@/components/crm/filter-sidebar-dialog";
+import { IconCategory, IconFlag } from "@tabler/icons-react";
 import { kindOptions, priorityOptions } from "./hooks";
 
 export function DemandSearchFilterBar({
@@ -45,44 +46,60 @@ export function DemandSearchFilterBar({
         ]}
       />
 
-      <FilterColumnsModal
+      <FilterSidebarDialog
         open={open}
         onClose={() => setOpen(false)}
         onClear={() => {
           onKindChange("ALL");
           onPriorityChange("ALL");
         }}
-        onApply={() => setOpen(false)}
-        count={activeCount}
         clearDisabled={activeCount === 0}
-        title="Filtros"
-        labelledBy="Filtros de demandas"
-      >
-        <FilterCategoryColumn title="Tipo">
-          {[{ value: "ALL", label: "Todos" }, ...kindOptions()].map((o) => (
-            <FilterChip
-              key={o.value}
-              tone="fill"
-              selected={kind === o.value}
-              onClick={() => onKindChange(o.value)}
-            >
-              {o.label}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Prioridade">
-          {[{ value: "ALL", label: "Todas" }, ...priorityOptions()].map((o) => (
-            <FilterChip
-              key={o.value}
-              tone="fill"
-              selected={priority === o.value}
-              onClick={() => onPriorityChange(o.value)}
-            >
-              {o.label}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-      </FilterColumnsModal>
+        ariaLabel="Filtros de demandas"
+        groups={[
+          {
+            id: "kind",
+            label: "Tipo",
+            hint: "Tipo da demanda",
+            icon: IconCategory,
+            count: kind !== "ALL" ? 1 : 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                {[{ value: "ALL", label: "Todos" }, ...kindOptions()].map((o) => (
+                  <FilterChip
+                    key={o.value}
+                    tone="fill"
+                    selected={kind === o.value}
+                    onClick={() => onKindChange(o.value)}
+                  >
+                    {o.label}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: "priority",
+            label: "Prioridade",
+            hint: "Urgência da demanda",
+            icon: IconFlag,
+            count: priority !== "ALL" ? 1 : 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                {[{ value: "ALL", label: "Todas" }, ...priorityOptions()].map((o) => (
+                  <FilterChip
+                    key={o.value}
+                    tone="fill"
+                    selected={priority === o.value}
+                    onClick={() => onPriorityChange(o.value)}
+                  >
+                    {o.label}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

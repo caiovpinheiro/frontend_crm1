@@ -27,6 +27,7 @@ export function FilterSidebarDialog({
   open,
   onClose,
   onClear,
+  onApply,
   clearDisabled,
   groups,
   ariaLabel = "Filtros",
@@ -34,6 +35,8 @@ export function FilterSidebarDialog({
   open: boolean;
   onClose: () => void;
   onClear: () => void;
+  /** Quando os filtros são rascunho, aplica e fecha. Sem isso, o botão só fecha. */
+  onApply?: () => void;
   clearDisabled: boolean;
   groups: FilterSidebarGroup[];
   ariaLabel?: string;
@@ -170,8 +173,8 @@ export function FilterSidebarDialog({
           <footer className="flex items-center justify-end gap-2 border-t border-[var(--glass-border-subtle)] px-6 py-3">
             <button
               type="button"
-              onClick={onClose}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-5 text-[13px] font-medium text-white transition-colors hover:bg-[var(--brand-primary-dark)]"
+              onClick={onApply ?? onClose}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-5 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Aplicar filtros
             </button>

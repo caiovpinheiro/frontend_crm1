@@ -29,7 +29,7 @@ import {
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
 import { SearchFilterBar } from "@/components/crm/search-filter-bar"
 import { FilterChip } from "@/components/crm/filter-popover"
-import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal"
+import { FilterSidebarDialog } from "@/components/crm/filter-sidebar-dialog"
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header"
 import {
   FormDialog,
@@ -790,46 +790,62 @@ function TasksSearchFilterBar({
         ]}
       />
 
-      <FilterColumnsModal
+      <FilterSidebarDialog
         open={open}
         onClose={() => setOpen(false)}
         onClear={onClear}
-        onApply={() => setOpen(false)}
-        count={activeCount}
         clearDisabled={activeCount === 0}
-        title="Filtros"
-        labelledBy="Filtros de tarefas"
-      >
-        <FilterCategoryColumn title="Tipo" hint="Tipo de tarefa">
-          {TASK_TYPE_ORDER.map((type) => {
-            const meta = taskTypeMeta[type]
-            return (
-              <FilterChip
-                key={type}
-                tone="fill"
-                selected={enabledTypes[type]}
-                onClick={() => onToggleType(type)}
-                count={typeCounts[type]}
-              >
-                {meta.label}
-              </FilterChip>
-            )
-          })}
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Situação" hint="Prazo e conclusão">
-          {SITUATION_OPTIONS.map((opt) => (
-            <FilterChip
-              key={opt.id}
-              tone="fill"
-              selected={situation === opt.id}
-              onClick={() => onSituationChange(opt.id)}
-              count={situationCounts[opt.id]}
-            >
-              {opt.label}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-      </FilterColumnsModal>
+        ariaLabel="Filtros de tarefas"
+        groups={[
+          {
+            id: "tipo",
+            label: "Tipo",
+            hint: "Tipo de tarefa",
+            icon: CheckSquare,
+            count: typesAreDefault(enabledTypes) ? 0 : 1,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                {TASK_TYPE_ORDER.map((type) => {
+                  const meta = taskTypeMeta[type]
+                  return (
+                    <FilterChip
+                      key={type}
+                      tone="fill"
+                      selected={enabledTypes[type]}
+                      onClick={() => onToggleType(type)}
+                      count={typeCounts[type]}
+                    >
+                      {meta.label}
+                    </FilterChip>
+                  )
+                })}
+              </div>
+            ),
+          },
+          {
+            id: "situacao",
+            label: "Situação",
+            hint: "Prazo e conclusão",
+            icon: CalendarDays,
+            count: situation !== "all" ? 1 : 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                {SITUATION_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.id}
+                    tone="fill"
+                    selected={situation === opt.id}
+                    onClick={() => onSituationChange(opt.id)}
+                    count={situationCounts[opt.id]}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

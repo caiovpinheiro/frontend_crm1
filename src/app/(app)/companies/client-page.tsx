@@ -20,6 +20,9 @@ import {
   IconPhoneOff,
   IconSearch,
   IconAdjustmentsHorizontal,
+  IconMapPin,
+  IconBriefcase,
+  IconArrowsSort,
 } from "@tabler/icons-react";
 import { Building2, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +40,7 @@ import {
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { FilterChip } from "@/components/crm/filter-popover";
-import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
+import { FilterSidebarDialog } from "@/components/crm/filter-sidebar-dialog";
 import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
@@ -728,81 +731,116 @@ function CompaniesSearchFilterBar({
         </OmnisearchResultsPanel>
       )}
 
-      <FilterColumnsModal
+      <FilterSidebarDialog
         open={open}
         onClose={() => setOpen(false)}
         onClear={handleClear}
         onApply={handleApply}
-        count={draftActiveCount || activeCount}
         clearDisabled={draftActiveCount === 0 && activeCount === 0}
-        title="Filtros"
-        labelledBy="Filtros de empresas"
-      >
-        <FilterCategoryColumn title="Estado">
-          <FilterChip tone="fill" selected={!draft.state} onClick={() => setDraft((p) => ({ ...p, state: "" }))}>
-            Todos
-          </FilterChip>
-          {(facets?.states ?? []).map((opt) => (
-            <FilterChip
-              key={opt}
-              tone="fill"
-              selected={draft.state === opt}
-              onClick={() => setDraft((p) => ({ ...p, state: p.state === opt ? "" : opt }))}
-            >
-              {opt}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Cidade">
-          <FilterChip tone="fill" selected={!draft.city} onClick={() => setDraft((p) => ({ ...p, city: "" }))}>
-            Todas
-          </FilterChip>
-          {(facets?.cities ?? []).map((opt) => (
-            <FilterChip
-              key={opt}
-              tone="fill"
-              selected={draft.city === opt}
-              onClick={() => setDraft((p) => ({ ...p, city: p.city === opt ? "" : opt }))}
-            >
-              {opt}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Setor">
-          <FilterChip tone="fill" selected={!draft.industry} onClick={() => setDraft((p) => ({ ...p, industry: "" }))}>
-            Todos
-          </FilterChip>
-          {(facets?.industries ?? []).map((opt) => (
-            <FilterChip
-              key={opt}
-              tone="fill"
-              selected={draft.industry === opt}
-              onClick={() => setDraft((p) => ({ ...p, industry: p.industry === opt ? "" : opt }))}
-            >
-              {opt}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Ordenar">
-          {SORT_OPTIONS.map((opt) => (
-            <FilterChip
-              key={opt.value}
-              tone="fill"
-              selected={sortKey === opt.value}
-              onClick={() => {
-                const [f, o] = opt.value.split(":");
-                setDraft((prev) => ({
-                  ...prev,
-                  sortBy: f as CompanySortField,
-                  sortOrder: o as "asc" | "desc",
-                }));
-              }}
-            >
-              {opt.label}
-            </FilterChip>
-          ))}
-        </FilterCategoryColumn>
-      </FilterColumnsModal>
+        ariaLabel="Filtros de empresas"
+        groups={[
+          {
+            id: "state",
+            label: "Estado",
+            hint: "Estado da empresa",
+            icon: IconMapPin,
+            count: draft.state ? 1 : 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                <FilterChip tone="fill" selected={!draft.state} onClick={() => setDraft((p) => ({ ...p, state: "" }))}>
+                  Todos
+                </FilterChip>
+                {(facets?.states ?? []).map((opt) => (
+                  <FilterChip
+                    key={opt}
+                    tone="fill"
+                    selected={draft.state === opt}
+                    onClick={() => setDraft((p) => ({ ...p, state: p.state === opt ? "" : opt }))}
+                  >
+                    {opt}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: "city",
+            label: "Cidade",
+            hint: "Cidade da empresa",
+            icon: IconBuilding,
+            count: draft.city ? 1 : 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                <FilterChip tone="fill" selected={!draft.city} onClick={() => setDraft((p) => ({ ...p, city: "" }))}>
+                  Todas
+                </FilterChip>
+                {(facets?.cities ?? []).map((opt) => (
+                  <FilterChip
+                    key={opt}
+                    tone="fill"
+                    selected={draft.city === opt}
+                    onClick={() => setDraft((p) => ({ ...p, city: p.city === opt ? "" : opt }))}
+                  >
+                    {opt}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: "industry",
+            label: "Setor",
+            hint: "Setor de atuação",
+            icon: IconBriefcase,
+            count: draft.industry ? 1 : 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                <FilterChip tone="fill" selected={!draft.industry} onClick={() => setDraft((p) => ({ ...p, industry: "" }))}>
+                  Todos
+                </FilterChip>
+                {(facets?.industries ?? []).map((opt) => (
+                  <FilterChip
+                    key={opt}
+                    tone="fill"
+                    selected={draft.industry === opt}
+                    onClick={() => setDraft((p) => ({ ...p, industry: p.industry === opt ? "" : opt }))}
+                  >
+                    {opt}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+          {
+            id: "sort",
+            label: "Ordenar",
+            hint: "Ordem da lista de empresas",
+            icon: IconArrowsSort,
+            count: 0,
+            body: (
+              <div className="flex flex-wrap gap-2">
+                {SORT_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    tone="fill"
+                    selected={sortKey === opt.value}
+                    onClick={() => {
+                      const [f, o] = opt.value.split(":");
+                      setDraft((prev) => ({
+                        ...prev,
+                        sortBy: f as CompanySortField,
+                        sortOrder: o as "asc" | "desc",
+                      }));
+                    }}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
