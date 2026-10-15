@@ -152,7 +152,10 @@ describe("SSE única por navegador (Web Locks)", () => {
     expect(reconnectB).not.toHaveBeenCalled();
 
     b.tab.es.open();
-    expect(reconnectB).toHaveBeenCalledTimes(1); // houve gap sem replay
+    // Houve gap sem replay: o refetch sai num instante sorteado em [0, 20 s].
+    expect(reconnectB).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(reconnectB).toHaveBeenCalledTimes(1);
     expect(b.bridge.connection(URL).connected).toBe(true);
     b.tab.es.emit("new_message", { id: "depois" });
     await tick();
@@ -190,7 +193,7 @@ describe("SSE única por navegador (Web Locks)", () => {
     expect(onC).toHaveBeenCalledTimes(1);
   });
 
-  it("queda da conexão da líder: backoff de 5s e UM onReconnect em cada aba", async () => {
+  it("queda da conexão da líder: volta sorteada em [0, 20 s] e UM onReconnect em cada aba", async () => {
     const a = abrirAba(hub, "a");
     const b = abrirAba(hub, "b");
     const reconnectA = vi.fn();
@@ -208,12 +211,18 @@ describe("SSE única por navegador (Web Locks)", () => {
     await tick();
     expect(statusB).toEqual([false]);
     await vi.advanceTimersByTimeAsync(5_000);
+    expect(a.tab.eventSources).toHaveLength(1); // antes voltava aos 5 s
+    await vi.advanceTimersByTimeAsync(5_000); // sorteio 0,5 × 20 s
     expect(a.tab.eventSources).toHaveLength(2);
     expect(b.tab.eventSources).toHaveLength(0);
     a.tab.es.open();
     await tick();
 
     expect(statusB).toEqual([false, true]);
+    // Líder: a volta já foi sorteada → refetch no open. Seguidora: sorteio próprio.
+    expect(reconnectA).toHaveBeenCalledTimes(1);
+    expect(reconnectB).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(reconnectA).toHaveBeenCalledTimes(1);
     expect(reconnectB).toHaveBeenCalledTimes(1);
 
@@ -406,6 +415,7 @@ describe("aba nova com a líder já conectada", () => {
     a.tab.close();
     await vi.advanceTimersByTimeAsync(2_000);
     b.tab.es.open();
+    await vi.advanceTimersByTimeAsync(10_000); // refetch sorteado
     expect(reconnectB).toHaveBeenCalledTimes(1);
   });
 });
