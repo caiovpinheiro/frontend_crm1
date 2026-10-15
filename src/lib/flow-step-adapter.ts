@@ -222,7 +222,7 @@ export function outputsFromStepConfig(
   }
   if (type === "wait_for_document") {
     return [
-      { key: "document", label: "Documento recebido", kind: "response", target: t("document", cfg.documentGotoStepId) },
+      { key: "document", label: "Documento recebido", kind: "navigation", target: t("document", cfg.documentGotoStepId) },
       { key: "text", label: "Mensagem de texto", kind: "navigation", target: t("text", cfg.textGotoStepId) },
     ]
   }
