@@ -160,6 +160,7 @@ export function getStepOutgoing(step: StepLike): StepOutgoing {
     case "wait_for_document": {
       push("documento recebido", c.documentGotoStepId);
       push("mensagem de texto", c.textGotoStepId);
+      push("tempo esgotado", c.timeoutGotoStepId);
       break;
     }
     case "question":

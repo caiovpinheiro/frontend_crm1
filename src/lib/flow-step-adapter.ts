@@ -224,6 +224,7 @@ export function outputsFromStepConfig(
     return [
       { key: "document", label: "Documento recebido", kind: "navigation", target: t("document", cfg.documentGotoStepId) },
       { key: "text", label: "Mensagem de texto", kind: "navigation", target: t("text", cfg.textGotoStepId) },
+      { key: "timeout", label: "Tempo esgotado", kind: "error", target: t("timeout", cfg.timeoutGotoStepId) },
     ]
   }
   if (type === "closing_protocol") {
