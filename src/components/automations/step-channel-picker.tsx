@@ -288,7 +288,9 @@ export function ActiveChannelMultiSelect({
           >
             {all.length === 0 && !isLoading ? (
               <p className="px-2.5 py-2 text-[12px] text-[var(--text-muted)]">
-                Nenhum canal ativo. Conecte um WhatsApp ou e-mail em Canais.
+                {kinds === "email"
+                  ? "Nenhuma conta de e-mail conectada. Conecte uma em E-mail."
+                  : "Nenhum canal ativo. Conecte um WhatsApp em Canais ou uma conta em E-mail."}
               </p>
             ) : (
               <>

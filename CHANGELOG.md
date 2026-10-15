@@ -8,6 +8,7 @@ Datas em ISO 8601. Mais recente no topo.
 > Em teste no servidor de desenvolvimento (EasyPanel). Aguardando promoção para `main`.
 
 ### feat
+- **automations (send_email)**: o picker "Canais" do passo Enviar e-mail lista as contas conectadas em `/email` (`/api/email-accounts`) — antes só olhava `Channel.type=EMAIL` (que nenhuma org tem) e sobravam os mocks. O id gravado é o `EmailAccount.id`; "Para" passa a ser opcional (vazio = e-mail do contato). Backend: o passo envia de verdade via SMTP da conta marcada (ou da compartilhada mais antiga da org), interpola `{{...}}` em Para/Assunto/Corpo e falhas caem na saída "erro no envio".
 - **directory (contacts/companies)**: edição na linha das listagens v2 — nova coluna "Ações" com botão de editar que abre `EditContactDialog` / `EditCompanyDialog` (antes só dava para editar no detalhe). Salva via `useUpdateContact` / `useUpdateCompany`.
 - **directory (contacts)**: vincular contato a empresa direto da UI v2 — novo `CompanyPicker` (combobox com busca + remover vínculo) na criação e edição de contato, enviando `companyId` ao backend (connect/disconnect no Prisma já existente).
 - **rbac (team)**: função híbrida — `/settings/team` mantém **ADMIN como único preset** e passa a atribuir **roles customizadas** (via `UserRoleAssignment`); novo `PUT /api/users/[id]/primary-role` com guard contra rebaixar o último admin. `User.role` segue como fallback (não quebra orgs existentes). (`33586b0`, back `58beaa2`)

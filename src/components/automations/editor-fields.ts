@@ -104,7 +104,13 @@ const META_FAILURE_FIELDS: EditorField[] = [
 export const STEP_FIELDS: Record<string, EditorField[]> = {
   send_email: [
     { kind: "channelPicker" },
-    { kind: "text", key: "to", label: "Para", placeholder: "email@cliente.com ou {{campo}}" },
+    {
+      kind: "text",
+      key: "to",
+      label: "Para",
+      placeholder: "Vazio = e-mail do contato · aceita {{campo}}",
+      optional: true,
+    },
     { kind: "text", key: "subject", label: "Assunto" },
     { kind: "textarea", key: "body", label: "Corpo" },
   ],
