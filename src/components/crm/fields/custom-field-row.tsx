@@ -165,10 +165,23 @@ export function CustomFieldRow({
             />
           )}
         </div>
-      ) : (
+      ) : resolveStoredFieldFile(f.value) ? (
         <div className="min-w-0 flex-1">
           <CustomFieldValueView value={f.value} />
         </div>
+      ) : f.value ? (
+        <DelayedHoverLegend text={f.value} className="min-w-0 flex-1">
+          <span
+            data-legend-measure
+            className="block min-w-0 truncate text-sm font-medium text-[var(--text-primary)]"
+          >
+            {f.value}
+          </span>
+        </DelayedHoverLegend>
+      ) : (
+        <span className="min-w-0 flex-1 text-sm font-normal text-[var(--color-ink-muted)]">
+          —
+        </span>
       )}
     </div>
   );
