@@ -38,6 +38,11 @@ export type TabState = {
   sse?: Record<string, string[]>;
   /** Chaves `entityType|entityId` das entidades abertas nesta aba. */
   presence?: string[];
+  /**
+   * Desde quando (ms) a aba está oculta; `null` = visível. Ausente (aba de
+   * build antigo) conta como visível (`presence-ticker.ts`).
+   */
+  hiddenSince?: number | null;
 };
 
 export type TabMessage =
@@ -625,6 +630,7 @@ export class TabCoordinator {
         const part = provider();
         if (part.sse) state.sse = { ...(state.sse ?? {}), ...part.sse };
         if (part.presence) state.presence = [...(state.presence ?? []), ...part.presence];
+        if (part.hiddenSince !== undefined) state.hiddenSince = part.hiddenSince;
       } catch {
         /* isola */
       }
