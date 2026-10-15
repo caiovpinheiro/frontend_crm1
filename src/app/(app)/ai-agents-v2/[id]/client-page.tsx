@@ -6039,6 +6039,25 @@ function StepTeam({
             <p className="text-xs text-destructive">Obrigatório: sem isso, as transferências não chegam a ninguém.</p>
           )}
         </Field>
+        <Field
+          label="Etapa ao chamar a equipe"
+          hint="Vazio: a transferência não muda a etapa do negócio. Com uma etapa, o card vai para ela antes de distribuir — no atalho, no pedido do agente e no sentimento. Não vale quando o destino é outro agente de IA."
+        >
+          <Select
+            value={(typeof handoff.moveToStageId === "string" && handoff.moveToStageId) || "__none__"}
+            onValueChange={(v) => onChange("handoff.moveToStageId", v === "__none__" ? "" : v)}
+          >
+            <SelectTrigger><SelectValue placeholder="Não mover" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Não mover</SelectItem>
+              {(catalogs.pipelines ?? []).flatMap((p) =>
+                (p.stages ?? []).map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{p.name} › {s.name}</SelectItem>
+                )),
+              )}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Mensagem ao passar para a equipe">
           <Textarea
             value={(handoff.message as string) ?? ""}
