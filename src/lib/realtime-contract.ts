@@ -79,7 +79,8 @@ export type MessageUpdatedEvent = {
   organizationId: string;
   conversationId: string;
   messageId: string;
-  status: "approved";
+  /** Rascunho da IA aprovado ou nota interna editada (`edited`, 15/10). */
+  status: "approved" | "edited";
 };
 
 export type MessageDeletedEvent = {
