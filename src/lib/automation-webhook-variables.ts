@@ -339,6 +339,41 @@ export function defaultKeyPathFor(option: WebhookVariableOption): string {
 }
 
 /**
+ * Ao trocar o campo da linha, a chave automática acompanha o campo novo.
+ * Chave digitada à mão (diferente do padrão do campo anterior) permanece.
+ * Sem campo novo, a chave automática é limpa.
+ */
+export function keyPathAfterOptionChange(
+  currentKeyPath: string,
+  previous: WebhookVariableOption | undefined,
+  next: WebhookVariableOption | undefined,
+): string {
+  const typed = currentKeyPath.trim();
+  const previousDefault = previous ? defaultKeyPathFor(previous) : "";
+  const automatic = !typed || typed === previousDefault;
+  if (!next) return automatic ? "" : currentKeyPath;
+  if (automatic) return defaultKeyPathFor(next);
+  return currentKeyPath;
+}
+
+/**
+ * A chave salva é o nome automático de OUTRO campo (ex.: `dealId` ficou
+ * na linha do currículo, `title` ficou na linha do ID). Não é o padrão
+ * do campo que está selecionado agora.
+ */
+export function isForeignDefaultKeyPath(
+  keyPath: string,
+  selected: WebhookVariableOption,
+  options: WebhookVariableOption[],
+): boolean {
+  const typed = keyPath.trim();
+  if (!typed || typed === defaultKeyPathFor(selected)) return false;
+  return options.some(
+    (option) => option.key !== selected.key && defaultKeyPathFor(option) === typed,
+  );
+}
+
+/**
  * Modelo de body legado — mantido pra retrocompat. NÃO é mais inserido
  * por nenhum botão na UI nova (o usuário monta o body via construtor
  * visual), mas o constante segue aqui caso alguém precise referenciar
