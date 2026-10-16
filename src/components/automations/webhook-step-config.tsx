@@ -45,6 +45,7 @@ import {
   defaultKeyPathFor,
   isForeignDefaultKeyPath,
   keyPathAfterOptionChange,
+  realignForeignKeyPath,
   type WebhookVariableGroup,
   type WebhookVariableOption,
 } from "@/lib/automation-webhook-variables";
@@ -173,25 +174,6 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
   entriesRef.current = entries;
   const lastEmittedRef = React.useRef<string>("");
 
-  // Re-parseia quando `draft.body` mudou de fora (ex.: parent setou
-  // outro step). Também re-parseia quando o catálogo cresce (custom
-  // fields chegaram), pra resolver entries que estavam unknown.
-  React.useEffect(() => {
-    if (lastEmittedRef.current === bodyFromDraft) return;
-    setEntries(parseBodyToEntries(bodyFromDraft, allOptions));
-    lastEmittedRef.current = bodyFromDraft;
-  }, [bodyFromDraft, allOptions]);
-
-  React.useEffect(() => {
-    setEntries((prev) => {
-      if (!prev.some((e) => e.unknownToken || e.literalValue !== undefined)) return prev;
-      return parseBodyToEntries(bodyFromDraft, allOptions);
-    });
-    // Disparamos só quando o número de opções dinâmicas muda (custom
-    // fields chegaram). Body string é cuidado no efeito acima.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOptions.length]);
-
   // Sempre que `entries` muda, regeneramos o JSON e propagamos para
   // o draft. Marcamos `lastEmittedRef` pra não re-parsear o que nós
   // mesmos emitimos.
@@ -206,6 +188,46 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
     },
     [allOptions, setDraft],
   );
+
+  // Body salvo com a chave do campo anterior (`dealId` na linha do
+  // currículo, `title` na linha do ID) manda o arquivo no lugar do id.
+  // Com o catálogo completo, a chave volta a ser a do campo selecionado
+  // e o JSON do disparo é regravado.
+  React.useEffect(() => {
+    const parsed = parseBodyToEntries(bodyFromDraft, allOptions);
+    const pendingCatalog = parsed.some(
+      (entry) => entry.unknownToken || entry.literalValue !== undefined,
+    );
+    if (pendingCatalog) {
+      entriesRef.current = parsed;
+      setEntries(parsed);
+      lastEmittedRef.current = bodyFromDraft;
+      return;
+    }
+    const taken = new Set<string>();
+    for (const entry of parsed) {
+      if (!entry.optionKey) continue;
+      const next = realignForeignKeyPath(entry.keyPath, entry.optionKey, allOptions, new Set());
+      if (next.trim() === entry.keyPath.trim()) taken.add(entry.keyPath.trim());
+    }
+    let changed = false;
+    const realigned = parsed.map((entry) => {
+      if (!entry.optionKey) return entry;
+      const keyPath = realignForeignKeyPath(entry.keyPath, entry.optionKey, allOptions, taken);
+      if (keyPath === entry.keyPath) return entry;
+      changed = true;
+      return { ...entry, keyPath };
+    });
+    if (!changed) {
+      if (lastEmittedRef.current !== bodyFromDraft) {
+        entriesRef.current = parsed;
+        setEntries(parsed);
+        lastEmittedRef.current = bodyFromDraft;
+      }
+      return;
+    }
+    commitEntries(realigned);
+  }, [bodyFromDraft, allOptions, commitEntries]);
 
   const validationErrors = React.useMemo(
     () => validateEntries(entries),

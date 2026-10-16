@@ -374,6 +374,25 @@ export function isForeignDefaultKeyPath(
 }
 
 /**
+ * Devolve a chave do campo selecionado quando a chave atual é o padrão de
+ * outro campo. É o caso `dealId` na linha do currículo: o JSON mandava o
+ * arquivo no lugar do id. Chave que não é padrão de ninguém fica como está.
+ * Se o destino já está ocupado por uma linha que não vai se mover, não troca.
+ */
+export function realignForeignKeyPath(
+  keyPath: string,
+  optionKey: string,
+  options: WebhookVariableOption[],
+  takenKeyPaths: ReadonlySet<string>,
+): string {
+  const selected = options.find((option) => option.key === optionKey);
+  if (!selected || !isForeignDefaultKeyPath(keyPath, selected, options)) return keyPath;
+  const next = defaultKeyPathFor(selected);
+  if (!next || next === keyPath.trim() || takenKeyPaths.has(next)) return keyPath;
+  return next;
+}
+
+/**
  * Modelo de body legado — mantido pra retrocompat. NÃO é mais inserido
  * por nenhum botão na UI nova (o usuário monta o body via construtor
  * visual), mas o constante segue aqui caso alguém precise referenciar
