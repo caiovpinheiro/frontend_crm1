@@ -43,6 +43,8 @@ import {
   WEBHOOK_VARIABLE_OPTIONS,
   buildCustomFieldOptions,
   defaultKeyPathFor,
+  isForeignDefaultKeyPath,
+  keyPathAfterOptionChange,
   type WebhookVariableGroup,
   type WebhookVariableOption,
 } from "@/lib/automation-webhook-variables";
@@ -167,6 +169,8 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
   const [entries, setEntries] = React.useState<WebhookBodyEntry[]>(() =>
     parseBodyToEntries(bodyFromDraft, allOptions),
   );
+  const entriesRef = React.useRef(entries);
+  entriesRef.current = entries;
   const lastEmittedRef = React.useRef<string>("");
 
   // Re-parseia quando `draft.body` mudou de fora (ex.: parent setou
@@ -192,11 +196,13 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
   // o draft. Marcamos `lastEmittedRef` pra não re-parsear o que nós
   // mesmos emitimos.
   const commitEntries = React.useCallback(
-    (next: WebhookBodyEntry[]) => {
-      setEntries(next);
-      const nextBody = next.length === 0 ? "" : entriesToBodyString(next, allOptions);
+    (next: WebhookBodyEntry[] | ((prev: WebhookBodyEntry[]) => WebhookBodyEntry[])) => {
+      const resolved = typeof next === "function" ? next(entriesRef.current) : next;
+      entriesRef.current = resolved;
+      setEntries(resolved);
+      const nextBody = resolved.length === 0 ? "" : entriesToBodyString(resolved, allOptions);
       lastEmittedRef.current = nextBody;
-      setDraft((d) => ({ ...d, body: nextBody, __webhookBodyEntries: next }));
+      setDraft((d) => ({ ...d, body: nextBody, __webhookBodyEntries: resolved }));
     },
     [allOptions, setDraft],
   );
@@ -333,55 +339,58 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
 
   // ─── Body builder handlers ───────────────────────────────
   const addEntry = (preset?: Partial<WebhookBodyEntry>) => {
-    commitEntries([...entries, makeEntry(preset)]);
+    commitEntries((prev) => [...prev, makeEntry(preset)]);
   };
 
   const updateEntry = (id: string, patch: Partial<WebhookBodyEntry>) => {
-    commitEntries(entries.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    commitEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   };
 
   const removeEntry = (id: string) => {
-    commitEntries(entries.filter((e) => e.id !== id));
+    commitEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
   // Categoria é estado de UI separado de `optionKey` (em
   // `selectedGroupByEntry`). Trocar a categoria limpa o campo
   // selecionado e qualquer flag legada (unknown/literal).
   const handleCategoryChange = (id: string, group: WebhookVariableGroup) => {
-    const current = entries.find((e) => e.id === id);
-    if (!current) return;
-    commitEntries(
-      entries.map((e) =>
+    commitEntries((prev) => {
+      const current = prev.find((e) => e.id === id);
+      if (!current) return prev;
+      const previous = current.optionKey ? optionByKey.get(current.optionKey) : undefined;
+      return prev.map((e) =>
         e.id === id
-          ? { ...e, optionKey: "", unknownToken: undefined, literalValue: undefined }
+          ? {
+              ...e,
+              optionKey: "",
+              keyPath: keyPathAfterOptionChange(e.keyPath, previous, undefined),
+              unknownToken: undefined,
+              literalValue: undefined,
+            }
           : e,
-      ),
-    );
+      );
+    });
     setSelectedGroupByEntry((prev) => ({ ...prev, [id]: group }));
   };
 
   const handleOptionChange = (id: string, optionKey: string) => {
     const opt = optionByKey.get(optionKey);
-    const current = entries.find((e) => e.id === id);
-    if (!current) return;
-    const nextKeyPath = current.keyPath.trim()
-      ? current.keyPath
-      : opt
-        ? defaultKeyPathFor(opt)
-        : "";
-    commitEntries(
-      entries.map((e) =>
+    commitEntries((prev) => {
+      const current = prev.find((e) => e.id === id);
+      if (!current) return prev;
+      const previous = current.optionKey ? optionByKey.get(current.optionKey) : undefined;
+      return prev.map((e) =>
         e.id === id
           ? {
               ...e,
               optionKey,
-              keyPath: nextKeyPath,
+              keyPath: keyPathAfterOptionChange(e.keyPath, previous, opt),
               unknownToken: undefined,
               literalValue: undefined,
             }
           : e,
-      ),
-    );
+      );
+    });
   };
 
   // Categoria selecionada por linha (memória local da UI). Quando a
@@ -629,19 +638,16 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
           </p>
         </div>
 
-        {/* Header da tabela — só aparece quando há entries pra evitar
-            ruído visual no estado inicial. */}
-        {entries.length > 0 && (
-          <div className="grid grid-cols-[1.4fr_1.2fr_1.6fr_1.4fr_auto] gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>Chave enviada</span>
-            <span>Categoria</span>
-            <span>Campo</span>
-            <span>Valor interno</span>
-            <span aria-hidden="true" />
-          </div>
-        )}
-
-        <div className="space-y-2">
+        <div className="space-y-2 overflow-x-auto">
+          {entries.length > 0 && (
+            <div className="grid min-w-[40rem] grid-cols-[minmax(7.5rem,1.2fr)_minmax(7rem,1fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_auto] gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Chave enviada</span>
+              <span>Categoria</span>
+              <span>Campo</span>
+              <span>Valor interno</span>
+              <span aria-hidden="true" />
+            </div>
+          )}
           {entries.length === 0 && (
             <div className="rounded-xl border border-dashed border-border/60 bg-muted/30 px-4 py-6 text-center text-xs text-muted-foreground">
               Nenhum campo configurado. Clique em{" "}
@@ -655,6 +661,11 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
             const hasError = errs.length > 0;
             const isUnknown = !!entry.unknownToken;
             const isLiteral = entry.literalValue !== undefined;
+            const selectedOpt = entry.optionKey ? optionByKey.get(entry.optionKey) : undefined;
+            const foreignKey =
+              selectedOpt != null &&
+              isForeignDefaultKeyPath(entry.keyPath, selectedOpt, allOptions);
+            const suggestedKey = selectedOpt ? defaultKeyPathFor(selectedOpt) : "";
             return (
               <div
                 key={entry.id}
@@ -663,12 +674,12 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
                   hasError ? "border-destructive/60 bg-destructive/5" : "border-border/60",
                 )}
               >
-                <div className="grid grid-cols-[1.4fr_1.2fr_1.6fr_1.4fr_auto] items-center gap-2">
+                <div className="grid min-w-[40rem] grid-cols-[minmax(7.5rem,1.2fr)_minmax(7rem,1fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_auto] items-center gap-2">
                   <Input
                     value={entry.keyPath}
                     onChange={(e) => updateEntry(entry.id, { keyPath: e.target.value })}
-                    placeholder="ex.: dealId, ad.headline"
-                    className="font-mono text-xs"
+                    placeholder="ex.: dealId"
+                    className="min-w-[7.5rem] px-2 font-mono text-xs"
                     autoComplete="off"
                   />
                   <DropdownGlass
@@ -718,6 +729,19 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
                       <li key={idx}>• {msg}</li>
                     ))}
                   </ul>
+                )}
+                {foreignKey && suggestedKey && (
+                  <p className="mt-1.5 ml-1 text-[11px] text-muted-foreground">
+                    A chave <code className="font-mono">{entry.keyPath.trim()}</code> é o
+                    nome automático de outro campo. Este valor sai com esse nome no JSON.{" "}
+                    <button
+                      type="button"
+                      className="font-semibold underline underline-offset-2"
+                      onClick={() => updateEntry(entry.id, { keyPath: suggestedKey })}
+                    >
+                      Usar {suggestedKey}
+                    </button>
+                  </p>
                 )}
               </div>
             );
