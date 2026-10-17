@@ -90,3 +90,7 @@ pertence ao backend, não a um workaround no cliente.
 - Widget parceiro: `iframeUrl` só http(s) fora do origin do CRM/API e do `TENANT_BASE_DOMAIN`. Não embutir URL same-origin com `allow-scripts`+`allow-same-origin`.
 - OAuth Instagram: `postMessage` só se `event.source` for o popup aberto e `event.origin` for a página ou `NEXT_PUBLIC_API_BASE_URL`.
 - CSP enforcing / Report-Only: não habilitar até homologar (ver comentário em `next.config.ts`).
+
+## Decisões técnicas
+
+- 2026-10-17 — Claude — **Imagem base do Dockerfile.prebuilt vem do GHCR, não do ECR Public**: `FROM ${BASE_IMAGE}` (ARG, padrão `ghcr.io/caiovpinheiro/frontend_crm1/node:22-bookworm-slim`). O espelho é alimentado por `.github/workflows/mirror-base-image.yml` (push no próprio arquivo, manual e semanal), que copia `public.ecr.aws/docker/library/node:22-bookworm-slim` (fallback Docker Hub) com `docker buildx imagetools create` usando só o GITHUB_TOKEN — sem secret novo. Motivo: builds da main em 17/10 caíram com `toomanyrequests: Data limit exceeded` — cota anônima do ECR Public por IP, compartilhada pelos runners do GitHub. O build-and-deploy já faz login no GHCR antes do build. O `Dockerfile` de build inline (não usado pelo CI) continua no ECR Public. Trocar a versão do Node: mudar `BASE_TAG` no workflow e depois o ARG. Build local sem login no GHCR: `--build-arg BASE_IMAGE=node:22-bookworm-slim`.

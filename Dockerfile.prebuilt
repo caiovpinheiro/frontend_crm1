@@ -11,8 +11,16 @@
 #
 # Uso: requer que .next/standalone e .next/static existam no contexto
 # (o workflow GHA garante isso apos `npm run build`).
+#
+# Imagem base vem do espelho no GHCR deste repositório (alimentado por
+# .github/workflows/mirror-base-image.yml), não do ECR Public: a cota anônima
+# do public.ecr.aws é por IP e os runners do GitHub a compartilham — em
+# 17/10/2026 builds da main caíram com "toomanyrequests: Data limit exceeded".
+# O build-and-deploy.yml já faz login no GHCR antes do build.
+# Build local sem login no GHCR: --build-arg BASE_IMAGE=node:22-bookworm-slim
+ARG BASE_IMAGE=ghcr.io/caiovpinheiro/frontend_crm1/node:22-bookworm-slim
 
-FROM public.ecr.aws/docker/library/node:22-bookworm-slim
+FROM ${BASE_IMAGE}
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
