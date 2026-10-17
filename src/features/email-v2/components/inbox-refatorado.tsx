@@ -1,11 +1,33 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { IconMail } from "@tabler/icons-react";
+import {
+  IconAdjustments,
+  IconArchive,
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconArrowLeft,
+  IconChevronDown,
+  IconFolder,
+  IconInbox,
+  IconMail,
+  IconMenu2,
+  IconNote,
+  IconPlus,
+  IconRefresh,
+  IconSend,
+  IconShieldExclamation,
+  IconTrash,
+} from "@tabler/icons-react";
 import { toast } from "sonner";
 
-import { PageHeader } from "@/components/crm/page-header";
+import { IdentityAvatar } from "@/components/crm/identity-avatar";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import { SectionHeader } from "@/components/crm/section-header";
 import { FormDialog } from "@/components/ui/form-dialog";
+import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome";
+import { cn } from "@/lib/utils";
 import {
   useEmailAccounts,
   useEmailCustomFolders,
@@ -33,90 +55,20 @@ import {
   type ComposeDraft,
 } from "../utils/compose-draft";
 
-/* ------------------------------------------------------------------
-   Tokens — troque apenas estes valores para aplicar a marca do sistema.
-   ------------------------------------------------------------------ */
-const T = {
-  paper: "#F7F9FD",
-  surface: "#FFFFFF",
-  ink: "#1B1B33",
-  ink2: "#454B63",
-  muted: "#7C849B",
-  line: "#E4E9F2",
-  lineSoft: "#EFF3F9",
-  accent: "#3B5BF0",
-  accentSoft: "#ECF0FE",
-  accentInk: "#1E2A78",
-  amber: "#5B3BB0",
-  amberSoft: "#F3EEFE",
-} as const;
-
-const BRAND_GRADIENT = "linear-gradient(135deg, #2B7FFF 0%, #6A45F0 55%, #C13BD9 100%)";
-const FONT =
-  "'Inter var', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-const NUM = { fontVariantNumeric: "tabular-nums" } as const;
-
 /* ------------------------------------------------------------------ */
-/* Ícones                                                              */
+/* Tokens de layout — só classes do DS (bg-card, border-border, …).   */
 /* ------------------------------------------------------------------ */
-interface IconProps {
-  size?: number;
-  stroke?: number;
-  fill?: string;
-}
+const CARD_CLASS = "rounded-xl border border-border bg-card";
 
-const Ic = ({ d, size = 16, stroke = 1.6, fill = "none" }: { d: React.ReactNode } & IconProps) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill={fill}
-    stroke="currentColor"
-    strokeWidth={stroke}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    {d}
-  </svg>
-);
+const PILL_BTN_CLASS =
+  "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-semibold transition-colors";
+const PILL_BTN_OFF_CLASS = "border-border bg-card text-foreground hover:bg-muted";
+const PILL_BTN_ON_CLASS = "border-primary bg-primary text-primary-foreground";
 
-const IconSearch = (p: IconProps) => (
-  <Ic {...p} d={<><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>} />
-);
-const IconInbox = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M3 12h4l2 3h6l2-3h4" /><path d="M5 5h14l2 7v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5z" /></>} />
-);
-const IconSent = (p: IconProps) => <Ic {...p} d={<path d="M21 4 3 11l7 3 3 7 8-17Z" />} />;
-const IconSpam = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6l-7-3Z" /><path d="M12 9v3.5" /><path d="M12 16h.01" /></>} />
-);
-const IconTrash = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M4 7h16" /><path d="M9 7V5h6v2" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" /></>} />
-);
-const IconFolder = (p: IconProps) => (
-  <Ic {...p} d={<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />} />
-);
-const IconRules = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M4 6h16" /><path d="M7 12h13" /><path d="M10 18h10" /><circle cx="4" cy="12" r="1.4" /><circle cx="7" cy="18" r="1.4" /></>} />
-);
-const IconReply = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M9 7 4 12l5 5" /><path d="M4 12h9a6 6 0 0 1 6 6v1" /></>} />
-);
-const IconForward = (p: IconProps) => (
-  <Ic {...p} d={<><path d="m15 7 5 5-5 5" /><path d="M20 12h-9a6 6 0 0 0-6 6v1" /></>} />
-);
-const IconArchive = (p: IconProps) => (
-  <Ic {...p} d={<><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></>} />
-);
-const IconRefresh = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M20 11a8 8 0 0 0-13.7-5.3L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16" /><path d="M20 20v-4h-4" /></>} />
-);
-const IconChevron = (p: IconProps) => <Ic {...p} d={<path d="m6 9 6 6 6-6" />} />;
-const IconPlus = (p: IconProps) => <Ic {...p} d={<><path d="M12 5v14" /><path d="M5 12h14" /></>} />;
-const IconNote = (p: IconProps) => (
-  <Ic {...p} d={<><path d="M5 4h14v10l-5 6H5z" /><path d="M19 14h-5v6" /></>} />
-);
+const ROUND_ICON_BTN_CLASS =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
+
+type IconComponent = React.ComponentType<{ size?: number; stroke?: number; className?: string }>;
 
 /* ------------------------------------------------------------------ */
 /* Utilidades                                                          */
@@ -173,22 +125,51 @@ const initials = (name: string | null): string =>
     .join("")
     .toUpperCase();
 
-const avatarTone = (name: string): [string, string] => {
-  const tones: [string, string][] = [
-    ["#E8EEFE", "#2F4FD8"],
-    ["#EFEAFD", "#6035D6"],
-    ["#E6F1FB", "#1F5F96"],
-    ["#F7EAF8", "#9B2FB0"],
-    ["#EAEDF6", "#3A4670"],
-  ];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997;
-  return tones[h % tones.length];
-};
+/* ------------------------------------------------------------------ */
+/* Pastas                                                              */
+/* ------------------------------------------------------------------ */
+interface FolderItem {
+  id: string;
+  label: string;
+  Icon?: IconComponent;
+  count?: number;
+  quiet?: boolean;
+}
 
-/* ------------------------------------------------------------------ */
-/* Sidebar                                                             */
-/* ------------------------------------------------------------------ */
+function FolderRow({
+  label,
+  Icon = IconFolder,
+  count,
+  quiet,
+  active,
+  onClick,
+}: FolderItem & { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "true" : undefined}
+      className={cn(
+        "flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13px] transition-colors",
+        active ? "bg-primary/10 font-semibold text-primary" : "text-foreground hover:bg-muted",
+      )}
+    >
+      <Icon size={16} className={active ? "text-primary" : "text-muted-foreground"} />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {count !== undefined && count > 0 ? (
+        <span
+          className={cn(
+            "text-xs tabular-nums",
+            active ? "text-primary" : quiet ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 interface SidebarProps {
   accounts: EmailAccount[];
   folders: EmailCustomFolder[];
@@ -204,6 +185,45 @@ interface SidebarProps {
   onNew: () => void;
 }
 
+function systemFolders(counts: SidebarProps["counts"]): FolderItem[] {
+  return [
+    { id: "INBOX", label: "Caixa de entrada", Icon: IconInbox, count: counts.inbox },
+    { id: "SENT", label: "Enviados", Icon: IconSend, count: counts.sent },
+    { id: "SPAM", label: "Spam", Icon: IconShieldExclamation, count: counts.spam },
+    { id: "TRASH", label: "Excluídos", Icon: IconTrash, count: counts.trash, quiet: true },
+  ];
+}
+
+function AccountSelect({
+  accounts,
+  selectedAccountId,
+  onSelectAccount,
+  className,
+}: Pick<SidebarProps, "accounts" | "selectedAccountId" | "onSelectAccount"> & { className?: string }) {
+  return (
+    <label className={cn("relative block", className)}>
+      <span className="sr-only">Conta</span>
+      <select
+        value={selectedAccountId ?? "all"}
+        onChange={(e) => onSelectAccount(e.target.value === "all" ? undefined : e.target.value)}
+        className="h-9 w-full cursor-pointer appearance-none truncate rounded-lg border border-border bg-card pl-2.5 pr-8 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      >
+        <option value="all">Todas as contas</option>
+        {accounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.email}
+          </option>
+        ))}
+      </select>
+      <IconChevronDown
+        size={14}
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+      />
+    </label>
+  );
+}
+
+/** Coluna de pastas — só desktop (`md:`). */
 function Sidebar({
   accounts,
   folders,
@@ -218,201 +238,128 @@ function Sidebar({
   onRefresh,
   onNew,
 }: SidebarProps) {
-  const main = [
-    { id: "INBOX", label: "Caixa de entrada", Icon: IconInbox, count: counts.inbox },
-    { id: "SENT", label: "Enviados", Icon: IconSent, count: counts.sent },
-    { id: "SPAM", label: "Spam", Icon: IconSpam, count: counts.spam },
-    { id: "TRASH", label: "Excluídos", Icon: IconTrash, count: counts.trash, quiet: true },
-  ] as const;
-
   const activeSystem = selectedCustomFolderId === null;
-
-  interface RowItem {
-    id: string;
-    label: string;
-    Icon?: React.ComponentType<IconProps>;
-    count?: number;
-    quiet?: boolean;
-    onClick?: () => void;
-  }
-
-  const Row = ({ id, label, Icon, count, quiet, onClick }: RowItem) => {
-    const active = activeSystem && selectedFolder === id;
-    return (
-      <button
-        onClick={() => {
-          if (onClick) {
-            onClick();
-            return;
-          }
-          onSelectCustomFolder(null);
-          onSelectFolder(id as EmailFolder);
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          width: "100%",
-          padding: "7px 10px",
-          borderRadius: 7,
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          fontSize: 13.5,
-          fontWeight: active ? 600 : 450,
-          color: active ? T.accentInk : T.ink2,
-          background: active ? T.accentSoft : "transparent",
-        }}
-      >
-        {Icon ? (
-          <span style={{ color: active ? T.accent : T.muted, display: "flex" }}>
-            <Icon size={17} />
-          </span>
-        ) : (
-          <span style={{ color: T.muted, display: "flex" }}>
-            <IconFolder size={17} />
-          </span>
-        )}
-        <span style={{ flex: 1 }}>{label}</span>
-        {count !== undefined && count > 0 ? (
-          <span
-            style={{
-              ...NUM,
-              fontSize: 12,
-              fontWeight: 600,
-              color: quiet ? T.muted : active ? T.accent : T.ink2,
-            }}
-          >
-            {count}
-          </span>
-        ) : null}
-      </button>
-    );
-  };
 
   return (
     <aside
-      style={{
-        width: 224,
-        flexShrink: 0,
-        border: `1px solid ${T.line}`,
-        borderRadius: 14,
-        overflow: "hidden",
-        padding: "14px 12px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-        background: T.surface,
-      }}
+      className={cn(
+        CARD_CLASS,
+        "hidden w-[220px] shrink-0 flex-col gap-1 overflow-y-auto p-3.5 md:flex",
+      )}
     >
       <button
+        type="button"
         onClick={onNew}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          height: 36,
-          borderRadius: 8,
-          border: "none",
-          background: BRAND_GRADIENT,
-          color: "#fff",
-          fontSize: 13.5,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
+        className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary-dark"
       >
-        <IconPlus size={16} /> Escrever
+        <IconPlus size={16} stroke={2.2} /> Escrever
       </button>
 
-      <label style={{ display: "block" }}>
-        <span style={{ fontSize: 12, color: T.muted, display: "block", marginBottom: 5 }}>
-          Conta
-        </span>
-        <div style={{ position: "relative" }}>
-          <select
-            value={selectedAccountId ?? "all"}
-            onChange={(e) => onSelectAccount(e.target.value === "all" ? undefined : e.target.value)}
-            style={{
-              width: "100%",
-              appearance: "none",
-              height: 32,
-              padding: "0 28px 0 10px",
-              borderRadius: 7,
-              border: `1px solid ${T.line}`,
-              background: T.surface,
-              fontSize: 13,
-              color: T.ink,
-              fontFamily: FONT,
-              cursor: "pointer",
-            }}
-          >
-            <option value="all">Todas as contas</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.email}
-              </option>
-            ))}
-          </select>
-          <span
-            style={{
-              position: "absolute",
-              right: 9,
-              top: 8,
-              color: T.muted,
-              pointerEvents: "none",
-            }}
-          >
-            <IconChevron size={15} />
-          </span>
-        </div>
-      </label>
+      <div className="mx-1 mb-0.5 mt-2.5 text-[11px] font-semibold text-muted-foreground">Conta</div>
+      <AccountSelect
+        accounts={accounts}
+        selectedAccountId={selectedAccountId}
+        onSelectAccount={onSelectAccount}
+      />
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {main.map((m) => (
-          <Row key={m.id} {...m} />
+      <nav className="mt-2 flex flex-col gap-0.5">
+        {systemFolders(counts).map((f) => (
+          <FolderRow
+            key={f.id}
+            {...f}
+            active={activeSystem && selectedFolder === f.id}
+            onClick={() => onSelectFolder(f.id as EmailFolder)}
+          />
         ))}
       </nav>
 
       {folders.length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, color: T.muted, padding: "0 10px 6px" }}>Pastas</div>
-          <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <>
+          <div className="mx-1 mb-0.5 mt-3 text-[11px] font-semibold text-muted-foreground">Pastas</div>
+          <nav className="flex flex-col gap-0.5">
             {folders.map((f) => (
-              <Row
+              <FolderRow
                 key={f.id}
                 id={f.id}
                 label={f.name}
                 count={f.unreadCount}
                 quiet
+                active={selectedCustomFolderId === f.id}
+                onClick={() => onSelectCustomFolder(f.id)}
               />
             ))}
           </nav>
-        </div>
+        </>
       )}
 
-      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
-        <Row id="rules" label="Regras" Icon={IconRules} onClick={onOpenRules} />
-        <button
-          onClick={onRefresh}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "7px 10px",
-            border: "none",
-            background: "transparent",
-            color: T.muted,
-            fontSize: 13.5,
-            cursor: "pointer",
-            fontFamily: FONT,
-            textAlign: "left",
-          }}
-        >
-          <IconRefresh size={17} /> Atualizar
-        </button>
+      <div className="mt-auto flex flex-col gap-0.5 pt-3">
+        <FolderRow id="rules" label="Regras" Icon={IconAdjustments} active={false} onClick={onOpenRules} />
+        <FolderRow id="refresh" label="Atualizar" Icon={IconRefresh} active={false} onClick={onRefresh} />
       </div>
     </aside>
+  );
+}
+
+/** Pastas como chips roláveis — só mobile (`< md`). */
+function FolderChips({
+  accounts,
+  folders,
+  selectedAccountId,
+  selectedFolder,
+  selectedCustomFolderId,
+  counts,
+  onSelectAccount,
+  onSelectFolder,
+  onSelectCustomFolder,
+}: Omit<SidebarProps, "onOpenRules" | "onRefresh" | "onNew">) {
+  const activeSystem = selectedCustomFolderId === null;
+  const chips: (FolderItem & { active: boolean; onClick: () => void })[] = [
+    ...systemFolders(counts).map((f) => ({
+      ...f,
+      active: activeSystem && selectedFolder === f.id,
+      onClick: () => onSelectFolder(f.id as EmailFolder),
+    })),
+    ...folders.map((f) => ({
+      id: f.id,
+      label: f.name,
+      count: f.unreadCount,
+      active: selectedCustomFolderId === f.id,
+      onClick: () => onSelectCustomFolder(f.id),
+    })),
+  ];
+
+  return (
+    <div className="flex shrink-0 items-center gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+      {accounts.length > 1 ? (
+        <AccountSelect
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
+          onSelectAccount={onSelectAccount}
+          className="w-36 shrink-0 [&>select]:h-8 [&>select]:rounded-full [&>select]:font-semibold"
+        />
+      ) : null}
+      {chips.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          onClick={c.onClick}
+          aria-current={c.active ? "true" : undefined}
+          className={cn(PILL_BTN_CLASS, c.active ? PILL_BTN_ON_CLASS : PILL_BTN_OFF_CLASS)}
+        >
+          {c.label}
+          {c.count !== undefined && c.count > 0 ? (
+            <span
+              className={cn(
+                "inline-flex h-4.5 items-center rounded-full px-1.5 text-[11px] tabular-nums",
+                c.active ? "bg-primary-foreground/25" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {c.count}
+            </span>
+          ) : null}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -430,147 +377,69 @@ interface MessageRowProps {
 }
 
 function MessageRow({ m, active, selected, onOpen, onDoubleClick, onToggle, dense }: MessageRowProps) {
-  const [hover, setHover] = useState(false);
   const fromName = m.fromName || m.fromAddress;
-  const [bg, fg] = avatarTone(fromName);
-  const showCheck = hover || selected;
+  const unread = !m.isRead;
 
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       onClick={onOpen}
       onDoubleClick={onDoubleClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
-      style={{
-        position: "relative",
-        display: "flex",
-        gap: 10,
-        alignItems: "flex-start",
-        padding: dense ? "8px 14px 8px 16px" : "11px 14px 11px 16px",
-        cursor: "pointer",
-        background: active ? T.accentSoft : selected ? T.lineSoft : hover ? "#F7F5F2" : "transparent",
-        borderBottom: `1px solid ${T.lineSoft}`,
-        outline: "none",
-      }}
+      className={cn(
+        "group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)_auto] items-start gap-3 border-t border-border px-3.5 outline-none transition-colors focus-visible:bg-muted",
+        dense ? "py-2" : "py-3",
+        active ? "bg-primary/10" : selected ? "bg-muted" : "hover:bg-muted/60",
+      )}
     >
-      <span
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 3,
-          background: !m.isRead ? BRAND_GRADIENT : "transparent",
-        }}
-      />
-
-      <div style={{ width: 28, flexShrink: 0, marginTop: 1 }}>
-        {showCheck ? (
+      <div className="relative size-9 shrink-0">
+        <span className={cn("absolute inset-0", selected ? "hidden" : "group-hover:hidden")}>
+          <IdentityAvatar
+            name={fromName}
+            seed={m.fromAddress}
+            initials={initials(fromName)}
+            imageUrl={m.contact?.avatarUrl ?? null}
+            size={36}
+          />
+        </span>
+        <span
+          className={cn(
+            "absolute inset-0 items-center justify-center",
+            selected ? "flex" : "hidden group-hover:flex",
+          )}
+        >
           <input
             type="checkbox"
+            aria-label="Selecionar e-mail"
             checked={selected}
             onClick={(e) => e.stopPropagation()}
             onChange={onToggle}
-            style={{ width: 15, height: 15, accentColor: T.accent, cursor: "pointer", margin: "5px 0 0 3px" }}
+            className="size-4 cursor-pointer accent-primary"
           />
-        ) : m.contact?.avatarUrl ? (
-          <img
-            src={m.contact.avatarUrl}
-            alt=""
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 7,
-              objectFit: "cover",
-            }}
-          />
-        ) : (
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 26,
-              height: 26,
-              borderRadius: 7,
-              background: bg,
-              color: fg,
-              fontSize: 10.5,
-              fontWeight: 700,
-              letterSpacing: 0.2,
-            }}
-          >
-            {initials(fromName)}
-          </span>
+        </span>
+      </div>
+
+      <div className="min-w-0">
+        <div
+          className={cn(
+            "truncate text-[13px] leading-tight text-foreground",
+            unread ? "font-semibold" : "font-medium",
+          )}
+        >
+          {fromName}
+        </div>
+        <div className={cn("mt-0.5 truncate text-[13px] text-foreground", unread && "font-semibold")}>
+          {m.subject || "(sem assunto)"}
+        </div>
+        {!dense && (
+          <div className="mt-0.5 truncate text-xs text-muted-foreground">{stripHtml(m.bodyText)}</div>
         )}
       </div>
 
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span
-            style={{
-              fontSize: 13.5,
-              fontWeight: !m.isRead ? 650 : 500,
-              color: !m.isRead ? T.ink : T.ink2,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {fromName}
-          </span>
-          <span
-            style={{
-              ...NUM,
-              marginLeft: "auto",
-              fontSize: 11.5,
-              color: T.muted,
-              flexShrink: 0,
-            }}
-          >
-            {shortTime(m.receivedAt)}
-          </span>
-        </div>
-
-        <div
-          style={{
-            fontSize: 13.5,
-            fontWeight: !m.isRead ? 600 : 450,
-            color: !m.isRead ? T.ink : T.ink2,
-            marginTop: 1,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {m.subject || "(sem assunto)"}
-        </div>
-
-        {!dense && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              marginTop: 2,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12.5,
-                color: T.muted,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {stripHtml(m.bodyText)}
-            </span>
-          </div>
-        )}
+      <div className="flex flex-col items-end gap-1.5 text-[11px] tabular-nums text-muted-foreground">
+        {shortTime(m.receivedAt)}
+        {unread ? <span className="size-2 rounded-full bg-primary" aria-label="Não lido" /> : null}
       </div>
     </div>
   );
@@ -590,15 +459,13 @@ interface ListProps {
   loading: boolean;
   hasMore: boolean;
   onLoadMore: () => void;
-  onRefresh: () => void;
   total?: number;
-  search: string;
-  onSearch: (value: string) => void;
   unreadOnly: boolean;
   onUnreadOnly: (value: boolean) => void;
   onArchive: () => void;
   onSpam: () => void;
   onTrash: () => void;
+  className?: string;
 }
 
 function List({
@@ -613,15 +480,13 @@ function List({
   loading,
   hasMore,
   onLoadMore,
-  onRefresh,
   total,
-  search,
-  onSearch,
   unreadOnly,
   onUnreadOnly,
   onArchive,
   onSpam,
   onTrash,
+  className,
 }: ListProps) {
   const [filter, setFilter] = useState<FilterKey>("todos");
   const [dense, setDense] = useState(false);
@@ -664,224 +529,117 @@ function List({
 
   return (
     <section
-      style={{
-        width: 392,
-        flexShrink: 0,
-        border: `1px solid ${T.line}`,
-        borderRadius: 14,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        background: T.surface,
-      }}
+      aria-label="Lista de e-mails"
+      className={cn(
+        CARD_CLASS,
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:w-[392px] md:flex-none",
+        className,
+      )}
     >
-      <div style={{ padding: "12px 14px 0" }}>
-        <div style={{ position: "relative" }}>
-          <span style={{ position: "absolute", left: 10, top: 9, color: T.muted }}>
-            <IconSearch size={16} />
-          </span>
-          <input
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            placeholder="Buscar por remetente, assunto ou conteúdo"
-            style={{
-              width: "100%",
-              height: 36,
-              padding: "0 10px 0 32px",
-              borderRadius: 10,
-              border: "1px solid transparent",
-              background: "#F1F4FB",
-              fontSize: 13,
-              color: T.ink,
-              fontFamily: FONT,
-              outline: "none",
-              boxSizing: "border-box",
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            padding: "10px 0 9px",
-          }}
-        >
-          {chips.map(({ id, label, count }) => {
-            const on =
-              id === "nao-lidos" ? unreadOnly : id === "todos" ? !unreadOnly && filter === "todos" : filter === id && !unreadOnly;
-            return (
-              <button
-                key={id}
-                onClick={() => {
-                  if (id === "nao-lidos") {
-                    onUnreadOnly(!unreadOnly);
-                    setFilter("todos");
-                  } else {
-                    onUnreadOnly(false);
-                    setFilter(id);
-                  }
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: on ? 600 : 500,
-                  fontFamily: FONT,
-                  cursor: "pointer",
-                  border: "none",
-                  background: on ? T.accentSoft : "transparent",
-                  color: on ? T.accentInk : T.muted,
-                }}
+      <div className="flex flex-wrap items-center gap-1.5 px-3.5 pb-2 pt-3">
+        {chips.map(({ id, label, count }) => {
+          const on =
+            id === "nao-lidos"
+              ? unreadOnly
+              : id === "todos"
+                ? !unreadOnly && filter === "todos"
+                : filter === id && !unreadOnly;
+          return (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => {
+                if (id === "nao-lidos") {
+                  onUnreadOnly(!unreadOnly);
+                  setFilter("todos");
+                } else {
+                  onUnreadOnly(false);
+                  setFilter(id);
+                }
+              }}
+              className={cn(PILL_BTN_CLASS, on ? PILL_BTN_ON_CLASS : PILL_BTN_OFF_CLASS)}
+            >
+              {label}
+              <span
+                className={cn(
+                  "inline-flex h-4.5 items-center rounded-full px-1.5 text-[11px] tabular-nums",
+                  on ? "bg-primary-foreground/25" : "bg-muted text-muted-foreground",
+                )}
               >
-                {label}
-                <span
-                  style={{
-                    ...NUM,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: 15,
-                    height: 15,
-                    padding: "0 3px",
-                    borderRadius: 999,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: on ? "#fff" : T.ink2,
-                    background: on ? T.accent : T.lineSoft,
-                  }}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-          <button
-            onClick={() => setDense((d) => !d)}
-            title={dense ? "Mostrar prévia" : "Ocultar prévia"}
-            style={{
-              marginLeft: "auto",
-              border: "none",
-              background: "transparent",
-              color: T.muted,
-              cursor: "pointer",
-              fontSize: 12,
-              fontFamily: FONT,
-            }}
-          >
-            {dense ? "Confortável" : "Compacto"}
-          </button>
-          <button
-            title="Atualizar"
-            onClick={onRefresh}
-            style={{ border: "none", background: "transparent", color: T.muted, cursor: "pointer", display: "flex" }}
-          >
-            <IconRefresh size={16} />
-          </button>
-        </div>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setDense((d) => !d)}
+          aria-pressed={dense}
+          aria-label={dense ? "Mostrar prévia" : "Modo compacto"}
+          title={dense ? "Mostrar prévia" : "Modo compacto"}
+          className={cn(ROUND_ICON_BTN_CLASS, "ml-auto", dense && "bg-primary/10 text-primary")}
+        >
+          <IconMenu2 size={14} />
+        </button>
       </div>
 
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          height: 36,
-          padding: "0 14px",
-          overflowX: "auto",
-          flexWrap: "nowrap",
-          borderTop: `1px solid ${T.lineSoft}`,
-          borderBottom: `1px solid ${T.line}`,
-          background: anySelected ? T.accentSoft : T.paper,
-        }}
+        className={cn(
+          "flex min-h-9 items-center gap-2 overflow-x-auto border-b border-border px-3.5 pb-2 text-xs",
+          anySelected ? "text-primary" : "text-muted-foreground",
+        )}
       >
         {anySelected ? (
           <>
-            <span style={{ fontSize: 12.5, color: T.accentInk, fontWeight: 600, marginRight: 6 }}>
-              {selected.length} selecionados
-            </span>
+            <span className="mr-1 font-semibold">{selected.length} selecionados</span>
             {[
               [IconArchive, "Arquivar", onArchive] as const,
-              [IconSpam, "Spam", onSpam] as const,
+              [IconShieldExclamation, "Spam", onSpam] as const,
               [IconTrash, "Excluir", onTrash] as const,
             ].map(([I, label, action]) => (
               <button
                 key={label}
+                type="button"
                 onClick={action}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  border: "none",
-                  background: "transparent",
-                  color: T.accentInk,
-                  fontSize: 12.5,
-                  fontFamily: FONT,
-                  cursor: "pointer",
-                  padding: "4px 6px",
-                }}
+                className="flex items-center gap-1 rounded-full px-2 py-1 font-semibold transition-colors hover:bg-primary/10"
               >
-                <I size={15} /> {label}
+                <I size={14} /> {label}
               </button>
             ))}
             <button
+              type="button"
               onClick={() => setSelected([])}
-              style={{
-                marginLeft: "auto",
-                border: "none",
-                background: "transparent",
-                color: T.ink2,
-                fontSize: 12.5,
-                fontFamily: FONT,
-                cursor: "pointer",
-              }}
+              className="ml-auto rounded-full px-2 py-1 text-foreground transition-colors hover:bg-muted"
             >
               Cancelar
             </button>
           </>
         ) : (
           <>
-            <span style={{ fontSize: 12.5, color: T.ink2, fontWeight: 600 }}>{folderLabel}</span>
-            <span style={{ ...NUM, fontSize: 12.5, color: T.muted, marginLeft: 8 }}>
+            <span className="truncate font-semibold text-foreground">{folderLabel}</span>
+            <span className="shrink-0 tabular-nums">
               {folderUnread} não lidos · {total ?? emails.length} total
             </span>
           </>
         )}
       </div>
 
-      <div ref={listRef} style={{ overflowY: "auto", flex: 1 }}>
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto">
         {loading && emails.length === 0 && (
-          <div style={{ padding: 48, textAlign: "center", color: T.muted, fontSize: 13 }}>
-            Carregando e-mails…
-          </div>
+          <div className="p-12 text-center text-[13px] text-muted-foreground">Carregando e-mails…</div>
         )}
         {!loading && groups.length === 0 && (
-          <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <p style={{ fontSize: 14, color: T.ink2, margin: 0, fontWeight: 600 }}>Nada por aqui</p>
-            <p style={{ fontSize: 13, color: T.muted, margin: "6px 0 0", lineHeight: 1.5 }}>
-              Ajuste a busca ou volte para o filtro Todos.
+          <div className="px-6 py-12 text-center">
+            <p className="text-sm font-semibold text-foreground">Nada por aqui</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+              Ajuste a busca ou volte para o filtro Tudo.
             </p>
           </div>
         )}
         {groups.map((g) => (
           <div key={g.label}>
-            <div
-              style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 1,
-                padding: "6px 16px",
-                fontSize: 11.5,
-                color: T.muted,
-                background: "rgba(251,250,248,.94)",
-                backdropFilter: "blur(6px)",
-                borderBottom: `1px solid ${T.lineSoft}`,
-              }}
-            >
+            <div className="sticky top-0 z-10 bg-card/95 px-3.5 pb-1 pt-2.5 text-[11px] font-semibold text-muted-foreground backdrop-blur-sm">
               {g.label}
             </div>
             {g.items.map((m) => (
@@ -914,14 +672,46 @@ interface ReaderProps {
   email: EmailDetail | null;
   loading: boolean;
   folder: EmailFolder;
+  folderLabel: string;
+  onBack: () => void;
   onReply: () => void;
   onForward: () => void;
   onArchive: () => void;
   onSpam: () => void;
   onTrash: () => void;
+  className?: string;
 }
 
-function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam, onTrash }: ReaderProps) {
+function ActionPill({
+  Icon,
+  label,
+  onClick,
+}: {
+  Icon: IconComponent;
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className={cn(PILL_BTN_CLASS, PILL_BTN_OFF_CLASS)}>
+      <Icon size={15} />
+      {label}
+    </button>
+  );
+}
+
+function Reader({
+  email,
+  loading,
+  folder,
+  folderLabel,
+  onBack,
+  onReply,
+  onForward,
+  onArchive,
+  onSpam,
+  onTrash,
+  className,
+}: ReaderProps) {
   const [note, setNote] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -930,202 +720,111 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
     if (ref.current) ref.current.scrollTop = 0;
   }, [email?.id]);
 
-  if (loading) {
-    return (
-      <section style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: T.surface }}>
-        <span style={{ color: T.muted, fontSize: 13 }}>Carregando e-mail…</span>
-      </section>
-    );
-  }
+  const shell = cn(CARD_CLASS, "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className);
 
-  if (!email) {
+  const backButton = (
+    <button
+      type="button"
+      onClick={onBack}
+      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted md:hidden"
+    >
+      <IconArrowLeft size={16} stroke={2} />
+      Voltar
+    </button>
+  );
+
+  if (loading || !email) {
     return (
-      <section
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          background: T.surface,
-          color: T.muted,
-          fontSize: 13,
-        }}
-      >
-        Selecione um e-mail para ler
+      <section aria-label="Leitura do e-mail" className={shell}>
+        <div className="flex items-center border-b border-border px-3 py-2 md:hidden">{backButton}</div>
+        <div className="flex flex-1 items-center justify-center p-6 text-[13px] text-muted-foreground">
+          {loading ? "Carregando e-mail…" : "Selecione um e-mail para ler"}
+        </div>
       </section>
     );
   }
 
   const fromName = email.fromName || email.fromAddress;
-  const [bg, fg] = avatarTone(fromName);
-
-  const Action = ({
-    Icon,
-    label,
-    primary,
-    onClick,
-  }: {
-    Icon: React.ComponentType<IconProps>;
-    label: string;
-    primary?: boolean;
-    onClick?: () => void;
-  }) => (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        height: 32,
-        padding: primary ? "0 14px" : "0 10px",
-        borderRadius: 7,
-        fontSize: 13,
-        fontFamily: FONT,
-        fontWeight: primary ? 600 : 500,
-        cursor: "pointer",
-        border: primary ? "none" : `1px solid ${T.line}`,
-        background: primary ? T.accent : T.surface,
-        color: primary ? "#fff" : T.ink2,
-      }}
-    >
-      <Icon size={15} />
-      {label}
-    </button>
-  );
-
   const decodedBodyText = decodeIfQuotedPrintable(email.bodyText ?? "");
   const hasHtml = Boolean(email.bodyHtml?.trim());
   const hasText = Boolean(decodedBodyText.trim());
 
   return (
-    <section style={{ flex: "1 0 520px", display: "flex", flexDirection: "column", minWidth: 520, border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
-      <header
-        style={{
-          padding: "14px 28px 12px",
-          borderBottom: `1px solid ${T.line}`,
-          background: T.surface,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 18,
-              lineHeight: 1.35,
-              fontWeight: 650,
-              color: T.ink,
-              letterSpacing: -0.2,
-              flex: 1,
-            }}
-          >
-            {email.subject || "(sem assunto)"}
-          </h1>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0, justifyContent: "flex-end" }}>
-            <Action Icon={IconReply} label="Responder" primary onClick={onReply} />
-            <Action Icon={IconForward} label="Encaminhar" onClick={onForward} />
-            <Action Icon={IconArchive} label="Arquivar" onClick={onArchive} />
-            <Action Icon={IconTrash} label="Excluir" onClick={onTrash} />
-            <Action Icon={IconSpam} label={folder === "SPAM" ? "Não é spam" : "Spam"} onClick={onSpam} />
-          </div>
-        </div>
+    <section aria-label="Leitura do e-mail" className={shell}>
+      <div className="flex items-center border-b border-border px-3 py-2 md:hidden">{backButton}</div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: bg,
-              color: fg,
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          >
-            {initials(fromName)}
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, color: T.ink, fontWeight: 600 }}>
-              {fromName} <span style={{ fontWeight: 400, color: T.muted }}>&lt;{email.fromAddress}&gt;</span>
-            </div>
-            <div style={{ fontSize: 12.5, color: T.muted, marginTop: 1 }}>
-              para {email.toAddress} · <span style={NUM}>{fullDate(email.receivedAt)}</span>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3.5 py-3 md:px-4">
+        <ActionPill Icon={IconArrowBackUp} label="Responder" onClick={onReply} />
+        <ActionPill Icon={IconArrowForwardUp} label="Encaminhar" onClick={onForward} />
+        <ActionPill Icon={IconArchive} label="Arquivar" onClick={onArchive} />
+        <div className="ml-auto flex gap-1.5">
           <button
+            type="button"
             onClick={() => setNoteOpen((o) => !o)}
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              border: `1px solid ${T.line}`,
-              background: T.surface,
-              borderRadius: 7,
-              height: 30,
-              padding: "0 10px",
-              fontSize: 12.5,
-              color: T.ink2,
-              fontFamily: FONT,
-              cursor: "pointer",
-            }}
+            aria-pressed={noteOpen}
+            aria-label={note ? "Anotação interna (1)" : "Anotar"}
+            title={note ? "Anotação interna (1)" : "Anotar"}
+            className={cn(ROUND_ICON_BTN_CLASS, (noteOpen || note) && "bg-primary/10 text-primary")}
           >
-            <IconNote size={15} />
-            {note ? "Anotação interna (1)" : "Anotar"}
+            <IconNote size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={onSpam}
+            aria-label={folder === "SPAM" ? "Não é spam" : "Marcar como spam"}
+            title={folder === "SPAM" ? "Não é spam" : "Marcar como spam"}
+            className={ROUND_ICON_BTN_CLASS}
+          >
+            <IconShieldExclamation size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={onTrash}
+            aria-label="Excluir"
+            title="Excluir"
+            className={ROUND_ICON_BTN_CLASS}
+          >
+            <IconTrash size={16} />
           </button>
         </div>
+      </div>
 
-        {noteOpen && (
-          <div
-            style={{
-              marginTop: 10,
-              border: `1px solid ${T.amberSoft}`,
-              background: T.amberSoft,
-              borderRadius: 8,
-              padding: 10,
-            }}
-          >
+      <div ref={ref} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-5">
+        <div className="flex max-w-3xl flex-col gap-3.5">
+          <h2 className="font-display text-lg font-bold leading-tight tracking-tight text-foreground">
+            {email.subject || "(sem assunto)"}
+          </h2>
+
+          <div className="flex items-center gap-3">
+            <IdentityAvatar name={fromName} seed={email.fromAddress} initials={initials(fromName)} size={40} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-semibold text-foreground">
+                {fromName}{" "}
+                <span className="font-normal text-muted-foreground">&lt;{email.fromAddress}&gt;</span>
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                para {email.toAddress} · <span className="tabular-nums">{fullDate(email.receivedAt)}</span>
+              </div>
+            </div>
+            <span className="hidden h-5.5 shrink-0 items-center rounded-full bg-primary/10 px-2.5 text-[11px] font-semibold text-primary sm:inline-flex">
+              {folderLabel}
+            </span>
+          </div>
+
+          {noteOpen && (
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Visível só para o time. Ex.: aguardando retorno do jurídico."
               rows={2}
-              style={{
-                width: "100%",
-                border: "none",
-                background: "transparent",
-                resize: "vertical",
-                fontSize: 13,
-                fontFamily: FONT,
-                color: T.ink,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
+              className="w-full resize-y rounded-lg border border-border bg-muted p-2.5 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30"
             />
-          </div>
-        )}
-      </header>
+          )}
 
-      <div ref={ref} style={{ flex: 1, overflowY: "auto", padding: "24px 28px 40px" }}>
-        <div style={{ maxWidth: 660 }}>
+          <div className="border-t border-border" />
+
           {hasHtml && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 12.5,
-                color: T.ink2,
-                background: T.paper,
-                border: `1px solid ${T.line}`,
-                borderRadius: 8,
-                padding: "8px 12px",
-                marginBottom: 18,
-              }}
-            >
+            <div className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
               Imagens e conteúdo externo serão carregados abaixo.
             </div>
           )}
@@ -1133,47 +832,34 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
           {hasHtml ? (
             <HtmlEmailFrame html={email.bodyHtml ?? ""} />
           ) : hasText ? (
-            decodedBodyText
-              .split(/\n{2,}/)
-              .map((p, i) => (
-                <p
-                  key={i}
-                  style={{
-                    margin: "0 0 14px",
-                    fontSize: 14.5,
-                    lineHeight: 1.65,
-                    color: T.ink2,
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
+            <div className="text-sm leading-relaxed text-foreground">
+              {decodedBodyText.split(/\n{2,}/).map((p, i) => (
+                <p key={i} className="mb-3 whitespace-pre-wrap last:mb-0">
                   {p}
                 </p>
-              ))
+              ))}
+            </div>
           ) : (
-            <p style={{ color: T.muted, fontSize: 14.5 }}>(sem conteúdo)</p>
+            <p className="text-sm text-muted-foreground">(sem conteúdo)</p>
           )}
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${T.line}`, padding: "12px 28px 16px", background: T.paper }}>
+      <div className="flex items-center gap-2.5 border-t border-border px-3.5 py-3 md:px-4">
         <button
+          type="button"
           onClick={onReply}
-          style={{
-            width: "100%",
-            maxWidth: 660,
-            textAlign: "left",
-            height: 40,
-            padding: "0 14px",
-            borderRadius: 10,
-            border: `1px solid ${T.line}`,
-            background: T.surface,
-            color: T.muted,
-            fontSize: 13.5,
-            fontFamily: FONT,
-            cursor: "pointer",
-          }}
+          className="flex h-10 min-w-0 flex-1 items-center truncate rounded-full border border-border bg-card px-4 text-left text-[13px] text-muted-foreground transition-colors hover:bg-muted"
         >
-          Responder para {fromName}
+          Responder a {fromName}…
+        </button>
+        <button
+          type="button"
+          onClick={onReply}
+          aria-label="Responder"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary-dark"
+        >
+          <IconSend size={16} />
         </button>
       </div>
     </section>
@@ -1197,6 +883,10 @@ export default function InboxRefatorado() {
   const [composeDraft, setComposeDraft] = useState<ComposeDraft>(newComposeDraft());
   const [rulesOpen, setRulesOpen] = useState(false);
   const [expandedReplyId, setExpandedReplyId] = useState<string | null>(null);
+
+  // Mobile: leitor/compose em tela cheia escondem a bottom nav global.
+  const mobileImmersive = composing || selectedEmailId !== null;
+  useMobileChatChrome(mobileImmersive);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -1394,61 +1084,84 @@ export default function InboxRefatorado() {
     setSelected([]);
   }, []);
 
+  const handleSelectAccount = useCallback((id?: string) => {
+    setSelectedAccountId(id);
+    setSelectedEmailId(null);
+    setSelected([]);
+  }, []);
+
   const composeAccounts = selectedAccountId
     ? accounts.filter((a) => a.id === selectedAccountId)
     : accounts;
 
   if (accountsLoading && accounts.length === 0) {
     return (
-      <div
-        style={{
-          fontFamily: FONT,
-          color: T.ink,
-          background: T.paper,
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span style={{ color: T.muted, fontSize: 13 }}>Carregando contas…</span>
+      <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
+        Carregando contas…
       </div>
     );
   }
 
-  return (
-    <div
-      style={{
-        fontFamily: FONT,
-        color: T.ink,
-        background: T.paper,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        WebkitFontSmoothing: "antialiased",
-      }}
-    >
-      <PageHeader icon={<IconMail size={22} />} title="E-mail" className="rounded-none border-0 bg-transparent shadow-none" />
+  const folderProps = {
+    accounts,
+    folders: customFolders,
+    selectedAccountId,
+    selectedFolder,
+    selectedCustomFolderId,
+    counts: folderCounts,
+    onSelectAccount: handleSelectAccount,
+    onSelectFolder: handleSelectFolder,
+    onSelectCustomFolder: handleSelectCustomFolder,
+  };
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0, overflowX: "auto", gap: 12, padding: 12, background: T.paper }}>
+  return (
+    <div className="flex h-full min-h-0 flex-col text-foreground">
+      <SectionHeader
+        icon={<IconMail size={22} />}
+        title="E-mail"
+        stackSearchOnMobile
+        searchSlot={
+          <SearchFilterBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Pesquisar por remetente, assunto ou conteúdo…"
+            clearable
+            filterOpen={unreadOnly}
+            activeCount={unreadOnly ? 1 : 0}
+            onFilterClick={() => setUnreadOnly((v) => !v)}
+          />
+        }
+        actions={
+          <button
+            type="button"
+            onClick={() => void refreshAll()}
+            aria-label="Atualizar"
+            title="Atualizar"
+            className="hidden size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex"
+          >
+            <IconRefresh size={17} />
+          </button>
+        }
+        menuSlot={
+          <PageActionsMenu
+            items={[
+              { icon: <IconPlus size={16} />, label: "Escrever", onClick: handleNew },
+              { icon: <IconRefresh size={16} />, label: "Atualizar", onClick: () => void refreshAll() },
+              { icon: <IconAdjustments size={16} />, label: "Regras", onClick: () => setRulesOpen(true) },
+            ]}
+          />
+        }
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 pt-2 md:flex-row md:gap-4">
         <Sidebar
-          accounts={accounts}
-          folders={customFolders}
-          selectedAccountId={selectedAccountId}
-          selectedFolder={selectedFolder}
-          selectedCustomFolderId={selectedCustomFolderId}
-          counts={folderCounts}
-          onSelectAccount={(id) => {
-            setSelectedAccountId(id);
-            setSelectedEmailId(null);
-            setSelected([]);
-          }}
-          onSelectFolder={handleSelectFolder}
-          onSelectCustomFolder={handleSelectCustomFolder}
+          {...folderProps}
           onOpenRules={() => setRulesOpen(true)}
-          onRefresh={refreshAll}
+          onRefresh={() => void refreshAll()}
           onNew={handleNew}
         />
+
+        {!mobileImmersive ? <FolderChips {...folderProps} /> : null}
 
         {!composing && (
           <List
@@ -1462,25 +1175,24 @@ export default function InboxRefatorado() {
             loading={emailsLoading}
             hasMore={hasMore}
             onLoadMore={loadMore}
-            onRefresh={refreshAll}
             total={pagination?.total}
-            search={search}
-            onSearch={setSearch}
             unreadOnly={unreadOnly}
             onUnreadOnly={setUnreadOnly}
             onOpenReply={handleOpenReply}
             onArchive={handleArchive}
             onSpam={handleSpam}
             onTrash={handleTrash}
+            className={selectedEmailId !== null ? "max-md:hidden" : undefined}
           />
         )}
 
         {composing ? (
-          <div style={{ flex: "1 0 720px", minWidth: 720, borderRadius: 14, overflow: "hidden" }}>
+          <div className={cn(CARD_CLASS, "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden")}>
             <ComposeView
               accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
               draft={composeDraft}
               onCancel={() => setComposing(false)}
+              onBack={() => setComposing(false)}
               onSent={handleSent}
             />
           </div>
@@ -1489,14 +1201,33 @@ export default function InboxRefatorado() {
             email={emailDetail}
             loading={detailLoading}
             folder={selectedFolder}
+            folderLabel={folderLabel}
+            onBack={() => setSelectedEmailId(null)}
             onReply={handleReply}
             onForward={handleForward}
             onArchive={handleArchive}
             onSpam={handleSpam}
             onTrash={handleTrash}
+            className={selectedEmailId === null ? "max-md:hidden" : undefined}
           />
         )}
       </div>
+
+      {/* Mobile: Escrever vira FAB acima da barra inferior. */}
+      {!mobileImmersive ? (
+        <button
+          type="button"
+          onClick={handleNew}
+          aria-label="Escrever e-mail"
+          className="fixed right-5 z-30 flex h-12 items-center gap-2 rounded-full bg-primary px-4.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-colors hover:bg-primary-dark md:hidden"
+          style={{
+            bottom: "calc(var(--mobile-bottom-nav-h, 0px) + env(safe-area-inset-bottom, 0px) + 1.25rem)",
+          }}
+        >
+          <IconPlus size={18} stroke={2.2} />
+          Escrever
+        </button>
+      ) : null}
 
       <EmailRulesModal
         open={rulesOpen}
