@@ -22,6 +22,7 @@ export function useComposerSlash({
   selectedChannelId,
   conversationChannelId,
   disabled,
+  whatsappFeatures,
   noteMode,
   qc,
   setSequenceSending,
@@ -37,6 +38,7 @@ export function useComposerSlash({
   | "selectedChannelId"
   | "conversationChannelId"
   | "disabled"
+  | "whatsappFeatures"
 > & {
   draftRef: RefObject<string>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -73,6 +75,7 @@ export function useComposerSlash({
     channelId: selectedChannelId ?? conversationChannelId ?? null,
     // Desabilita o atalho em modo nota (não faz sentido inserir templates ali)
     disabled: disabled || noteMode,
+    whatsappFeatures: whatsappFeatures !== false,
     // Modelo/mensagem rápida com anexo — 1 anexo sem messageBefore encosta
     // pra ir junto no Enter (editável); multi-anexo ou messageBefore>=1
     // exige a SEQUÊNCIA imediata (texto já está em `draftRef` — ver acima).

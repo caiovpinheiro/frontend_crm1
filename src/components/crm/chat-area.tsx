@@ -15,7 +15,7 @@ import { AppLoading } from "@/components/crm/app-loading"
 import { ConversationHistoryLoadRing, ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton"
 import { ChatAvatar } from "@/components/inbox/chat-avatar"
 import { AVATAR_SIZE, avatarInitials } from "@/lib/avatar"
-import { MessageBubble, ConnectionDivider, ConversationClosedMarker, TicketDivider, DaySeparator, formatChatDayLabel, StickyDayPill, useStickyDayLabel, type Message } from "./message-bubble"
+import { MessageBubble, ConnectionDivider, MessageChannelSeal, ConversationClosedMarker, TicketDivider, DaySeparator, formatChatDayLabel, StickyDayPill, useStickyDayLabel, type Message } from "./message-bubble"
 import {
   EventRow,
   isConversationCloseEventText,
@@ -1096,7 +1096,15 @@ export function ChatArea({
           const distinctChannels = new Set(
             messages.map((m) => m.channelId).filter(Boolean) as string[],
           )
-          const showConnSwitches = distinctChannels.size >= 2
+          // Histórico unificado (Webchat): `message.channel` por mensagem —
+          // com 2+ canais, selo do canal no início de cada bloco (substitui
+          // o divisor de conexão, que diria o mesmo).
+          const distinctMsgChannels = new Set(
+            messages.map((m) => m.channel).filter(Boolean) as string[],
+          )
+          const showChannelSeals = distinctMsgChannels.size >= 2
+          const showConnSwitches = distinctChannels.size >= 2 && !showChannelSeals
+          let lastSealChannel: string | null = null
           let lastChannelId: string | null = null
           let lastDayLabel: string | null = null
           let lastLane: "in" | "out" | "other" | null = null
@@ -1175,6 +1183,11 @@ export function ChatArea({
                   : "in"
             const clusterBreak = !isNewDay && lastLane !== null && lastLane !== lane
             lastLane = lane
+            let sealChannel: string | null = null
+            if (showChannelSeals && message.channel && lane !== "other") {
+              if (message.channel !== lastSealChannel) sealChannel = message.channel
+              lastSealChannel = message.channel
+            }
             return (
               <Fragment key={`${message.id || "msg"}-${index}`}>
                 {showDay && dayLabel ? (
@@ -1190,6 +1203,11 @@ export function ChatArea({
                   data-day-label={dayLabel || daySeparator || undefined}
                 >
                 {connLabel && <ConnectionDivider label={connLabel} />}
+                {sealChannel ? (
+                  <div className="flex flex-col">
+                    <MessageChannelSeal channel={sealChannel} align={lane === "out" ? "out" : "in"} />
+                  </div>
+                ) : null}
                 <div
                   data-message-id={message.id}
                   className={cn(

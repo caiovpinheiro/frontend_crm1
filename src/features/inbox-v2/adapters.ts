@@ -255,7 +255,12 @@ export function toConversationCard(
     "Sem nome";
   const lastActivity = row.lastMessageAt ?? row.lastInboundAt ?? null;
   // Sessao da Meta (24h da ultima mensagem inbound do cliente).
-  const sess = sessionRemainingFromInbound(row.lastInboundAt);
+  // Webchat não tem janela de 24h da Meta: sem o pill de sessão no card
+  // (senão, um dia depois do último inbound, mostraria "Expirada").
+  const sess =
+    row.channel === "webchat"
+      ? { label: null, expired: false }
+      : sessionRemainingFromInbound(row.lastInboundAt);
   // Primeira tag do contato — mostrada como pill ao lado do nome.
   // Filtra strings vazias/whitespace por defesa.
   const firstTagName = (row.tags ?? [])
@@ -662,6 +667,8 @@ export function toMessageBubble(
     // Conexão por onde a mensagem trafegou — alimenta o marcador de troca
     // de conexão na timeline (ChatArea / deal-chat-binding).
     channelId: dto.channelId ?? null,
+    // Canal da mensagem no histórico unificado (Webchat + WhatsApp + …).
+    channel: typeof dto.channel === "string" && dto.channel ? dto.channel : null,
     // Citação (reply do cliente numa mensagem específica). Backend popula
     // `replyToPreview` no webhook Meta via `resolveReplyContext`. Se
     // veio vazio/null, não renderiza cabeçalho de citação.

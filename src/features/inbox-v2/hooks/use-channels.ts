@@ -82,6 +82,25 @@ export function useWhatsappChannels(enabled = true) {
   });
 }
 
+/** Conversa/canal Webchat (`"webchat"` na conversa, `"WEBCHAT"` no canal). */
+export function isWebchatChannel(type: string | null | undefined): boolean {
+  return (type ?? "").trim().toUpperCase() === "WEBCHAT";
+}
+
+const NO_OUTBOUND_CHANNELS: OutboundChannelOption[] = [];
+
+/**
+ * Canais oferecidos no "Enviar por" para uma conversa. Webchat só responde
+ * pelo próprio widget: sem seletor (e sem cair no 1º WhatsApp da org, o que
+ * aplicaria a janela de 24h e mandaria `channelId` de outro canal).
+ */
+export function outboundChannelsForConversation(
+  channels: OutboundChannelOption[] | undefined,
+  conversationChannel: string | null | undefined,
+): OutboundChannelOption[] | undefined {
+  return isWebchatChannel(conversationChannel) ? NO_OUTBOUND_CHANNELS : channels;
+}
+
 /**
  * Janela de 24h / template HSM: só WhatsApp Cloud API. Baileys (número
  * conectado por QR) é WhatsApp mas não tem janela — o `type` sozinho não

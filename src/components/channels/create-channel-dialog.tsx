@@ -6,6 +6,8 @@ import type { ChannelProvider, ChannelType } from "@/lib/prisma-enum-types";
 import { IconAt as AtSign, IconCheck as Check, IconChevronDown as ChevronDown, IconChevronLeft as ChevronLeft, IconCopy as Copy, IconExternalLink as ExternalLink, IconGlobe as Globe, IconLoader2 as Loader2, IconMail as Mail, IconMessageCircle as MessageCircle, IconQrcode as QrCode, IconShare2 as Share2, IconSparkles as Sparkles, IconWebhook as Webhook } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
+import type { ApiChannel } from "./types";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -72,16 +74,19 @@ const TYPES: {
 ];
 
 function providerForType(
-  _type: ChannelType,
+  type: ChannelType,
   selected: ChannelProvider | null
 ): ChannelProvider {
+  // Webchat não tem provedor externo: `provider=WEBCHAT`, sem telefone/QR.
+  if (type === "WEBCHAT") return "WEBCHAT";
   return selected ?? "META_CLOUD_API";
 }
 
 export type CreateChannelDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated?: () => void;
+  /** `channel` só vem no fluxo genérico (`POST /api/channels`), ex.: Webchat. */
+  onCreated?: (channel?: ApiChannel) => void;
 };
 
 export function CreateChannelDialog({
@@ -569,11 +574,11 @@ export function CreateChannelDialog({
           phoneNumber: phonePayload || undefined,
         }),
       });
-      const data = (await res.json()) as { message?: string };
+      const data = (await res.json()) as { message?: string; channel?: ApiChannel };
       if (!res.ok) {
         throw new Error(data.message ?? "Erro ao criar canal.");
       }
-      onCreated?.();
+      onCreated?.(data.channel);
       handleOpenChange(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erro ao criar canal.");
@@ -691,7 +696,8 @@ export function CreateChannelDialog({
                     type="button"
                     onClick={() => {
                       setChannelType(type);
-                      if (type !== "WHATSAPP") setProvider("META_CLOUD_API");
+                      if (type === "WEBCHAT") setProvider("WEBCHAT");
+                      else if (type !== "WHATSAPP") setProvider("META_CLOUD_API");
                     }}
                     className={cn(
                       "flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all",
@@ -932,6 +938,14 @@ export function CreateChannelDialog({
                       </div>
                     ) : null}
                   </div>
+                ) : channelType === "WEBCHAT" ? (
+                  <div className="rounded-lg border border-[var(--color-cyan)]/25 bg-[var(--color-cyan)]/5 p-3">
+                    <p className="text-sm text-[var(--text-muted)]">
+                      Depois de criar, abrimos a configuração do widget: sites
+                      liberados, aparência, saudação e o código para colar no
+                      seu site.
+                    </p>
+                  </div>
                 ) : effectiveProvider === "META_CLOUD_API" ? (
                   <>
                     {showEmbeddedSignup ? (
@@ -1087,7 +1101,9 @@ export function CreateChannelDialog({
                   </div>
                 ) : null}
 
-                {effectiveProvider !== "META_CLOUD_API" && effectiveProvider !== "BAILEYS_MD" ? (
+                {effectiveProvider !== "META_CLOUD_API" &&
+                effectiveProvider !== "BAILEYS_MD" &&
+                effectiveProvider !== "WEBCHAT" ? (
                   <div className="space-y-2">
                     <Label htmlFor="ch-phone">Telefone (opcional)</Label>
                     <Input

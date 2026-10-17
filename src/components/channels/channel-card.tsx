@@ -23,6 +23,7 @@ const PROVIDER_LABELS: Record<ChannelProvider, string> = {
   META_CLOUD_API: "Cloud API",
   BAILEYS_MD: "QR Code",
   META_INSTAGRAM_LOGIN: "Instagram",
+  WEBCHAT: "Widget",
 };
 
 const TYPE_LABELS: Record<ChannelType, string> = {
@@ -119,6 +120,18 @@ function badgeStyle(status: ChannelStatus): BadgeStyle {
 function channelIdentifier(channel: ApiChannel): string | null {
   if (channel.phoneNumber?.trim()) return channel.phoneNumber.trim();
   const cfg = parseChannelConfigRecord(channel.config);
+  if (channel.type === "WEBCHAT") {
+    // Sites liberados (o que o admin reconhece) ou, sem nenhum, a chave.
+    const origins = Array.isArray(cfg.allowedOrigins)
+      ? cfg.allowedOrigins.filter((o): o is string => typeof o === "string")
+      : [];
+    if (origins.length) {
+      const first = origins[0]?.replace(/^https?:\/\//, "") ?? "";
+      return origins.length > 1 ? `${first} +${origins.length - 1}` : first;
+    }
+    const key = channel.publicKey ?? (typeof cfg.publicKey === "string" ? cfg.publicKey : null);
+    return key || null;
+  }
   for (const key of ["username", "pageUsername", "pageName", "igUsername"] as const) {
     const v = cfg[key];
     if (typeof v === "string" && v.trim()) {

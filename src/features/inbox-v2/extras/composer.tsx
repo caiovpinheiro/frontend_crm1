@@ -125,6 +125,8 @@ export function Composer({
   onRequestTemplate,
   sessionExpired,
   enableCallPermission,
+  whatsappFeatures = true,
+  attachmentsEnabled = true,
 }: ComposerProps) {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const [noteMode, setNoteMode] = useState(false);
@@ -406,6 +408,7 @@ export function Composer({
     selectedChannelId,
     conversationChannelId,
     disabled,
+    whatsappFeatures,
     noteMode,
     qc,
     setSequenceSending,
@@ -598,6 +601,11 @@ export function Composer({
     }
     // Sem imagem no clipboard → deixa o paste de texto acontecer normalmente.
     if (images.length === 0) return;
+    if (!attachmentsEnabled) {
+      e.preventDefault();
+      toast.info("Este canal ainda não aceita anexos — envie só texto.");
+      return;
+    }
 
     // Impede que o binário caia como texto no campo.
     e.preventDefault();
@@ -609,6 +617,10 @@ export function Composer({
   // com o texto do composer como legenda do primeiro arquivo.
   function stageFiles(files: File[], fallbackBaseName = "arquivo") {
     if (files.length === 0) return;
+    if (!attachmentsEnabled) {
+      toast.info("Este canal ainda não aceita anexos — envie só texto.");
+      return;
+    }
     if (!conversationId) {
       toast.error("Selecione uma conversa antes de anexar");
       return;
@@ -656,9 +668,11 @@ export function Composer({
   const scheduleSendChannel = availableChannels?.find(
     (c) => c.id === (selectedChannelId ?? conversationChannelId),
   );
-  const scheduleTemplateFallback = scheduleSendChannel
-    ? scheduleSendChannel.provider !== "BAILEYS_MD"
-    : true;
+  const scheduleTemplateFallback = !whatsappFeatures
+    ? false
+    : scheduleSendChannel
+      ? scheduleSendChannel.provider !== "BAILEYS_MD"
+      : true;
 
   return (
     <div ref={rootRef} className="relative mx-3 mb-1 max-md:mx-2 max-md:mb-1 sm:mx-4">
@@ -791,6 +805,8 @@ export function Composer({
               onOutboundBlocked={warnOutboundBlocked}
               onStageFiles={(files) => stageFiles(files)}
               enableCallPermission={enableCallPermission}
+              showWhatsappTemplates={whatsappFeatures}
+              showAttachments={attachmentsEnabled}
             />
             <EmojiButton
               emojiWrapRef={emojiWrapRef}
@@ -850,7 +866,7 @@ export function Composer({
         )}
 
         {/* AudioRecorderButton: microfone (idle) ou barra inline (recording/preview) */}
-        {!noteMode && (
+        {!noteMode && attachmentsEnabled && (
           <AudioRecorderButton
             conversationId={conversationId}
             className="h-9 w-9 shrink-0"

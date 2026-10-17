@@ -470,6 +470,11 @@ export type UseSlashMenuOptions = {
   channelId?: string | null;
   /** Desliga totalmente o atalho (ex.: modo nota, anexo pendente). */
   disabled?: boolean;
+  /**
+   * Templates Meta e WhatsApp Flows. `false` em canais sem WhatsApp
+   * (ex.: Webchat) — some do menu e nem busca. Default `true`.
+   */
+  whatsappFeatures?: boolean;
 };
 
 export function useSlashMenu({
@@ -485,6 +490,7 @@ export function useSlashMenu({
   dealId,
   channelId,
   disabled = false,
+  whatsappFeatures = true,
 }: UseSlashMenuOptions) {
   const [open, setOpen] = React.useState(false);
   const [token, setToken] = React.useState<{ start: number; end: number; query: string } | null>(
@@ -508,7 +514,7 @@ export function useSlashMenu({
   const metasQ = useQuery({
     queryKey: ["slash-meta-templates", channelId ?? "default"],
     queryFn: () => fetchMetaTemplates(channelId),
-    enabled: queriesEnabled,
+    enabled: queriesEnabled && whatsappFeatures,
     staleTime: 60_000,
   });
   const quickRepliesQ = useQuery({
@@ -520,7 +526,7 @@ export function useSlashMenu({
   const flowsQ = useQuery({
     queryKey: ["slash-published-flows"],
     queryFn: fetchPublishedFlows,
-    enabled: queriesEnabled,
+    enabled: queriesEnabled && whatsappFeatures,
     staleTime: 60_000,
   });
 
@@ -631,7 +637,7 @@ export function useSlashMenu({
       }
     }
 
-    for (const m of metasQ.data ?? []) {
+    for (const m of whatsappFeatures ? (metasQ.data ?? []) : []) {
       const name = m.label || m.metaTemplateName;
       if (q === "" || hitTitle(name) || hitSec(m.bodyPreview ?? "") || hitSec(m.category ?? "")) {
         const p = pref("meta-template", m.metaTemplateId);
@@ -658,7 +664,7 @@ export function useSlashMenu({
       }
     }
 
-    for (const f of flowsQ.data ?? []) {
+    for (const f of whatsappFeatures ? (flowsQ.data ?? []) : []) {
       const title = f.name;
       if (q === "" || hitTitle(title)) {
         out.push({
@@ -724,6 +730,7 @@ export function useSlashMenu({
     metasQ.data,
     quickRepliesQ.data,
     flowsQ.data,
+    whatsappFeatures,
     automationsQ.data,
     automationsEnabled,
     effectiveQuery,

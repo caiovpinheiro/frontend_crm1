@@ -73,6 +73,8 @@ export function ComposerMenu({
   onStageFiles,
   enableCallPermission,
   scheduleTemplateFallback = true,
+  showWhatsappTemplates = true,
+  showAttachments = true,
 }: {
   conversationId: string | null;
   /** Canal de envio atual — filtra templates WhatsApp da WABA correta. */
@@ -122,6 +124,10 @@ export function ComposerMenu({
   enableCallPermission?: boolean;
   /** Agendar: oferece template fallback (24h). `false` em canal Baileys. */
   scheduleTemplateFallback?: boolean;
+  /** Item "Templates WhatsApp". `false` em conversas Webchat. */
+  showWhatsappTemplates?: boolean;
+  /** Itens "Anexar arquivo" / "Tirar foto". `false` em conversas Webchat. */
+  showAttachments?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -303,21 +309,25 @@ export function ComposerMenu({
             style={{ backgroundColor: "var(--dropdown-solid-bg)" }}
             className="flex w-56 flex-col gap-px rounded-[var(--radius-lg)] border border-border p-1.5 shadow-2xl ring-1 ring-black/10 dark:ring-white/10"
           >
-              <button
-                type="button"
-                className={itemClass}
-                onClick={() => openNativePicker(fileInputRef.current)}
-              >
-                <IconPaperclip size={15} /> Anexar arquivo
-              </button>
+              {showAttachments ? (
+                <>
+                  <button
+                    type="button"
+                    className={itemClass}
+                    onClick={() => openNativePicker(fileInputRef.current)}
+                  >
+                    <IconPaperclip size={15} /> Anexar arquivo
+                  </button>
 
-              <button
-                type="button"
-                className={itemClass}
-                onClick={() => openNativePicker(cameraInputRef.current)}
-              >
-                <IconCamera size={15} /> Tirar foto
-              </button>
+                  <button
+                    type="button"
+                    className={itemClass}
+                    onClick={() => openNativePicker(cameraInputRef.current)}
+                  >
+                    <IconCamera size={15} /> Tirar foto
+                  </button>
+                </>
+              ) : null}
 
               <button
                 type="button"
@@ -330,16 +340,18 @@ export function ComposerMenu({
                 <IconMessageCode size={15} /> Modelos internos
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setTemplateModalOpen(true);
-                  closeMenu();
-                }}
-                className={itemClass}
-              >
-                <IconFileText size={15} /> Templates WhatsApp
-              </button>
+              {showWhatsappTemplates ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTemplateModalOpen(true);
+                    closeMenu();
+                  }}
+                  className={itemClass}
+                >
+                  <IconFileText size={15} /> Templates WhatsApp
+                </button>
+              ) : null}
 
               {enableCallPermission ? (
                 <button
