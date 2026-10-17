@@ -31,7 +31,6 @@ import {
   getEmailProviderPreset,
   type EmailProviderChoice,
 } from "../providers";
-import { smtpEgressForProvider } from "../smtp-egress";
 
 interface Props {
   open: boolean;
@@ -150,7 +149,10 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
       });
       return null;
     }
-    return { ...payload, ...smtpEgressForProvider(providerId) };
+    // SMTP real do provedor (host/porta/TLS do preset ou do formulário). A
+    // saída bloqueada da DigitalOcean é resolvida no backend via
+    // SMTP_PROXY_URL — o front não reescreve mais o destino.
+    return payload;
   }
 
   async function handleConnect() {
