@@ -9,6 +9,8 @@ import {
 import type { ConversationListRow, MessagesResponse } from "../api";
 import {
   findLastPublicMessageChannelId,
+  isWebchatChannel,
+  outboundChannelsForConversation,
   resolveWhatsappSessionScope,
   useChannelSession,
   useSelectedOutboundChannel,
@@ -32,7 +34,13 @@ export function useInboxOutboundChannel(params: {
   // Seletor de canal: lista de WhatsApps CONNECTED da org + estado
   // persistido por conversa. Quando a org tem 1 só canal, o widget não
   // aparece e o backend usa o canal "atual" da conversa (legacy).
-  const { data: whatsappChannels } = useWhatsappChannels(canFetchInbox);
+  const { data: orgChannels } = useWhatsappChannels(canFetchInbox);
+  const isWebchat =
+    isWebchatChannel(activeRow?.channel) || isWebchatChannel(messagesData?.channel?.type);
+  const whatsappChannels = outboundChannelsForConversation(
+    orgChannels,
+    isWebchat ? "webchat" : null,
+  );
   const conversationChannelId = messagesData?.channel?.id ?? null;
   const lastMessageChannelId = useMemo(
     () => findLastPublicMessageChannelId(messagesData?.messages),
@@ -106,6 +114,7 @@ export function useInboxOutboundChannel(params: {
     : undefined;
 
   return {
+    isWebchat,
     whatsappChannels,
     conversationChannelId,
     lastMessageChannelId,

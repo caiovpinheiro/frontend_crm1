@@ -15,6 +15,8 @@ import {
   TENANT_VERIFIED_COOKIE,
 } from "@/lib/tenant-host";
 import { getTenantBaseDomain, getTenantProtocol } from "@/lib/tenant-url";
+import { loadWebchatAllowedOrigins } from "@/lib/webchat-frame-policy";
+import { webchatFrameAncestors, webchatPageKeyFromPath } from "@/lib/webchat-origin";
 
 /**
  * Middleware do FRONTEND separado.
@@ -223,6 +225,41 @@ function writeTenantVerifyCache(slug: string): void {
   tenantVerifyCache.set(slug, Date.now() + TENANT_VERIFIED_MAX_AGE_SEC * 1000);
 }
 
+/** IP real do cliente (último hop do XFF anexado pelo proxy). */
+function clientIpFromRequest(req: NextRequest): string | undefined {
+  return req.headers
+    .get("x-forwarded-for")
+    ?.split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .pop();
+}
+
+/**
+ * Webchat (`/webchat/*` + `/api/public/webchat/*`): público, sem sessão.
+ * A página do iframe (`/webchat/{publicKey}`) é a ÚNICA rota embutível por
+ * terceiros: `frame-ancestors 'self' <allowedOrigins do canal>` e sem
+ * `X-Frame-Options` (o global de `next.config.ts` exclui `/webchat/`).
+ */
+async function webchatResponse(
+  req: NextRequest,
+  pathname: string,
+  next: () => NextResponse,
+): Promise<NextResponse> {
+  const res = next();
+  const key = webchatPageKeyFromPath(pathname);
+  if (!key) return res;
+  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/$/, "");
+  const origins = await loadWebchatAllowedOrigins(key, {
+    apiBase,
+    host: req.nextUrl.searchParams.get("host"),
+    clientIp: clientIpFromRequest(req),
+  });
+  res.headers.delete("X-Frame-Options");
+  res.headers.set("Content-Security-Policy", webchatFrameAncestors(origins));
+  return res;
+}
+
 async function verifyTenantSlugExists(
   req: NextRequest,
   slug: string,
@@ -394,6 +431,10 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/workbox-")
     ) {
       return nextWithTenant();
+    }
+
+    if (pathname.startsWith("/webchat/") || pathname.startsWith("/api/public/webchat/")) {
+      return webchatResponse(req, pathname, nextWithTenant);
     }
 
     if (

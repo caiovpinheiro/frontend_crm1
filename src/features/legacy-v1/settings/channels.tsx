@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { ChannelPipelineSelect } from "@/components/channels/channel-pipeline-select";
 import { CreateChannelDialog } from "@/components/channels/create-channel-dialog";
 import { MetaConfigPanel } from "@/components/channels/meta-config-panel";
+import { WebchatConfigPanel } from "@/components/channels/webchat-config-panel";
 import type { ApiChannel } from "@/components/channels/types";
 import { WhatsappQrModal } from "@/components/channels/whatsapp-qr-modal";
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -91,6 +92,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   META_CLOUD_API: "Meta Cloud API",
   BAILEYS_MD: "Baileys MD",
   META_INSTAGRAM_LOGIN: "Instagram",
+  WEBCHAT: "Widget no site",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -230,6 +232,7 @@ export default function SettingsChannelsPage({
 
   // ─── Configure dialogs ────────────────────────────────────────────────────
   const [metaChannel, setMetaChannel] = React.useState<ApiChannel | null>(null);
+  const [webchatChannel, setWebchatChannel] = React.useState<ApiChannel | null>(null);
   const [simpleChannel, setSimpleChannel] = React.useState<ApiChannel | null>(null);
   const [simpleName, setSimpleName] = React.useState("");
   const [simplePhone, setSimplePhone] = React.useState("");
@@ -318,6 +321,10 @@ export default function SettingsChannelsPage({
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   function openConfigure(ch: ApiChannel) {
+    if (ch.type === "WEBCHAT" || ch.provider === "WEBCHAT") {
+      setWebchatChannel(ch);
+      return;
+    }
     if (
       ch.provider === "META_CLOUD_API" ||
       ch.provider === "META_INSTAGRAM_LOGIN" ||
@@ -812,10 +819,33 @@ export default function SettingsChannelsPage({
       <CreateChannelDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={() => {
+        onCreated={(created) => {
           void queryClient.invalidateQueries({ queryKey: ["channels"] });
+          // Webchat: já abre o painel (snippet, sites liberados, aparência).
+          if (created?.type === "WEBCHAT") setWebchatChannel(created);
         }}
       />
+
+      <Dialog
+        open={!!webchatChannel}
+        onOpenChange={(o) => {
+          if (!o) setWebchatChannel(null);
+        }}
+      >
+        <DialogContent size="xl">
+          <DialogHeader>
+            <DialogTitle>Configurar Webchat</DialogTitle>
+          </DialogHeader>
+          {webchatChannel ? (
+            <WebchatConfigPanel
+              key={webchatChannel.id}
+              channel={webchatChannel}
+              onSaved={() => setWebchatChannel(null)}
+            />
+          ) : null}
+          <DialogClose />
+        </DialogContent>
+      </Dialog>
 
       <WhatsappQrModal
         channel={qrChannel}

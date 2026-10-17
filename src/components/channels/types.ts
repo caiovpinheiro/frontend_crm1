@@ -26,6 +26,13 @@ export type ApiChannel = {
   /// deve acontecer (todo canal tem org), mas tipado como string
   /// pra robustez.
   organizationSlug: string;
+  /// Chave pública do canal WEBCHAT (`wc_…`, vai no snippet). Também pode
+  /// vir em `config.publicKey`; `null` nos demais tipos.
+  publicKey?: string | null;
+  /// Só em canais WEBCHAT: marca da organização (`Organization.primaryColor`
+  /// / `logoUrl`) que o widget herda quando `config.theme.primary` /
+  /// `config.theme.avatarUrl` estão ausentes ou `null`.
+  webchatDefaults?: { primary?: string | null; avatarUrl?: string | null } | null;
 };
 
 export function parseChannelConfigRecord(

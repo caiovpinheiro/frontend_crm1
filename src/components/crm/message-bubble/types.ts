@@ -98,6 +98,12 @@ export interface Message {
    */
   channelId?: string | null
   /**
+   * Canal da mensagem (`"whatsapp"`, `"webchat"`…) quando o backend manda o
+   * histórico unificado do contato. Com 2+ canais na thread, o chat mostra
+   * um selo do canal no início de cada bloco.
+   */
+  channel?: string | null
+  /**
    * Citação (reply): quando o cliente responde uma mensagem específica,
    * mostramos o snippet da mensagem citada no topo da bolha. `snippet` é
    * um preview curto (~120 chars); `direction` orienta a cor da barra

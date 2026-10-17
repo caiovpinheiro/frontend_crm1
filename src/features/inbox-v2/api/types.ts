@@ -401,6 +401,12 @@ export interface InboxMessageDto {
    * `MessagesResponse.channels[channelId]`.
    */
   channelId?: string | null;
+  /**
+   * Canal da mensagem (`"whatsapp"`, `"instagram"`, `"webchat"`…). Vem no
+   * histórico unificado do contato (`history=1` numa conversa Webchat) —
+   * a janela mostra o selo do canal em cada bloco.
+   */
+  channel?: string | null;
   /** Mensagem favoritada pelo agente LOGADO (marcador pessoal — não
    *  compartilhado entre agentes). Alimenta a estrela preenchida no
    *  menu contextual e no bubble. */

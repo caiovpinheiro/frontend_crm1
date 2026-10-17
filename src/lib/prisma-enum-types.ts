@@ -32,6 +32,8 @@ export const ChannelProvider = {
   META_CLOUD_API: "META_CLOUD_API",
   BAILEYS_MD: "BAILEYS_MD",
   META_INSTAGRAM_LOGIN: "META_INSTAGRAM_LOGIN",
+  /** Widget de chat no site (sem provedor externo — ver `webchat-config-panel`). */
+  WEBCHAT: "WEBCHAT",
 } as const;
 export type ChannelProvider = (typeof ChannelProvider)[keyof typeof ChannelProvider];
 

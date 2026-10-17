@@ -94,6 +94,17 @@ export interface ComposerProps {
   sessionExpired?: boolean;
   /** Exibe "Pedir permissão de ligação" no menu +. */
   enableCallPermission?: boolean;
+  /**
+   * Recursos só de WhatsApp (templates Meta, Flows, fallback de template no
+   * agendamento). `false` em conversas Webchat. Default `true`.
+   */
+  whatsappFeatures?: boolean;
+  /**
+   * Anexo, foto e áudio. `false` em conversas Webchat (anexos são fase 5):
+   * some do menu, sem microfone, e colar/arrastar arquivo é recusado.
+   * Default `true`.
+   */
+  attachmentsEnabled?: boolean;
 }
 
 /** Anexo de modelo interno / mensagem rápida encostado no composer. */

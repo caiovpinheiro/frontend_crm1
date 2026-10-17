@@ -1,5 +1,44 @@
 import { IconArrowsExchange } from "@tabler/icons-react"
 import { EventRow } from "@/components/crm/chat-timeline"
+import { ChannelTypeIcon } from "@/components/inbox/channel-type-icon"
+import { channelTypeLabel } from "@/lib/connection-label"
+import { cn } from "@/lib/utils"
+
+/** `"messenger"`/`"meta"` → tipo do enum (`FACEBOOK`/`WHATSAPP`) p/ ícone e rótulo. */
+function channelStringToType(channel: string): string {
+  const c = channel.trim().toLowerCase()
+  if (c === "messenger" || c === "facebook") return "FACEBOOK"
+  if (c === "meta") return "WHATSAPP"
+  return c.toUpperCase()
+}
+
+/**
+ * Selo do canal no início de cada bloco de mensagens do histórico unificado
+ * (ex.: o lead falou no WhatsApp e depois no Webchat). Alinha com a bolha.
+ */
+export function MessageChannelSeal({
+  channel,
+  align,
+}: {
+  channel: string
+  align: "in" | "out"
+}) {
+  const type = channelStringToType(channel)
+  const label = channelTypeLabel(type)
+  return (
+    <span
+      className={cn(
+        "mb-0.5 mt-1 inline-flex items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-0.5 font-display text-[10.5px] font-semibold text-[var(--text-secondary)]",
+        align === "out" ? "self-end" : "self-start",
+      )}
+      title={`Mensagens via ${label}`}
+      data-testid="message-channel-seal"
+    >
+      <ChannelTypeIcon type={type} size={11} />
+      {label === "Canal" ? channel : label}
+    </span>
+  )
+}
 
 interface ConnectionDividerProps {
   /** Rótulo completo da conexão (ex.: "WhatsApp · Vendas SP · +55 (11) 9..."). */
