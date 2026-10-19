@@ -143,8 +143,14 @@ export function ActionNode({ data, selected }: NodeProps<ActionRF>) {
         (data.stepType === "add_tag" || data.stepType === "remove_tag") &&
           selected &&
           "z-20 overflow-visible",
-        selected && (data.stepType === "webhook" || hasReplyTimeout) && "wf-node--wide"
+        selected && hasReplyTimeout && "wf-node--wide",
+        selected && data.stepType === "webhook" && "wf-node--webhook-open"
       )}
+      style={
+        selected && data.stepType === "webhook"
+          ? { width: 840, minWidth: 840, maxWidth: "none" }
+          : undefined
+      }
     >
       <CustomHandle type="target" position={Position.Left} connectionLimit={1} />
       <FlowNodeHeader

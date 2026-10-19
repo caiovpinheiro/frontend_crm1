@@ -382,10 +382,11 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
   return (
     <div
       ref={cardRef}
-      className={`flow-card group relative w-[320px] rounded-xl border border-t-4 shadow-[0_1px_3px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(15,23,42,0.10)] ${
+      className={`flow-card group relative rounded-xl border border-t-4 shadow-[0_1px_3px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(15,23,42,0.10)] ${
         selected ? "shadow-[0_4px_16px_rgba(15,23,42,0.12)]" : ""
       }`}
       style={{
+        width: selected && stepType === "webhook" ? 840 : 320,
         borderColor: isMilestone ? accent.color : "#E2E8F0",
         borderTopColor: accent.color,
         backgroundColor: isMilestone ? accent.color : "#ffffff",

@@ -511,11 +511,11 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
           variáveis lá embaixo continua servindo URL + qualquer value focado
           dentro das abas de Cabeçalho e Parâmetros. */}
       <Tabs defaultValue="headers" className="space-y-3">
-        <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
           <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Configurações avançadas
           </Label>
-          <TabsList>
+          <TabsList className="ml-auto">
             <TabsTrigger value="headers">Cabeçalho</TabsTrigger>
             <TabsTrigger value="params">Parâmetros</TabsTrigger>
             <TabsTrigger value="body">Corpo</TabsTrigger>
@@ -660,9 +660,9 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
           </p>
         </div>
 
-        <div className="space-y-2 overflow-x-auto">
+        <div className="space-y-2">
           {entries.length > 0 && (
-            <div className="grid min-w-[40rem] grid-cols-[minmax(7.5rem,1.2fr)_minmax(7rem,1fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_auto] gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="grid w-full grid-cols-[minmax(7.5rem,1.2fr)_minmax(7rem,1fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_auto] gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               <span>Chave enviada</span>
               <span>Categoria</span>
               <span>Campo</span>
@@ -696,7 +696,7 @@ export function WebhookStepConfig({ draft, setDraft }: Props) {
                   hasError ? "border-destructive/60 bg-destructive/5" : "border-border/60",
                 )}
               >
-                <div className="grid min-w-[40rem] grid-cols-[minmax(7.5rem,1.2fr)_minmax(7rem,1fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_auto] items-center gap-2">
+                <div className="grid w-full grid-cols-[minmax(7.5rem,1.2fr)_minmax(7rem,1fr)_minmax(9rem,1.4fr)_minmax(8rem,1.2fr)_auto] items-center gap-2">
                   <Input
                     value={entry.keyPath}
                     onChange={(e) => updateEntry(entry.id, { keyPath: e.target.value })}
