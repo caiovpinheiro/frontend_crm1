@@ -138,7 +138,7 @@ export function NoteRow({
   return (
     <div
       className={cn(
-        "group relative flex w-full items-start gap-2.5 rounded-[var(--radius-lg)] border px-3.5 py-2 text-sm leading-[1.45] transition-colors",
+        "group relative flex w-full flex-wrap items-start gap-x-2.5 gap-y-1 rounded-[var(--radius-lg)] border px-3.5 py-2 text-sm leading-[1.45] transition-colors sm:flex-nowrap",
         isPinned
           ? "border-[color-mix(in_srgb,var(--brand-primary)_35%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,var(--glass-bg-base))]"
           : "border-[color-mix(in_srgb,var(--text-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--text-muted)_7%,var(--glass-bg-base))]",
@@ -166,10 +166,10 @@ export function NoteRow({
       </span>
       <span className="sr-only">Nota interna. </span>
 
-      <span className="h-3.5 w-px shrink-0 bg-[color-mix(in_srgb,var(--text-muted)_25%,transparent)]" aria-hidden />
+      <span className="hidden h-3.5 w-px shrink-0 bg-[color-mix(in_srgb,var(--text-muted)_25%,transparent)] sm:block" aria-hidden />
 
       {editing ? (
-        <span className="flex min-w-0 flex-1 items-end gap-1.5">
+        <span className="order-last flex w-full min-w-0 basis-full items-end gap-1.5 sm:order-none sm:w-auto sm:flex-1 sm:basis-auto">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -200,11 +200,13 @@ export function NoteRow({
           </NoteAction>
         </span>
       ) : (
-        <div className="min-w-0 flex-1 text-[var(--text-primary)]">{content}</div>
+        <div className="order-last w-full min-w-0 basis-full text-[var(--text-primary)] [overflow-wrap:break-word] sm:order-none sm:w-auto sm:flex-1 sm:basis-auto [&_span]:![overflow-wrap:break-word]">
+          {content}
+        </div>
       )}
 
       {hasNoteActions && !editing && (
-        <span className="ml-1 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="absolute right-2 top-1.5 z-10 flex items-center gap-1 rounded-full bg-[var(--glass-bg-base)] px-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
           {onPinNote && (
             <NoteAction
               label={isPinned ? "Desafixar nota" : "Fixar nota"}
