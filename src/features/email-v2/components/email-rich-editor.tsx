@@ -31,6 +31,8 @@ interface Props {
   placeholder?: string;
   minHeight?: string;
   className?: string;
+  /** Controles extras no fim da barra de formatação (ex.: anexar arquivo). */
+  toolbarEnd?: React.ReactNode;
 }
 
 export type EmailRichEditorHandle = {
@@ -69,7 +71,7 @@ function Divider() {
 }
 
 export const EmailRichEditor = React.forwardRef<EmailRichEditorHandle, Props>(function EmailRichEditor(
-  { content, onChange, placeholder, minHeight = "200px", className },
+  { content, onChange, placeholder, minHeight = "200px", className, toolbarEnd },
   ref,
 ) {
   const editor = useEditor({
@@ -208,6 +210,13 @@ export const EmailRichEditor = React.forwardRef<EmailRichEditorHandle, Props>(fu
         <ToolbarButton onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} title="Limpar formatação">
           <IconClearFormatting size={15} stroke={1.5} />
         </ToolbarButton>
+
+        {toolbarEnd ? (
+          <>
+            <Divider />
+            {toolbarEnd}
+          </>
+        ) : null}
       </div>
 
       {/* Área de edição */}
