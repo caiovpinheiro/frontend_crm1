@@ -185,6 +185,14 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
           placeholder="Escreva sua mensagem…"
           minHeight="160px"
           className="h-full rounded-none border-0"
+          toolbarEnd={
+            <AttachButton
+              onClick={openAttachments}
+              disabled={loading}
+              count={attachmentFiles.length}
+              className="h-7 w-7 text-[var(--text-secondary)]"
+            />
+          }
         />
       </div>
 
@@ -197,7 +205,6 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
 
       <div className="flex shrink-0 items-center gap-2 border-t border-[var(--glass-border)] px-4 py-3">
         {attachmentsInput}
-        <AttachButton onClick={openAttachments} disabled={loading} count={attachmentFiles.length} />
         {errors.send || attachmentsError ? (
           <span className="font-body text-xs text-destructive">{errors.send ?? attachmentsError}</span>
         ) : null}

@@ -78,10 +78,12 @@ export function AttachButton({
   onClick,
   disabled,
   count,
+  className,
 }: {
   onClick: () => void;
   disabled?: boolean;
   count?: number;
+  className?: string;
 }) {
   return (
     <button
@@ -93,6 +95,7 @@ export function AttachButton({
       className={cn(
         "relative inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)] disabled:opacity-40",
         count ? "text-[var(--brand-primary)]" : null,
+        className,
       )}
     >
       <IconPaperclip size={16} />

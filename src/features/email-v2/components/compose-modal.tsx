@@ -268,6 +268,14 @@ export function ComposeModal({
             placeholder="Escreva sua mensagem…"
             minHeight="180px"
             className="h-full rounded-none border-0 border-b border-[var(--glass-border)]"
+            toolbarEnd={
+              <AttachButton
+                onClick={openAttachments}
+                disabled={loading}
+                count={attachmentFiles.length}
+                className="h-7 w-7 text-[var(--text-secondary)]"
+              />
+            }
           />
         </div>
 
@@ -281,7 +289,6 @@ export function ComposeModal({
         {/* Rodapé */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3">
           {attachmentsInput}
-          <AttachButton onClick={openAttachments} disabled={loading} count={attachmentFiles.length} />
 
           {errors.send || attachmentsError ? (
             <span className="flex-1 text-center font-body text-xs text-destructive">
