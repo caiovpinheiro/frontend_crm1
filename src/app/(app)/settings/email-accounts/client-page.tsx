@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   IconBell,
   IconMail,
+  IconPencil,
   IconPlus,
   IconRefresh,
   IconTrash,
@@ -69,6 +70,7 @@ export default function EmailAccountsClientPage() {
 function EmailAccountsBody() {
   const slots = useSettingsHeaderSlots();
   const [connectOpen, setConnectOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<EmailAccount | null>(null);
   const [search, setSearch] = React.useState("");
   const { confirm, dialog: confirmDialog } = useConfirm();
 
@@ -131,15 +133,26 @@ function EmailAccountsBody() {
         loading={accountsLoading}
         onSync={sync}
         onDisconnect={disconnect}
+        onEdit={setEditing}
         onConnect={openConnect}
         confirm={confirm}
         search={search}
       />
 
       <ConnectEmailModal
-        open={connectOpen}
-        onOpenChange={setConnectOpen}
+        key={editing ? editing.id : "connect"}
+        open={connectOpen || editing !== null}
+        account={editing}
+        onOpenChange={(next) => {
+          if (next) {
+            setConnectOpen(true);
+            return;
+          }
+          setConnectOpen(false);
+          setEditing(null);
+        }}
         onSuccess={async () => {
+          if (editing) toast.success("Conta atualizada.");
           await reloadAccounts();
         }}
       />
@@ -155,6 +168,7 @@ function AccountsList({
   loading,
   onSync,
   onDisconnect,
+  onEdit,
   onConnect,
   confirm,
   search,
@@ -163,6 +177,7 @@ function AccountsList({
   loading: boolean;
   onSync: (id: string) => Promise<unknown>;
   onDisconnect: (id: string) => Promise<void>;
+  onEdit: (account: EmailAccount) => void;
   onConnect: () => void;
   confirm: ConfirmFn;
   search: string;
@@ -387,6 +402,14 @@ function AccountsList({
                   <span className={syncing === acc.id ? "animate-spin inline-flex" : "inline-flex"}>
                     <IconRefresh size={15} />
                   </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEdit(acc)}
+                  aria-label={`Editar ${acc.email}`}
+                  className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-muted)] transition-colors hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]"
+                >
+                  <IconPencil size={15} />
                 </button>
                 <button
                   type="button"

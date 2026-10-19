@@ -82,6 +82,9 @@ export interface ConnectEmailInput {
   createContactsForReplies: boolean;
 }
 
+/** PATCH /api/email-accounts/:id — campo ausente mantém o atual; senha vazia mantém a senha. */
+export type UpdateEmailAccountInput = Partial<Omit<ConnectEmailInput, "email">>;
+
 export interface ApiFieldError {
   ok: false;
   field: string;
