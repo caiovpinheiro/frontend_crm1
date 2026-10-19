@@ -1430,6 +1430,18 @@
   min-width: 380px;
   max-width: 460px;
 }
+/* Webhook aberto: chave, categoria, campo e valor do corpo cabem sem rolagem lateral.
+   Recolhido volta à largura padrão do card. */
+.wf-node.fx-node.wf-node--expanded.wf-node--webhook-open {
+  width: 840px !important;
+  min-width: 840px !important;
+  max-width: none !important;
+}
+.wf-node.fx-node.wf-node--webhook-open.is-collapsed {
+  width: auto !important;
+  min-width: 240px !important;
+  max-width: 280px !important;
+}
 
 .wf-node--primary { --wf-accent: var(--fx-type-trigger); }
 .wf-node--cyan { --wf-accent: var(--fx-type-condition); }

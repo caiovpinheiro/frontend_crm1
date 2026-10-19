@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { IconAlertTriangle as AlertTriangle } from "@tabler/icons-react";
@@ -45,6 +46,7 @@ export type FlowNodeShellProps = {
   defaultCollapsed?: boolean;
   /** Classes extras no card (ex.: overflow-visible). */
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 };
 
@@ -89,6 +91,7 @@ export function FlowNodeShell({
   expanded,
   defaultCollapsed = false,
   className,
+  style,
   children,
 }: FlowNodeShellProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -113,6 +116,7 @@ export function FlowNodeShell({
           expanded && "wf-node--expanded",
           className
         )}
+        style={style}
       >
         {stepIndex != null && (
           <span className="wf-node__index" aria-hidden>
