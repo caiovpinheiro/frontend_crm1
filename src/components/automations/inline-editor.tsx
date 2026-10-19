@@ -1275,6 +1275,10 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
     // Data fixa não é variável e vice-versa: começa limpo no outro modo.
     if (value) onChange({ ...config, value: "" })
   }
+  // Texto livre e data em JSON: "{" abre a mesma lista dos outros blocos
+  // (campos do negócio/contato, lastResponse, etc.).
+  const variableValue =
+    (isDate && dateMode === "json") || showsUpdateFieldVariableHint(fieldType)
   return (
     <>
       <Labeled label="Entidade">
@@ -1307,18 +1311,26 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
             />
           )}
         </div>
-        <UpdateFieldValueControl
-          fieldType={fieldType}
-          options={fieldOpts}
-          value={value}
-          onChange={(v) => onChange({ ...config, value: v })}
-          variant="inline"
-          dateMode={dateMode}
-        />
+        {variableValue ? (
+          <VariableInput
+            value={value}
+            placeholder="{ para campos e variáveis"
+            onChange={(v) => onChange({ ...config, value: v })}
+          />
+        ) : (
+          <UpdateFieldValueControl
+            fieldType={fieldType}
+            options={fieldOpts}
+            value={value}
+            onChange={(v) => onChange({ ...config, value: v })}
+            variant="inline"
+            dateMode={dateMode}
+          />
+        )}
         {isDate && dateMode === "json" ? (
           <span className="cfg-hint">{UPDATE_FIELD_DATE_JSON_HINT}</span>
-        ) : showsUpdateFieldVariableHint(fieldType) ? (
-          <span className="cfg-hint">Aceita variáveis, ex.: {"{{lastResponse}}"}</span>
+        ) : variableValue ? (
+          <span className="cfg-hint">Digite {"{"} para listar os campos. Ex.: {"{{lastResponse}}"}</span>
         ) : null}
       </div>
     </>
