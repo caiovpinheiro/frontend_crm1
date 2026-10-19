@@ -332,7 +332,7 @@ export function AddDashboardCardDialog({
               <span className={formLabelClass}>Fase</span>
               {kind === "inboundStage" ? (
                 <p className="mb-2 text-sm text-muted-foreground">
-                  Deals abertos nesta fase que receberam mensagem no período, por consultor.
+                  Deals abertos nesta fase com mensagem do cliente ainda sem resposta do consultor, da campanha ou da automação.
                 </p>
               ) : null}
               <select
@@ -375,7 +375,7 @@ export function AddDashboardCardDialog({
             </>
           ) : kind === "inboundOwners" ? (
             <p className="mb-2 text-sm text-muted-foreground">
-              Leads distribuídos deste funil que receberam mensagem no período, por consultor.
+              Leads deste funil com mensagem do cliente ainda sem resposta do consultor, da campanha ou da automação.
             </p>
           ) : (
             <>
