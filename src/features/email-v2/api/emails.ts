@@ -95,12 +95,26 @@ export async function sendEmail(params: {
   bodyText?: string;
   bodyHtml?: string;
   inReplyTo?: string;
+  /** Com arquivos, o envio vai como multipart/form-data (campo `attachments`). */
+  attachments?: File[];
 }): Promise<{ id: string }> {
-  const res = await fetch(apiUrl("/api/emails/send"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const { attachments, ...fields } = params;
+  let res: Response;
+  if (attachments && attachments.length > 0) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      if (typeof value === "string") form.append(key, value);
+    }
+    for (const file of attachments) form.append("attachments", file, file.name);
+    // Sem Content-Type manual: o browser define o boundary do multipart.
+    res = await fetch(apiUrl("/api/emails/send"), { method: "POST", body: form });
+  } else {
+    res = await fetch(apiUrl("/api/emails/send"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message ?? "Erro ao enviar e-mail.");
   return { id: data.id };

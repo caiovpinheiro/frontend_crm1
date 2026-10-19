@@ -11,6 +11,7 @@ import { sendEmail } from "../api/emails";
 import type { EmailAccount } from "../api/types";
 import { isBlankEmailBody, parseEmailAddresses } from "../lib/parse-addresses";
 import type { ComposeDraft, ComposeMode } from "../utils/compose-draft";
+import { AttachButton, AttachmentChips, useComposeAttachments } from "./compose-attachments";
 import { EmailRichEditor, type EmailRichEditorHandle } from "./email-rich-editor";
 
 const MODE_TITLES: Record<ComposeMode, string> = {
@@ -37,6 +38,14 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [editorKey, setEditorKey] = React.useState(0);
   const editorRef = React.useRef<EmailRichEditorHandle>(null);
+  const {
+    files: attachmentFiles,
+    error: attachmentsError,
+    open: openAttachments,
+    remove: removeAttachment,
+    reset: resetAttachments,
+    input: attachmentsInput,
+  } = useComposeAttachments();
   const draftKey = `${draft.mode}|${draft.accountId ?? ""}|${draft.to ?? ""}|${draft.subject ?? ""}|${draft.inReplyTo ?? ""}|${draft.bodyHtml ?? ""}`;
 
   React.useEffect(() => {
@@ -46,8 +55,9 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
     setBodyHtml(draft.bodyHtml ?? "");
     setBodyText("");
     setErrors({});
+    resetAttachments();
     setEditorKey((k) => k + 1);
-  }, [draftKey, draft.accountId, draft.to, draft.subject, draft.bodyHtml]);
+  }, [draftKey, draft.accountId, draft.to, draft.subject, draft.bodyHtml, resetAttachments]);
 
   React.useEffect(() => {
     if (accountId) return;
@@ -82,6 +92,7 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
         bodyText: text,
         bodyHtml: html,
         inReplyTo: draft.inReplyTo,
+        attachments: attachmentFiles,
       });
       onSent(sent.id);
     } catch (err) {
@@ -177,10 +188,20 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
         />
       </div>
 
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--glass-border)] px-4 py-3">
-        {errors.send ? (
-          <span className="mr-auto font-body text-xs text-destructive">{errors.send}</span>
+      <AttachmentChips
+        files={attachmentFiles}
+        onRemove={removeAttachment}
+        disabled={loading}
+        className="shrink-0 border-t border-[var(--glass-border)] px-4 py-2"
+      />
+
+      <div className="flex shrink-0 items-center gap-2 border-t border-[var(--glass-border)] px-4 py-3">
+        {attachmentsInput}
+        <AttachButton onClick={openAttachments} disabled={loading} count={attachmentFiles.length} />
+        {errors.send || attachmentsError ? (
+          <span className="font-body text-xs text-destructive">{errors.send ?? attachmentsError}</span>
         ) : null}
+        <span className="flex-1" />
         <ButtonGlass type="button" variant="glass" size="sm" onClick={onCancel} disabled={loading}>
           Descartar
         </ButtonGlass>
