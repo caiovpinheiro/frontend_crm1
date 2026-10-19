@@ -1,5 +1,11 @@
 import { apiUrl } from "@/lib/api";
-import type { EmailAccount, ConnectEmailInput, ApiFieldError, EmailOooSettings } from "./types";
+import type {
+  EmailAccount,
+  ConnectEmailInput,
+  UpdateEmailAccountInput,
+  ApiFieldError,
+  EmailOooSettings,
+} from "./types";
 
 function fieldErrorFromBody(data: unknown, fallback: string): ApiFieldError {
   const body = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -45,6 +51,23 @@ export async function connectEmailAccount(
     return data as { ok: true; account: EmailAccount };
   }
   return fieldErrorFromBody(data, "Não foi possível conectar a conta de e-mail.");
+}
+
+export async function updateEmailAccount(
+  id: string,
+  input: UpdateEmailAccountInput,
+): Promise<{ ok: true; account: EmailAccount } | ApiFieldError> {
+  const res = await fetch(apiUrl(`/api/email-accounts/${id}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (data && data.ok === true && data.account) {
+    return data as { ok: true; account: EmailAccount };
+  }
+  return fieldErrorFromBody(data, "Não foi possível salvar a conta de e-mail.");
 }
 
 export async function disconnectEmailAccount(id: string): Promise<void> {

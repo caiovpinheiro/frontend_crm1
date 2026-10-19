@@ -22,10 +22,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
-import { connectEmailAccount } from "../api/accounts";
-import type { ConnectEmailInput, EmailEncryption, EmailVisibility } from "../api/types";
+import { connectEmailAccount, updateEmailAccount } from "../api/accounts";
+import type { ConnectEmailInput, EmailAccount, EmailEncryption, EmailVisibility } from "../api/types";
 import {
   CUSTOM_EMAIL_PROVIDER_ID,
+  EMAIL_PROVIDER_PRESETS,
   applyEmailProviderPreset,
   emailProviderChoices,
   getEmailProviderPreset,
@@ -36,6 +37,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (accountId: string) => void;
+  /** Conta existente: abre em modo edição (endereço fixo, senha opcional). */
+  account?: EmailAccount | null;
 }
 
 type Step = 1 | 2;
@@ -57,10 +60,49 @@ const DEFAULT_FORM: ConnectEmailInput = {
 const FIELD_CLASS =
   "w-full rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/15 focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/15";
 
-export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
-  const [step, setStep] = React.useState<Step>(1);
-  const [form, setForm] = React.useState<ConnectEmailInput>(DEFAULT_FORM);
-  const [providerId, setProviderId] = React.useState("");
+/** Modo edição: formulário a partir da conta, senha em branco (= manter). */
+function formFromAccount(account: EmailAccount): ConnectEmailInput {
+  return {
+    email: account.email,
+    password: "",
+    imapHost: account.imapHost,
+    imapPort: account.imapPort,
+    imapEncryption: account.imapEncryption,
+    smtpHost: account.smtpHost,
+    smtpPort: account.smtpPort,
+    smtpEncryption: account.smtpEncryption,
+    visibility: account.visibility,
+    groupInThreads: account.groupInThreads,
+    createContactsForReplies: account.createContactsForReplies,
+  };
+}
+
+/** Preset cujos servidores batem com a conta; senão "Outro". */
+function providerIdFromAccount(account: EmailAccount): string {
+  const preset = EMAIL_PROVIDER_PRESETS.find(
+    (p) =>
+      p.imapHost === account.imapHost &&
+      p.imapPort === account.imapPort &&
+      p.smtpHost === account.smtpHost &&
+      p.smtpPort === account.smtpPort,
+  );
+  return preset ? preset.id : CUSTOM_EMAIL_PROVIDER_ID;
+}
+
+/**
+ * Com `account`, abre em modo edição já na etapa 2 (hosts/senha); "Voltar"
+ * permite trocar o provedor. O chamador deve remontar o modal ao trocar a
+ * conta (`key={account.id}`) — o estado inicial é lido uma vez.
+ */
+export function ConnectEmailModal({ open, onOpenChange, onSuccess, account = null }: Props) {
+  const isEdit = account !== null;
+  const [step, setStep] = React.useState<Step>(account ? 2 : 1);
+  const [form, setForm] = React.useState<ConnectEmailInput>(() =>
+    account ? formFromAccount(account) : DEFAULT_FORM,
+  );
+  const [providerId, setProviderId] = React.useState(() =>
+    account ? providerIdFromAccount(account) : "",
+  );
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
@@ -127,7 +169,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
 
   function buildConnectPayload(): ConnectEmailInput | null {
     const next: Record<string, string> = {};
-    if (!form.password) next.password = "Senha do e-mail é obrigatória.";
+    if (!isEdit && !form.password) next.password = "Senha do e-mail é obrigatória.";
     const preset = getEmailProviderPreset(providerId);
     const payload = preset ? applyEmailProviderPreset(form, preset) : form;
     if (!payload.imapHost.trim()) next.imap_host = "Servidor IMAP é obrigatório.";
@@ -161,7 +203,21 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
     setLoading(true);
     setErrors({});
     try {
-      const result = await connectEmailAccount(payload);
+      const result = account
+        ? await updateEmailAccount(account.id, {
+            imapHost: payload.imapHost,
+            imapPort: payload.imapPort,
+            imapEncryption: payload.imapEncryption,
+            smtpHost: payload.smtpHost,
+            smtpPort: payload.smtpPort,
+            smtpEncryption: payload.smtpEncryption,
+            visibility: payload.visibility,
+            groupInThreads: payload.groupInThreads,
+            createContactsForReplies: payload.createContactsForReplies,
+            // Senha em branco = manter a atual (o backend não a recebe).
+            ...(payload.password ? { password: payload.password } : {}),
+          })
+        : await connectEmailAccount(payload);
       if (!result.ok) {
         applyApiError(result.field, result.message);
         return;
@@ -175,9 +231,16 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
     }
   }
 
-  const title = step === 1 ? "Conecte seu endereço de e-mail" : form.email;
-  const subtitle =
-    step === 1
+  const title = isEdit
+    ? "Editar conta de e-mail"
+    : step === 1
+      ? "Conecte seu endereço de e-mail"
+      : form.email;
+  const subtitle = isEdit
+    ? step === 1
+      ? `${form.email} — troque o provedor se precisar; o endereço não muda.`
+      : "Servidores e senha são testados antes de salvar. Deixe a senha em branco para manter a atual."
+    : step === 1
       ? "Escolha o provedor e o e-mail. IMAP e SMTP são preenchidos automaticamente — sem relay para configurar."
       : "Mensagens enviadas desse endereço serão vinculadas automaticamente ao contato correspondente no CRM.";
 
@@ -233,6 +296,8 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                   autoComplete="email"
                   placeholder="voce@empresa.com"
                   value={form.email}
+                  readOnly={isEdit}
+                  aria-readonly={isEdit || undefined}
                   onChange={(e) => setField("email", e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -258,7 +323,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                     id="email-password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
-                    placeholder="••••••••"
+                    placeholder={isEdit ? "Deixe em branco para manter a senha atual" : "••••••••"}
                     value={form.password}
                     onChange={(e) => setField("password", e.target.value)}
                     className={cn(FIELD_CLASS, "pe-11")}
@@ -396,7 +461,8 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                     </FieldRow>
                   </div>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    HostGator com cPanel: use mail.seudominio.com.br, 465 SSL/TLS.
+                    HostGator: e-mail Titan usa o preset &quot;HostGator (Titan)&quot;; só o cPanel usa
+                    mail.seudominio.com.br, 465 SSL/TLS.
                   </p>
                 </>
               )}
@@ -507,12 +573,12 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                   {loading ? (
                     <>
                       <Loader2 className="size-4 animate-spin" aria-hidden />
-                      Conectando…
+                      {isEdit ? "Salvando…" : "Conectando…"}
                     </>
                   ) : (
                     <>
                       <Check className="size-4" aria-hidden />
-                      Conectar
+                      {isEdit ? "Salvar" : "Conectar"}
                     </>
                   )}
                 </button>
