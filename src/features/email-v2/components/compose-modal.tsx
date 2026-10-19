@@ -5,7 +5,6 @@ import {
   IconLoader2,
   IconSend,
   IconX,
-  IconPaperclip,
 } from "@tabler/icons-react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -13,6 +12,7 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
+import { AttachButton, AttachmentChips, useComposeAttachments } from "./compose-attachments";
 import { EmailRichEditor, type EmailRichEditorHandle } from "./email-rich-editor";
 import { sendEmail } from "../api/emails";
 import type { EmailAccount } from "../api/types";
@@ -58,6 +58,15 @@ export function ComposeModal({
   const title = MODE_TITLES[mode];
   const draftKey = `${draft?.mode ?? "new"}|${draft?.accountId ?? ""}|${draft?.to ?? ""}|${draft?.subject ?? ""}|${draft?.bodyHtml ?? ""}`;
 
+  const {
+    files: attachmentFiles,
+    error: attachmentsError,
+    open: openAttachments,
+    remove: removeAttachment,
+    reset: resetAttachments,
+    input: attachmentsInput,
+  } = useComposeAttachments();
+
   React.useEffect(() => {
     if (!open) return;
     setAccountId(draft?.accountId ?? "");
@@ -70,8 +79,9 @@ export function ComposeModal({
     setErrors({});
     setShowCc(Boolean(draft?.cc));
     setShowBcc(Boolean(draft?.bcc));
+    resetAttachments();
     setEditorKey((k) => k + 1);
-  }, [open, draftKey, draft?.accountId, draft?.to, draft?.cc, draft?.bcc, draft?.subject, draft?.bodyHtml]);
+  }, [open, draftKey, draft?.accountId, draft?.to, draft?.cc, draft?.bcc, draft?.subject, draft?.bodyHtml, resetAttachments]);
 
   React.useEffect(() => {
     if (!open || accountId) return;
@@ -89,6 +99,7 @@ export function ComposeModal({
     setErrors({});
     setShowCc(false);
     setShowBcc(false);
+    resetAttachments();
     onOpenChange(false);
   }
 
@@ -117,6 +128,7 @@ export function ComposeModal({
         bodyText: text,
         bodyHtml: html,
         inReplyTo: draft?.inReplyTo,
+        attachments: attachmentFiles,
       });
       onSent?.();
       resetAndClose();
@@ -259,20 +271,21 @@ export function ComposeModal({
           />
         </div>
 
+        <AttachmentChips
+          files={attachmentFiles}
+          onRemove={removeAttachment}
+          disabled={loading}
+          className="shrink-0 px-4 py-2"
+        />
+
         {/* Rodapé */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3">
-          <button
-            type="button"
-            title="Anexar arquivo (em breve)"
-            disabled
-            className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--text-muted)] opacity-40"
-          >
-            <IconPaperclip size={16} />
-          </button>
+          {attachmentsInput}
+          <AttachButton onClick={openAttachments} disabled={loading} count={attachmentFiles.length} />
 
-          {errors.send ? (
+          {errors.send || attachmentsError ? (
             <span className="flex-1 text-center font-body text-xs text-destructive">
-              {errors.send}
+              {errors.send ?? attachmentsError}
             </span>
           ) : (
             <span className="flex-1" />
