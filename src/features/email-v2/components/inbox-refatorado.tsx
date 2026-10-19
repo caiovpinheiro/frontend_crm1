@@ -142,19 +142,22 @@ function FolderRow({
   count,
   quiet,
   active,
+  busy,
   onClick,
-}: FolderItem & { active: boolean; onClick: () => void }) {
+}: FolderItem & { active: boolean; busy?: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={busy}
+      aria-busy={busy || undefined}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13px] transition-colors",
+        "flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13px] transition-colors disabled:cursor-wait disabled:opacity-60",
         active ? "bg-primary/10 font-semibold text-primary" : "text-foreground hover:bg-muted",
       )}
     >
-      <Icon size={16} className={active ? "text-primary" : "text-muted-foreground"} />
+      <Icon size={16} className={cn(active ? "text-primary" : "text-muted-foreground", busy && "animate-spin")} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {count !== undefined && count > 0 ? (
         <span
@@ -182,6 +185,8 @@ interface SidebarProps {
   onSelectCustomFolder: (id: string | null) => void;
   onOpenRules: () => void;
   onRefresh: () => void;
+  /** Sincronização em andamento: o botão Atualizar fica travado e girando. */
+  refreshing: boolean;
   onNew: () => void;
 }
 
@@ -236,6 +241,7 @@ function Sidebar({
   onSelectCustomFolder,
   onOpenRules,
   onRefresh,
+  refreshing,
   onNew,
 }: SidebarProps) {
   const activeSystem = selectedCustomFolderId === null;
@@ -294,7 +300,14 @@ function Sidebar({
 
       <div className="mt-auto flex flex-col gap-0.5 pt-3">
         <FolderRow id="rules" label="Regras" Icon={IconAdjustments} active={false} onClick={onOpenRules} />
-        <FolderRow id="refresh" label="Atualizar" Icon={IconRefresh} active={false} onClick={onRefresh} />
+        <FolderRow
+          id="refresh"
+          label={refreshing ? "Atualizando…" : "Atualizar"}
+          Icon={IconRefresh}
+          active={false}
+          busy={refreshing}
+          onClick={onRefresh}
+        />
       </div>
     </aside>
   );
@@ -311,7 +324,7 @@ function FolderChips({
   onSelectAccount,
   onSelectFolder,
   onSelectCustomFolder,
-}: Omit<SidebarProps, "onOpenRules" | "onRefresh" | "onNew">) {
+}: Omit<SidebarProps, "onOpenRules" | "onRefresh" | "refreshing" | "onNew">) {
   const activeSystem = selectedCustomFolderId === null;
   const chips: (FolderItem & { active: boolean; onClick: () => void })[] = [
     ...systemFolders(counts).map((f) => ({
@@ -970,14 +983,27 @@ export default function InboxRefatorado() {
     return folderCounts.trash;
   }, [folderCounts, selectedFolder, selectedCustomFolderId, customFolders]);
 
+  // Uma atualização por vez: cada clique sincroniza TODAS as contas por IMAP.
+  // Sem a trava, o usuário clicava várias vezes (o botão não reagia) e cada
+  // clique disparava um novo lote de syncs no servidor.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
   const refreshAll = useCallback(async () => {
-    const results = await Promise.all(accounts.map((a) => sync(a.id).catch(() => ({ synced: 0 }))));
-    const synced = results.reduce((sum, r) => sum + (r.synced ?? 0), 0);
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    refreshEmails();
-    reloadAccounts();
-    reloadCustomFolders();
-    if (synced > 0) toast.success(`${synced} e-mail${synced > 1 ? "s" : ""} sincronizado${synced > 1 ? "s" : ""}.`);
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      const results = await Promise.all(accounts.map((a) => sync(a.id).catch(() => ({ synced: 0 }))));
+      const synced = results.reduce((sum, r) => sum + (r.synced ?? 0), 0);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      refreshEmails();
+      reloadAccounts();
+      reloadCustomFolders();
+      if (synced > 0) toast.success(`${synced} e-mail${synced > 1 ? "s" : ""} sincronizado${synced > 1 ? "s" : ""}.`);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
   }, [accounts, sync, refreshEmails, reloadAccounts, reloadCustomFolders]);
 
   const runBulk = useCallback(
@@ -1135,18 +1161,25 @@ export default function InboxRefatorado() {
           <button
             type="button"
             onClick={() => void refreshAll()}
-            aria-label="Atualizar"
-            title="Atualizar"
-            className="hidden size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex"
+            disabled={refreshing}
+            aria-busy={refreshing || undefined}
+            aria-label={refreshing ? "Atualizando…" : "Atualizar"}
+            title={refreshing ? "Atualizando…" : "Atualizar"}
+            className="hidden size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60 disabled:hover:bg-card md:flex"
           >
-            <IconRefresh size={17} />
+            <IconRefresh size={17} className={refreshing ? "animate-spin" : undefined} />
           </button>
         }
         menuSlot={
           <PageActionsMenu
             items={[
               { icon: <IconPlus size={16} />, label: "Escrever", onClick: handleNew },
-              { icon: <IconRefresh size={16} />, label: "Atualizar", onClick: () => void refreshAll() },
+              {
+                icon: <IconRefresh size={16} className={refreshing ? "animate-spin" : undefined} />,
+                label: refreshing ? "Atualizando…" : "Atualizar",
+                onClick: () => void refreshAll(),
+                disabled: refreshing,
+              },
               { icon: <IconAdjustments size={16} />, label: "Regras", onClick: () => setRulesOpen(true) },
             ]}
           />
@@ -1158,6 +1191,7 @@ export default function InboxRefatorado() {
           {...folderProps}
           onOpenRules={() => setRulesOpen(true)}
           onRefresh={() => void refreshAll()}
+          refreshing={refreshing}
           onNew={handleNew}
         />
 
