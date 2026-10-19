@@ -66,6 +66,16 @@ export const EMAIL_PROVIDER_PRESETS: EmailProviderPreset[] = [
     smtpEncryption: "SSL_TLS",
   },
   {
+    id: "hostgator",
+    label: "HostGator (Titan)",
+    imapHost: "imap.titan.email",
+    imapPort: 993,
+    imapEncryption: "SSL_TLS",
+    smtpHost: "smtp.titan.email",
+    smtpPort: 465,
+    smtpEncryption: "SSL_TLS",
+  },
+  {
     id: "kinghost",
     label: "KingHost",
     imapHost: "imap.kinghost.net",

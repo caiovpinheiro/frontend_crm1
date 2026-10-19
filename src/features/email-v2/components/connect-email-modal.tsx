@@ -395,6 +395,9 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                       />
                     </FieldRow>
                   </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    HostGator com cPanel: use mail.seudominio.com.br, 465 SSL/TLS.
+                  </p>
                 </>
               )}
 
