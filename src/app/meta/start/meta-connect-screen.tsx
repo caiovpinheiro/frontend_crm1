@@ -178,7 +178,7 @@ export function MetaConnectScreen() {
           <Button
             type="button"
             className="mt-6"
-            disabled={phase === "working" || !signup.sdkReady}
+            disabled={!signup.sdkReady}
             onClick={() => void continueWithMeta()}
           >
             Continuar com a Meta
