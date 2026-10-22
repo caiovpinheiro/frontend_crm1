@@ -1,6 +1,7 @@
 "use client";
 
 import { apiUrl, getApiBaseUrl, parseApiResponse } from "@/lib/api";
+import { redirectToMetaConnect } from "@/lib/meta-connect-start";
 import { isAllowedOAuthPopupOrigin } from "@/lib/oauth-message-origin";
 import type { ChannelProvider, ChannelType } from "@/lib/prisma-enum-types";
 import { IconAt as AtSign, IconCheck as Check, IconChevronDown as ChevronDown, IconChevronLeft as ChevronLeft, IconCopy as Copy, IconExternalLink as ExternalLink, IconGlobe as Globe, IconLoader2 as Loader2, IconMail as Mail, IconMessageCircle as MessageCircle, IconQrcode as QrCode, IconShare2 as Share2, IconSparkles as Sparkles, IconWebhook as Webhook } from "@tabler/icons-react";
@@ -246,6 +247,26 @@ export function CreateChannelDialog({
   function canAdvanceFromStep2(): boolean {
     if (!channelType) return false;
     return true;
+  }
+
+  async function handleCentralMetaConnect() {
+    if (!name.trim()) {
+      setError("Preencha o nome do canal antes de conectar.");
+      return;
+    }
+    setError(null);
+    setSignupWarning(null);
+    setSubmitting(true);
+    try {
+      await redirectToMetaConnect({ name: name.trim() });
+    } catch (err) {
+      setSubmitting(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível iniciar a conexão com a Meta.",
+      );
+    }
   }
 
   async function handleEmbeddedSignup() {
@@ -960,7 +981,18 @@ export function CreateChannelDialog({
                           </p>
                           <Button
                             type="button"
-                            className="mt-3 w-full gap-2 bg-[var(--channel-facebook)] text-white hover:bg-[var(--channel-facebook)]"
+                            className="mt-3 w-full"
+                            disabled={submitting || !name.trim()}
+                            onClick={() => void handleCentralMetaConnect()}
+                          >
+                            {submitting ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : null}
+                            Conectar com Meta
+                          </Button>
+                          <Button
+                            type="button"
+                            className="mt-2 w-full gap-2 bg-[var(--channel-facebook)] text-white hover:bg-[var(--channel-facebook)]"
                             disabled={submitting || !name.trim()}
                             onClick={() => void handleEmbeddedSignup()}
                           >

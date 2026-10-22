@@ -196,6 +196,20 @@ export default function SettingsChannelsPage({
   const slots = useSettingsHeaderSlots();
 
   // ─── Controlled / uncontrolled create dialog ─────────────────────────────
+  const [metaNotice, setMetaNotice] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("meta") !== "connected") return;
+    setMetaNotice("WhatsApp conectado com a Meta.");
+    params.delete("meta");
+    const next = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${next ? `?${next}` : ""}`,
+    );
+  }, []);
+
   const [createOpenInternal, setCreateOpenInternal] = React.useState(false);
   const createOpen = createOpenProp ?? createOpenInternal;
   const setCreateOpen = onCreateOpenChange ?? setCreateOpenInternal;
@@ -525,6 +539,11 @@ export default function SettingsChannelsPage({
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <div className="flex w-full min-w-0 flex-col gap-3.5">
+      {metaNotice ? (
+        <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground">
+          {metaNotice}
+        </p>
+      ) : null}
       {!slots && !hideToolbar ? (
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">{searchNode}</div>
