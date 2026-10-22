@@ -38,7 +38,6 @@ import {
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
 import { DatePicker } from "@/components/ui/date-picker";
-import { SelectNative } from "@/components/ui/select";
 
 import {
   DATE_PRESET_LABELS,
@@ -1212,18 +1211,20 @@ function CustomFieldRow({
             </div>
           ) : hasOptions ? (
             isMulti ? (
-              <SelectNative
-                multiple
-                value={Array.isArray(filter.value) ? filter.value : []}
-                onChange={(e) => onChange({ ...filter, value: Array.from(e.target.selectedOptions).map((o) => o.value) })}
-                className="min-w-0 flex-1 basis-[140px] rounded-md text-[12px]"
-              >
-                {field.options.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </SelectNative>
+              <div className="min-w-0 flex-1 basis-[160px]">
+                <MultiSelectDropdown
+                  placeholder="Selecionar…"
+                  searchable={field.options.length > 6}
+                  searchPlaceholder="Buscar…"
+                  selected={Array.isArray(filter.value) ? filter.value : []}
+                  options={field.options.map((o) => ({ value: o, label: o, searchText: o }))}
+                  onToggle={(v) => {
+                    const current = Array.isArray(filter.value) ? filter.value : [];
+                    const next = current.includes(v) ? current.filter((x) => x !== v) : [...current, v];
+                    onChange({ ...filter, value: next });
+                  }}
+                />
+              </div>
             ) : (
               <DropdownGlass
                 options={field.options.map((o) => ({ value: o, label: o }))}
