@@ -39,7 +39,7 @@ export function SettingsListFilterBar({
   groups = [],
   onClearAll,
   popoverTitle = "Filtros",
-  openOnFocus = true,
+  openOnFocus = false,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -49,7 +49,7 @@ export function SettingsListFilterBar({
   groups?: SettingsFilterGroup[];
   onClearAll: () => void;
   popoverTitle?: string;
-  /** Foco na busca abre o painel. Modelos de mensagem deixa isso só no ícone. */
+  /** Painel só no botão Filtrar. Foco na busca não abre, para não cobrir o que se está digitando. */
   openOnFocus?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
