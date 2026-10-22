@@ -173,6 +173,11 @@ export default function V2PipelineListClientPage() {
 
   const { filters, setFilters, patch: patchFilters, clear: clearFilters } = useKanbanFilters();
 
+  // A lista nasce em Abertos. Motivo de perda está nos negócios perdidos;
+  // o Kanban consulta todos os status. Pedir OPEN aqui devolve a página vazia.
+  const listStatusTab: DealListTab =
+    (filters.lostReasons?.length ?? 0) > 0 && statusTab === "abertos" ? "todos" : statusTab;
+
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(search.trim());
@@ -220,7 +225,7 @@ export default function V2PipelineListClientPage() {
   const dealsList = useDealsListPage({
     pipelineId: pipelineId ?? undefined,
     search: listSearch || undefined,
-    status: statusFromTab(statusTab),
+    status: statusFromTab(listStatusTab),
     page,
     perPage,
     filters: isEmptyFilters(advancedForList) ? undefined : advancedForList,
@@ -258,11 +263,11 @@ export default function V2PipelineListClientPage() {
   const scopeContext = useMemo<BulkScopeContext | undefined>(() => {
     if (!pipelineId) return undefined;
     const status =
-      statusTab === "abertos"
+      listStatusTab === "abertos"
         ? "OPEN"
-        : statusTab === "ganhos"
+        : listStatusTab === "ganhos"
           ? "WON"
-          : statusTab === "perdidos"
+          : listStatusTab === "perdidos"
             ? "LOST"
             : "ALL";
     let stage: { id: string; name: string; total: number } | null = null;
@@ -278,7 +283,7 @@ export default function V2PipelineListClientPage() {
       pipelineTotal: total,
       stage,
     };
-  }, [pipelineId, statusTab, filters, listSearch, stages, total]);
+  }, [pipelineId, listStatusTab, filters, listSearch, stages, total]);
 
   const tabCounts = useMemo(
     () => ({
@@ -413,7 +418,7 @@ export default function V2PipelineListClientPage() {
                   </span>
                 ),
               }))}
-              value={statusTab}
+              value={listStatusTab}
               onChange={(v) => setStatusTab(v as DealListTab)}
             />
           }
@@ -464,7 +469,7 @@ export default function V2PipelineListClientPage() {
           <DealListTable
             className="min-h-0 flex-1"
             deals={rows}
-            statusTab={statusTab}
+            statusTab={listStatusTab}
             visibleColumns={activeColumnKeys}
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
@@ -538,7 +543,7 @@ export default function V2PipelineListClientPage() {
               ...advancedForList,
               ...(listSearch ? { search: listSearch } : {}),
             },
-            status: statusFromTab(statusTab) ?? "ALL",
+            status: statusFromTab(listStatusTab) ?? "ALL",
             filteredTotal: total,
           }}
         />
@@ -556,7 +561,7 @@ export default function V2PipelineListClientPage() {
         open={dupesOpen}
         onOpenChange={setDupesOpen}
         pipelineId={pipelineId}
-        status={statusFromTab(statusTab)}
+        status={statusFromTab(listStatusTab)}
         enabled={canFetch && !!pipelineId}
         onOpenDeal={openDeal}
       />
