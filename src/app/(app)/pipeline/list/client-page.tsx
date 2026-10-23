@@ -173,11 +173,6 @@ export default function V2PipelineListClientPage() {
 
   const { filters, setFilters, patch: patchFilters, clear: clearFilters } = useKanbanFilters();
 
-  // A lista nasce em Abertos. Motivo de perda está nos negócios perdidos;
-  // o Kanban consulta todos os status. Pedir OPEN aqui devolve a página vazia.
-  const listStatusTab: DealListTab =
-    (filters.lostReasons?.length ?? 0) > 0 && statusTab === "abertos" ? "todos" : statusTab;
-
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(search.trim());
@@ -211,6 +206,28 @@ export default function V2PipelineListClientPage() {
     pipelinesQuery.data,
   );
 
+  // Etapas vêm do GET /api/pipelines já carregado acima — a lista não
+  // precisa do board (175 KB com 100 cards/coluna) só para nomes/cores.
+  const stages = useMemo(
+    () => stagesForList(pipelinesQuery.data, pipelineId),
+    [pipelinesQuery.data, pipelineId],
+  );
+
+  // A lista nasce em Abertos. Motivo de perda e a etapa Perdido/Ganho
+  // estão nos negócios fechados; o Kanban consulta todos os status.
+  // Pedir OPEN aqui devolve a página vazia.
+  const selectedTerminalStage = (filters.stageIds ?? []).some((id) => {
+    const stage = pipelines
+      .find((item) => item.id === pipelineId)
+      ?.stages?.find((item) => item.id === id);
+    return Boolean(stage?.isLost || stage?.isWon);
+  });
+  const listStatusTab: DealListTab =
+    statusTab === "abertos" &&
+    ((filters.lostReasons?.length ?? 0) > 0 || selectedTerminalStage)
+      ? "todos"
+      : statusTab;
+
   const advancedForList = useMemo(() => {
     const { search: _ignore, ...rest } = filters;
     return rest;
@@ -236,12 +253,6 @@ export default function V2PipelineListClientPage() {
   });
   const dealsQuery = dealsList.query;
 
-  // Etapas vêm do GET /api/pipelines já carregado acima — a lista não
-  // precisa do board (175 KB com 100 cards/coluna) só para nomes/cores.
-  const stages = useMemo(
-    () => stagesForList(pipelinesQuery.data, pipelineId),
-    [pipelinesQuery.data, pipelineId],
-  );
   const { data: teamUsers = [] } = useTeamUsers(canFetch && selectedIds.size > 0);
 
   const { total, totalKnown, lastPage, items } = dealsList;
