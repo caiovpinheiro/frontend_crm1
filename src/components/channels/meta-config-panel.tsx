@@ -133,8 +133,6 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
   const [manualReconnectError, setManualReconnectError] = useState<string | null>(null);
   const [manualReconnectSuccess, setManualReconnectSuccess] = useState(false);
 
-  const queryClient = useQueryClient();
-
   async function beginCentralConnect() {
     setCentralError(null);
     setCentralBusy(true);

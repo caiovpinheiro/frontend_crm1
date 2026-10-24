@@ -453,7 +453,7 @@ export function CreateChannelDialog({
         }
         onCreated?.();
         if (data.webhookSubscribed === false) {
-          setSignupWarning(
+          setError(
             "Canal criado, mas a Meta nao assinou o webhook (subscribed_apps). Confira o token e o campo messages no App.",
           );
           return;
