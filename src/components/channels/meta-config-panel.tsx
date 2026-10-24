@@ -20,7 +20,6 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { cn } from "@/lib/utils";
-import { useEmbeddedSignup } from "@/hooks/use-embedded-signup";
 import { redirectToMetaConnect } from "@/lib/meta-connect-start";
 
 import { ChannelPipelineSelect } from "./channel-pipeline-select";
@@ -123,9 +122,6 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
   const [showTokenHint, setShowTokenHint] = useState(!!initialToken);
   const [revealAccessToken, setRevealAccessToken] = useState(false);
   const [revealAppSecret, setRevealAppSecret] = useState(false);
-  const [esReconnecting, setEsReconnecting] = useState(false);
-  const [esError, setEsError] = useState<string | null>(null);
-  const [esSuccess, setEsSuccess] = useState(false);
   const [centralBusy, setCentralBusy] = useState(false);
   const [centralError, setCentralError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -136,8 +132,6 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
   const [manualReconnecting, setManualReconnecting] = useState(false);
   const [manualReconnectError, setManualReconnectError] = useState<string | null>(null);
   const [manualReconnectSuccess, setManualReconnectSuccess] = useState(false);
-
-  const embeddedSignup = useEmbeddedSignup();
 
   async function beginCentralConnect() {
     setCentralError(null);
@@ -385,13 +379,13 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
         </div>
       ) : null}
 
-      {!isInstagram && embeddedSignup.isConfigured ? (
+      {!isInstagram ? (
         <>
           <Separator />
           <div className="space-y-3">
             <div>
               <p className="text-sm font-medium text-[var(--text-primary)]">
-                {wasEmbeddedSignup ? "Reconectar" : "Conectar"} via Facebook
+                {wasEmbeddedSignup ? "Reconectar" : "Conectar"} com a Meta
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {wasEmbeddedSignup
@@ -399,52 +393,6 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
                   : "Obtenha credenciais automaticamente via Embedded Signup."}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2"
-              disabled={esReconnecting}
-              onClick={() => {
-                setEsError(null);
-                setEsSuccess(false);
-                setEsReconnecting(true);
-                embeddedSignup
-                  .launchSignup()
-                  .then(async (result) => {
-                    const res = await fetch(apiUrl("/api/channels/embedded-signup"), {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        code: result.code,
-                        phoneNumberId: result.phoneNumberId,
-                        wabaId: result.wabaId,
-                        channelId: channel.id,
-                      }),
-                    });
-                    const data = (await res.json()) as { message?: string };
-                    if (!res.ok) throw new Error(data.message ?? "Erro.");
-                    setEsSuccess(true);
-                    void queryClient.invalidateQueries({ queryKey: ["channels"] });
-                    void queryClient.invalidateQueries({
-                      queryKey: ["channel", channel.id],
-                    });
-                    onSaved?.();
-                  })
-                  .catch((err: unknown) => {
-                    setEsError(
-                      err instanceof Error ? err.message : "Erro no Embedded Signup.",
-                    );
-                  })
-                  .finally(() => setEsReconnecting(false));
-              }}
-            >
-              {esReconnecting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
-              {wasEmbeddedSignup ? "Reconectar com Facebook" : "Conectar com Facebook"}
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -457,14 +405,6 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
             </Button>
             {centralError ? (
               <p className="text-sm text-[var(--color-danger-text)]">{centralError}</p>
-            ) : null}
-            {esError ? (
-              <p className="text-sm text-[var(--color-danger-text)]">{esError}</p>
-            ) : null}
-            {esSuccess ? (
-              <p className="text-sm text-[var(--color-success)]">
-                Credenciais atualizadas com sucesso.
-              </p>
             ) : null}
           </div>
         </>
@@ -754,13 +694,13 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
         </p>
       ) : null}
 
-      {!isInstagram && embeddedSignup.isConfigured && (
+      {!isInstagram ? (
         <>
           <Separator />
           <section className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                {wasEmbeddedSignup ? "Reconectar via Facebook" : "Conectar via Facebook"}
+                {wasEmbeddedSignup ? "Reconectar com a Meta" : "Conectar com a Meta"}
               </p>
               <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
                 {wasEmbeddedSignup
@@ -773,73 +713,18 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
               variant="outline"
               size="sm"
               className="gap-1.5"
-              disabled={esReconnecting}
-              onClick={() => {
-                setEsError(null);
-                setEsSuccess(false);
-                setEsReconnecting(true);
-                embeddedSignup
-                  .launchSignup()
-                  .then(async (result) => {
-                    const res = await fetch(apiUrl("/api/channels/embedded-signup"), {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        code: result.code,
-                        phoneNumberId: result.phoneNumberId,
-                        wabaId: result.wabaId,
-                        channelId: channel.id,
-                      }),
-                    });
-                    const data = (await res.json()) as { message?: string };
-                    if (!res.ok) throw new Error(data.message ?? "Erro.");
-                    setEsSuccess(true);
-                    void queryClient.invalidateQueries({ queryKey: ["channels"] });
-                    void queryClient.invalidateQueries({
-                      queryKey: ["channel", channel.id],
-                    });
-                    onSaved?.();
-                  })
-                  .catch((err: unknown) => {
-                    setEsError(
-                      err instanceof Error ? err.message : "Erro no Embedded Signup.",
-                    );
-                  })
-                  .finally(() => setEsReconnecting(false));
-              }}
-            >
-              {esReconnecting ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-              {wasEmbeddedSignup ? "Reconectar" : "Conectar"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
               disabled={centralBusy}
               onClick={() => void beginCentralConnect()}
             >
               {centralBusy ? <Loader2 className="size-3.5 animate-spin" /> : null}
               Conectar com Meta
             </Button>
-            {(esError || esSuccess) && (
-              <p
-                className={cn(
-                  "w-full text-xs",
-                  esError && "text-[var(--color-danger-text)]",
-                  esSuccess && "text-[var(--color-success)]",
-                )}
-              >
-                {esError ?? "Credenciais atualizadas com sucesso."}
-              </p>
-            )}
+            {centralError ? (
+              <p className="w-full text-xs text-[var(--color-danger-text)]">{centralError}</p>
+            ) : null}
           </section>
         </>
-      )}
+      ) : null}
 
       {/* Docs colapsado num details compacto — antes era um card grande sobre
           WhatsApp Calling API que ninguém precisa ler sempre. */}

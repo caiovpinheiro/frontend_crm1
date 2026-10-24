@@ -21,7 +21,6 @@ import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useEmbeddedSignup } from "@/hooks/use-embedded-signup";
 import { useFacebookLogin } from "@/hooks/use-facebook-login";
 
 type Step = 1 | 2 | 3;
@@ -101,7 +100,6 @@ export function CreateChannelDialog({
   const [instagramUserId, setInstagramUserId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [signupWarning, setSignupWarning] = useState<string | null>(null);
   const [showManualConfig, setShowManualConfig] = useState(false);
   const [showIgCrmLogin, setShowIgCrmLogin] = useState(false);
   // Webhook opcional para clientes que preferem usar o proprio App Meta:
@@ -129,7 +127,6 @@ export function CreateChannelDialog({
   const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
   const [fbSelectedPageId, setFbSelectedPageId] = useState<string>("");
 
-  const embeddedSignup = useEmbeddedSignup();
   const facebookLogin = useFacebookLogin();
   const [igLoginConfigured, setIgLoginConfigured] = useState<boolean | null>(
     null,
@@ -164,7 +161,6 @@ export function CreateChannelDialog({
     setBusinessAccountId("");
     setInstagramUserId("");
     setError(null);
-    setSignupWarning(null);
     setSubmitting(false);
     setShowManualConfig(false);
     setShowIgCrmLogin(false);
@@ -176,7 +172,6 @@ export function CreateChannelDialog({
     setFbLoginCode(null);
     setFbPages([]);
     setFbSelectedPageId("");
-    embeddedSignup.reset();
     facebookLogin.reset();
   }
 
@@ -250,7 +245,6 @@ export function CreateChannelDialog({
       return;
     }
     setError(null);
-    setSignupWarning(null);
     setSubmitting(true);
     try {
       await redirectToMetaConnect({ name: name.trim() });
@@ -261,53 +255,6 @@ export function CreateChannelDialog({
           ? err.message
           : "Não foi possível iniciar a conexão com a Meta.",
       );
-    }
-  }
-
-  async function handleEmbeddedSignup() {
-    if (!name.trim()) {
-      setError("Preencha o nome do canal antes de conectar.");
-      return;
-    }
-    setError(null);
-    setSignupWarning(null);
-    setSubmitting(true);
-    try {
-      const result = await embeddedSignup.launchSignup();
-      const res = await fetch(apiUrl("/api/channels/embedded-signup"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: result.code,
-          phoneNumberId: result.phoneNumberId,
-          wabaId: result.wabaId,
-          name: name.trim(),
-        }),
-      });
-      const data = (await res.json()) as {
-        message?: string;
-        webhookSubscribed?: boolean;
-        phoneRegistered?: boolean;
-      };
-      if (!res.ok) {
-        throw new Error(data.message ?? "Erro no Embedded Signup.");
-      }
-      // Canal criado. Se o numero ainda nao foi registrado no WhatsApp
-      // Business Platform, avisamos (envio pode falhar ate o registro/PIN)
-      // e mantemos o dialog aberto para o usuario ler.
-      onCreated?.();
-      if (data.phoneRegistered === false) {
-        setSignupWarning(
-          "Canal criado, mas o número ainda não foi registrado no WhatsApp Business Platform. " +
-            "O recebimento de mensagens funciona; para enviar, registre o número (definir PIN de verificação em duas etapas) no painel Meta.",
-        );
-        return;
-      }
-      handleOpenChange(false);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Erro no Embedded Signup.");
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -506,7 +453,7 @@ export function CreateChannelDialog({
         }
         onCreated?.();
         if (data.webhookSubscribed === false) {
-          setSignupWarning(
+          setError(
             "Canal criado, mas a Meta nao assinou o webhook (subscribed_apps). Confira o token e o campo messages no App.",
           );
           return;
@@ -607,13 +554,11 @@ export function CreateChannelDialog({
     ? providerForType(channelType, provider)
     : null;
 
-  // Embedded Signup e so do WhatsApp Cloud API. Instagram tambem usa
+  // WhatsApp Cloud API conecta em connect.bwipo.com. Instagram tambem usa
   // provider META_CLOUD_API no wizard, mas o login e OAuth proprio —
   // nao pode herdar essa flag senão o rodape esconde "Criar canal".
   const showEmbeddedSignup =
-    channelType === "WHATSAPP" &&
-    effectiveProvider === "META_CLOUD_API" &&
-    embeddedSignup.isConfigured;
+    channelType === "WHATSAPP" && effectiveProvider === "META_CLOUD_API";
 
   const sheetFooter = (
     <div className="flex w-full flex-wrap items-center gap-2">
@@ -836,11 +781,6 @@ export function CreateChannelDialog({
                           placeholder="Opcional — o CRM descobre pela Pagina vinculada"
                         />
                       </div>
-                      {signupWarning ? (
-                        <p className="rounded-lg border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 p-2 text-xs text-[var(--color-warning)]">
-                          {signupWarning}
-                        </p>
-                      ) : null}
                     </div>
 
                     <button
@@ -959,7 +899,7 @@ export function CreateChannelDialog({
                       <div className="space-y-3">
                         <div className="rounded-xl border-2 border-[var(--color-brand-primary)]/20 bg-[var(--color-info)]/5 p-4">
                           <p className="text-sm font-medium text-[var(--text-primary)]">
-                            Conectar via Facebook
+                            Conectar com a Meta
                           </p>
                           <p className="mt-1 text-xs text-[var(--text-muted)]">
                             Obtenha credenciais automaticamente com login Meta.
@@ -976,30 +916,6 @@ export function CreateChannelDialog({
                             ) : null}
                             Conectar com Meta
                           </Button>
-                          <Button
-                            type="button"
-                            className="mt-2 w-full gap-2 bg-[var(--channel-facebook)] text-white hover:bg-[var(--channel-facebook)]"
-                            disabled={submitting || !name.trim()}
-                            onClick={() => void handleEmbeddedSignup()}
-                          >
-                            {submitting ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <svg
-                                className="size-4"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                              >
-                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                              </svg>
-                            )}
-                            Conectar com Facebook
-                          </Button>
-                          {signupWarning ? (
-                            <p className="mt-3 rounded-lg border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 p-2 text-xs text-[var(--color-warning)]">
-                              {signupWarning}
-                            </p>
-                          ) : null}
                         </div>
 
                         <button
