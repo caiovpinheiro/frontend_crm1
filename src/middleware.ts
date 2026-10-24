@@ -7,6 +7,7 @@ import { unknownTenantHtml } from "@/lib/html-escape";
 import { isProductionRuntime, shouldBypassAuthForPreview } from "@/lib/preview-mode";
 import { shouldVerifyTenantExistence } from "@/lib/tenant-existence";
 import {
+  isMetaConnectHost,
   isSingleHostCrm,
   resolveTenantFromRequest,
   TENANT_SLUG_COOKIE,
@@ -294,6 +295,19 @@ export async function middleware(req: NextRequest) {
     // (SEC-21: atrás do proxy o `Host` pode ser arbitrário); em produção o
     // preview exige a dupla chave de env (ver `@/lib/preview-mode`).
     if (shouldBypassAuthForPreview(req.headers.get("host"))) {
+      return withSecurityHeaders(NextResponse.next());
+    }
+
+    // connect.bwipo.com não é tenant: só a página do Embedded Signup.
+    const connectHost = (req.headers.get("host") ?? "").split(":")[0] ?? "";
+    if (isMetaConnectHost(connectHost)) {
+      const allowed =
+        pathname === "/meta/start" ||
+        pathname.startsWith("/_next") ||
+        pathname === "/favicon.ico";
+      if (!allowed) {
+        return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+      }
       return withSecurityHeaders(NextResponse.next());
     }
 

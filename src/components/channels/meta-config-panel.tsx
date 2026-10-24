@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { cn } from "@/lib/utils";
 import { useEmbeddedSignup } from "@/hooks/use-embedded-signup";
+import { redirectToMetaConnect } from "@/lib/meta-connect-start";
 
 import { ChannelPipelineSelect } from "./channel-pipeline-select";
 import type { ApiChannel } from "./types";
@@ -125,6 +126,8 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
   const [esReconnecting, setEsReconnecting] = useState(false);
   const [esError, setEsError] = useState<string | null>(null);
   const [esSuccess, setEsSuccess] = useState(false);
+  const [centralBusy, setCentralBusy] = useState(false);
+  const [centralError, setCentralError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   // Modal de webhook (Callback URL / Verify Token / docs Meta). Antes esse
   // bloco ficava inline e deixava a config verbosa — agora vive atras de um
@@ -135,6 +138,21 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
   const [manualReconnectSuccess, setManualReconnectSuccess] = useState(false);
 
   const embeddedSignup = useEmbeddedSignup();
+
+  async function beginCentralConnect() {
+    setCentralError(null);
+    setCentralBusy(true);
+    try {
+      await redirectToMetaConnect({ channelId: channel.id });
+    } catch (err) {
+      setCentralBusy(false);
+      setCentralError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível iniciar a conexão com a Meta.",
+      );
+    }
+  }
 
   useEffect(() => {
     setChannelName(channel.name);
@@ -427,6 +445,19 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
               )}
               {wasEmbeddedSignup ? "Reconectar com Facebook" : "Conectar com Facebook"}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              disabled={centralBusy}
+              onClick={() => void beginCentralConnect()}
+            >
+              {centralBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+              Conectar com Meta
+            </Button>
+            {centralError ? (
+              <p className="text-sm text-[var(--color-danger-text)]">{centralError}</p>
+            ) : null}
             {esError ? (
               <p className="text-sm text-[var(--color-danger-text)]">{esError}</p>
             ) : null}
@@ -783,6 +814,17 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
                 <RefreshCw className="size-3.5" />
               )}
               {wasEmbeddedSignup ? "Reconectar" : "Conectar"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={centralBusy}
+              onClick={() => void beginCentralConnect()}
+            >
+              {centralBusy ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              Conectar com Meta
             </Button>
             {(esError || esSuccess) && (
               <p

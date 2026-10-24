@@ -198,7 +198,9 @@ export function useEmbeddedSignup() {
       window.FB.login(
         (response: FBLoginResponse) => {
           if (!response.authResponse?.code) {
-            const err = new Error("Login cancelado ou sem autorização.");
+            const err = new Error(
+              "A Meta não concluiu o login. Se a janela mostrou Recurso indisponível, o app ainda está atualizando detalhes adicionais ou o modo estrito recusou o domínio. Tente de novo em alguns minutos.",
+            );
             setState((s) => ({ ...s, loading: false, error: err.message }));
             rejectRef.current?.(err);
             rejectRef.current = null;

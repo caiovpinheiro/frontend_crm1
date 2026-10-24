@@ -25,6 +25,7 @@ export const RESERVED_TENANT_SLUGS = new Set([
   "mail",
   "status",
   "localhost",
+  "connect",
 ]);
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
@@ -42,6 +43,14 @@ export function isSingleHostCrm(hostname: string): boolean {
   }
   if (host.endsWith(".localhost")) return true;
   return host === "easypanel.host" || host.endsWith(".easypanel.host");
+}
+
+/** Host do Embedded Signup central. Não é organização. */
+export function isMetaConnectHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().split(":")[0] ?? "";
+  if (!host) return false;
+  if (host === "connect.localhost") return true;
+  return host === `connect.${getTenantBaseDomain()}`;
 }
 
 /** Apex de marketing (`bwipo.com` / `www`) — identifica org pelo e-mail. */
