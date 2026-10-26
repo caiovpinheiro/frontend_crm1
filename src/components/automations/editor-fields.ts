@@ -377,7 +377,7 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
   wait_for_document: [
     {
       kind: "info",
-      text: "Pausa até o contato enviar. Só imagem (foto ou arquivo jpg, png, webp) segue por Documento recebido. Áudio, vídeo, PDF e outros arquivos não avançam o fluxo. Texto segue por Mensagem de texto. Sem imagem nem texto até o cronômetro, segue por Tempo esgotado. {{lastResponse}} e {{documentMediaUrl}} são o link da imagem. No Atualizar campo, esse link grava no campo. No webhook, a mesma URL abre sem login. O GET também aceita Authorization: Bearer com o token de API do CRM (eduit_). A legenda ou o nome fica em {{lastDocument}}.",
+      text: "Pausa até o contato enviar. Arquivo (foto, JPEG, PDF, Word, vídeo ou outra mídia) segue por Documento recebido. Áudio não avança o fluxo: o passo continua esperando. Texto segue por Mensagem de texto. Sem arquivo nem texto até o cronômetro, segue por Tempo esgotado. {{lastResponse}} e {{documentMediaUrl}} são o link do arquivo. No Atualizar campo, esse link grava no campo. No webhook, a mesma URL abre sem login. O GET também aceita Authorization: Bearer com o token de API do CRM (eduit_). A legenda ou o nome fica em {{lastDocument}}.",
     },
     { kind: "duration", key: "timeoutMs", label: "Cronômetro" },
     { kind: "text", key: "saveToVariable", label: "Salvar texto ou nome do arquivo em variável", optional: true },
