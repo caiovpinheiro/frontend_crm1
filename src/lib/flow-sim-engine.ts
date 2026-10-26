@@ -206,7 +206,7 @@ function walkSimulation(
     }
 
     if (stepType === "wait_for_document") {
-      events.push({ id: eid("sys"), kind: "system", text: "Aguardando documento ou texto" })
+      events.push({ id: eid("sys"), kind: "system", text: "Aguardando imagem ou texto" })
       return { events, wait: "branch", currentId: id, title }
     }
 
