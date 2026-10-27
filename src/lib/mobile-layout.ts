@@ -44,6 +44,8 @@ export interface MobileModuleDescriptor {
   required?: boolean;
   /** Restringe o modulo a papeis especificos (ex.: Distribuicao = ADMIN/MANAGER). */
   allowedRoles?: Array<"ADMIN" | "MANAGER" | "MEMBER">;
+  /** Se a função personalizada tiver esta chave, o módulo aparece mesmo para MEMBER. */
+  requiredPermission?: string;
 }
 
 export const MOBILE_MODULES: MobileModuleDescriptor[] = [
@@ -113,6 +115,7 @@ export const MOBILE_MODULES: MobileModuleDescriptor[] = [
     category: "growth",
     // Paridade com a sidebar desktop (nav:automations).
     allowedRoles: ["ADMIN", "MANAGER"],
+    requiredPermission: "nav:automations",
   },
   {
     id: "distribution",
@@ -122,6 +125,7 @@ export const MOBILE_MODULES: MobileModuleDescriptor[] = [
     description: "Distribuição inteligente de leads entre consultores",
     category: "growth",
     allowedRoles: ["ADMIN", "MANAGER"],
+    requiredPermission: "nav:distribution",
   },
   {
     id: "team-chat",
@@ -309,12 +313,38 @@ export function serializeModuleIds(ids: MobileModuleId[]): string {
  * MobileMoreSheet pra esconder módulos restritos (ex.: Distribuição)
  * de operadores MEMBER.
  */
+function modulePermissionGranted(
+  permissions: readonly string[],
+  required: string,
+): boolean {
+  if (permissions.includes("*") || permissions.includes(required)) return true;
+  const [resource] = required.split(":");
+  if (resource && permissions.includes(`${resource}:*`)) return true;
+  if (
+    required === "nav:automations" &&
+    (permissions.includes("automation:view") || permissions.includes("automation:*"))
+  ) {
+    return true;
+  }
+  if (
+    required === "nav:distribution" &&
+    (permissions.includes("distribution:view") || permissions.includes("distribution:*"))
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function isModuleAllowedForRole(
   m: MobileModuleDescriptor,
   role: "ADMIN" | "MANAGER" | "MEMBER" | null,
   isSuperAdmin: boolean,
+  permissions?: readonly string[],
 ): boolean {
-  if (!m.allowedRoles) return true;
   if (isSuperAdmin) return true;
+  if (permissions !== undefined && m.requiredPermission) {
+    return modulePermissionGranted(permissions, m.requiredPermission);
+  }
+  if (!m.allowedRoles) return true;
   return role !== null && m.allowedRoles.includes(role);
 }

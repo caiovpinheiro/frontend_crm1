@@ -24,6 +24,7 @@ import {
 import { MobileModuleIcon } from "@/components/layout/mobile-module-icon";
 import { useMobileLayout } from "@/hooks/use-mobile-layout";
 import { useThemeV2 } from "@/hooks/use-theme-v2";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { useUserRole } from "@/hooks/use-user-role";
 import { inboxPrefetchIntentProps } from "@/lib/inbox-prefetch-intent";
 import { isModuleAllowedForRole, MOBILE_MODULES, MORE_SHEET_ENSURE } from "@/lib/mobile-layout";
@@ -62,6 +63,7 @@ export function MobileMoreSheet({
   const { theme, toggle } = useThemeV2();
   const { config } = useMobileLayout();
   const { role, isSuperAdmin } = useUserRole();
+  const { data: myPerms } = useMyPermissions();
   const statusMeta = AGENT_STATUS_META[agentStatus];
   const isDark = theme === "dark";
 
@@ -99,7 +101,7 @@ export function MobileMoreSheet({
   const secondaryModules = secondaryIds
     .map((id) => MOBILE_MODULE_MAP.get(id))
     .filter((m): m is NonNullable<typeof m> => Boolean(m))
-    .filter((m) => isModuleAllowedForRole(m, role, isSuperAdmin));
+    .filter((m) => isModuleAllowedForRole(m, role, isSuperAdmin, myPerms?.permissions));
 
   return (
     <div

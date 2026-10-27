@@ -29,6 +29,7 @@ import {
 } from "@/components/layout/nav-message-alerts";
 import { MobileModuleIcon } from "@/components/layout/mobile-module-icon";
 import { useMobileLayout } from "@/hooks/use-mobile-layout";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { useUserRole } from "@/hooks/use-user-role";
 import { inboxPrefetchIntentProps } from "@/lib/inbox-prefetch-intent";
 import { isModuleAllowedForRole, MOBILE_MODULES } from "@/lib/mobile-layout";
@@ -78,6 +79,7 @@ function MobileBottomNavClassic() {
   const { data: session } = useSession();
   const { config } = useMobileLayout();
   const { role, isSuperAdmin } = useUserRole();
+  const { data: myPerms } = useMyPermissions();
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -229,7 +231,7 @@ function MobileBottomNavClassic() {
   const items = config.bottomNav
     .map((id) => MOBILE_MODULE_MAP.get(id))
     .filter((m): m is NonNullable<typeof m> => Boolean(m))
-    .filter((m) => isModuleAllowedForRole(m, role, isSuperAdmin));
+    .filter((m) => isModuleAllowedForRole(m, role, isSuperAdmin, myPerms?.permissions));
 
   const activeHrefs = computeActiveHrefs(
     pathname,
