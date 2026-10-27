@@ -55,10 +55,10 @@ export interface SidebarCatalogItem {
    * `nav:*`), o item fica oculto. ADMIN preset (`["*"]`) e super-admin
    * sempre passam.
    *
-   * Por que duplicar com `allowedRoles`? `allowedRoles` é um default
-   * estático de produto (ex.: "automations só pra gestão"); a
-   * permission é o override por role customizada via /settings/permissions.
-   * Os dois rodam juntos — basta UM esconder o item.
+   * `allowedRoles` é o atalho do papel legado (ADMIN/MANAGER). Uma função
+   * personalizada grava `User.role = MEMBER` e libera o item pela
+   * permission (`nav:automations` etc.). Quem tem a chave vê o item
+   * mesmo sem ser ADMIN/MANAGER. Ver `filterVisibleNavItems`.
    */
   requiredPermission?: string;
 }
@@ -336,6 +336,67 @@ export function filterNavItemsByPermissions<T extends SidebarCatalogItem>(
     const [resource] = item.requiredPermission.split(":");
     if (resource && permSet.has(`${resource}:*`)) return true;
     return false;
+  });
+}
+
+/**
+ * O editor em modo avançado pode gravar `automation:view` sem derivar
+ * `nav:automations`. A chave do módulo também abre o item.
+ */
+const MODULE_OPENS_NAV: Record<string, readonly string[]> = {
+  "nav:automations": ["automation:view", "automation:*"],
+  "nav:distribution": ["distribution:view", "distribution:*"],
+  "nav:logs": ["report:view", "report:*"],
+  "nav:widgets": ["distribution:view", "distribution:*"],
+};
+
+/** `*` , `nav:*` ou a chave exata. Também aceita `team_chat:view` no chat. */
+export function grantsNavPermission(
+  permissions: readonly string[] | undefined,
+  required: string,
+): boolean {
+  if (!permissions) return false;
+  if (permissions.includes("*") || permissions.includes(required)) return true;
+  const [resource] = required.split(":");
+  if (resource && permissions.includes(`${resource}:*`)) return true;
+  if (
+    required === "nav:team-chat" &&
+    (permissions.includes("team_chat:view") || permissions.includes("team_chat:*"))
+  ) {
+    return true;
+  }
+  const also = MODULE_OPENS_NAV[required];
+  if (also?.some((key) => permissions.includes(key))) return true;
+  return false;
+}
+
+/**
+ * Menu visível.
+ *
+ * Com as permissões já carregadas, a chave manda: função personalizada
+ * grava `User.role = MEMBER` e mesmo assim vê Automações se tiver
+ * `nav:automations`. Sem a chave, o item some — inclusive para o papel
+ * legado MANAGER.
+ *
+ * Enquanto as permissões não chegaram, vale só o papel legado, para um
+ * consultor não ver Automações por um instante.
+ */
+export function filterVisibleNavItems<T extends SidebarCatalogItem>(
+  items: T[],
+  viewer: {
+    role: AppUserRole | null;
+    isSuperAdmin?: boolean;
+    permissions?: readonly string[];
+  },
+): T[] {
+  if (viewer.isSuperAdmin) return items;
+  const permsLoaded = viewer.permissions !== undefined;
+  return items.filter((item) => {
+    if (permsLoaded && item.requiredPermission) {
+      return grantsNavPermission(viewer.permissions, item.requiredPermission);
+    }
+    if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
+    return viewer.role != null && item.allowedRoles.includes(viewer.role);
   });
 }
 

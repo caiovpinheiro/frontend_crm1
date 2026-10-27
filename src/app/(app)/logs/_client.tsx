@@ -55,7 +55,9 @@ import {
 } from "@/features/softphone/api/extensions";
 import type { ListCallsFilters } from "@/features/softphone/api/types";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
-import { useRequireManager } from "@/hooks/use-user-role";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { useUserRole } from "@/hooks/use-user-role";
+import { grantsNavPermission } from "@/lib/sidebar-catalog";
 import { DataView, DataRow } from "@/components/automations/data-view";
 import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
 import { PageChrome } from "@/components/crm/page-header";
@@ -259,7 +261,11 @@ function resolveOrigin(ev: FeedEvent): OriginInfo {
 }
 
 export default function LogsClientPage() {
-  const { ready, isManagerUp } = useRequireManager();
+  const { ready, isManagerUp } = useUserRole();
+  const permsQuery = useMyPermissions();
+  const canOpen =
+    isManagerUp || grantsNavPermission(permsQuery.data?.permissions, "nav:logs");
+  const accessReady = ready && (isManagerUp || permsQuery.isFetched);
   const { status: sessionStatus } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = React.useState(0);
@@ -549,7 +555,7 @@ export default function LogsClientPage() {
     if (!feedBooting) setFeedChromeReady(true);
   }, [feedBooting]);
 
-  if (ready && !isManagerUp) return <RestrictedScreen />;
+  if (accessReady && !canOpen) return <RestrictedScreen />;
 
   if (feedBooting && !feedChromeReady) {
     return (

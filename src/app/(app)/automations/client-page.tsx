@@ -19,7 +19,9 @@ import { AppLoading } from "@/components/crm/app-loading"
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
 import { cn } from "@/lib/utils"
 import { RestrictedScreen } from "@/components/crm/restricted-screen"
-import { useRequireManager } from "@/hooks/use-user-role"
+import { useMyPermissions } from "@/hooks/use-my-permissions"
+import { useUserRole } from "@/hooks/use-user-role"
+import { grantsNavPermission } from "@/lib/sidebar-catalog"
 import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle"
 import { PageChrome } from "@/components/crm/page-header"
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
@@ -51,7 +53,16 @@ type StatusFilter = 0 | 1 | 2
 
 export default function V2AutomationsClientPage() {
   const router = useRouter()
-  const { ready, isManagerUp } = useRequireManager()
+  const { ready, isManagerUp } = useUserRole()
+  const permsQuery = useMyPermissions()
+  const canOpen =
+    isManagerUp ||
+    grantsNavPermission(permsQuery.data?.permissions, "nav:automations")
+  const accessReady = ready && (isManagerUp || permsQuery.isFetched)
+
+  useEffect(() => {
+    if (accessReady && !canOpen) router.replace("/dashboard")
+  }, [accessReady, canOpen, router])
   const [query, setQuery] = useState("")
   const [debounced, setDebounced] = useState("")
   const [filter, setFilter] = useState<StatusFilter>(0)
@@ -318,7 +329,7 @@ export default function V2AutomationsClientPage() {
   const isEmptyFiltered =
     !isLoading && !isError && total === 0 && hasFilters
 
-  if (ready && !isManagerUp) return <RestrictedScreen />
+  if (accessReady && !canOpen) return <RestrictedScreen />
 
   return (
     <div

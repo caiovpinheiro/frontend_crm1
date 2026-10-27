@@ -44,7 +44,9 @@ import {
 } from "@/components/crm/system-presence-indicator";
 import { DistributionIcon } from "@/components/icons/distribution-icon";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
-import { useRequireManager } from "@/hooks/use-user-role";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { useUserRole } from "@/hooks/use-user-role";
+import { grantsNavPermission } from "@/lib/sidebar-catalog";
 import { DataView, DataRow } from "@/components/automations/data-view";
 import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
 import { PageChrome } from "@/components/crm/page-header";
@@ -250,7 +252,12 @@ export default function DistributionClientPage({
   navRail,
 }: DistributionClientPageProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
-  const { ready: roleReady, isManagerUp } = useRequireManager();
+  const { ready: roleReady, isManagerUp } = useUserRole();
+  const permsQuery = useMyPermissions();
+  const canOpen =
+    isManagerUp ||
+    grantsNavPermission(permsQuery.data?.permissions, "nav:distribution");
+  const accessReady = roleReady && (isManagerUp || permsQuery.isFetched);
   const canFetch = sessionStatus !== "unauthenticated";
   const currentUserId = session?.user?.id ?? null;
   const currentUserImage = session?.user?.image ?? null;
@@ -483,7 +490,7 @@ export default function DistributionClientPage({
     });
   };
 
-  if (roleReady && !isManagerUp) return <RestrictedScreen />;
+  if (accessReady && !canOpen) return <RestrictedScreen />;
 
   const widgetsBlocking =
     widgetsQuery.isLoading && cachedInstalled !== true && !respQuery.data;

@@ -45,8 +45,7 @@ import { useSettingsDrawer } from "@/features/settings/settings-drawer-context";
 import { cn } from "@/lib/utils";
 import { isPreviewMode, PREVIEW_USER } from "@/lib/preview-mode";
 import {
-  filterNavItemsByPermissions,
-  filterNavItemsByRole,
+  filterVisibleNavItems,
   toNavItems,
   type SidebarItemPreference,
 } from "@/lib/sidebar-catalog";
@@ -330,10 +329,11 @@ export function NavRailV2({ className }: { className?: string }) {
   // 1 frame um non-admin vê itens restritos; aceito (mesmo trade do prefs).
   const baseNavItems = toNavItems(effectiveItems);
   const computedNavItems = mounted
-    ? filterNavItemsByPermissions(
-        filterNavItemsByRole(baseNavItems, { role, isSuperAdmin }),
-        { isSuperAdmin, permissions: myPerms?.permissions },
-      )
+    ? filterVisibleNavItems(baseNavItems, {
+        role,
+        isSuperAdmin,
+        permissions: myPerms?.permissions,
+      })
     : baseNavItems;
   const lastNavItemsRef = useRef(computedNavItems);
   if (computedNavItems.length > 0) lastNavItemsRef.current = computedNavItems;
