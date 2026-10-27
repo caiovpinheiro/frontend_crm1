@@ -136,18 +136,22 @@ export function resolveFlowPresentation(
       }
     }
     case "send_whatsapp_flow": {
+      const tpl = String(config.templateLabel ?? config.templateName ?? "").trim()
       const name = String(config.flowName ?? "").trim()
       const body = String(config.body ?? "").trim()
-      const subtitle = body
-        ? clampSubtitle(body, 90)
-        : name
-          ? clampSubtitle(name)
-          : data.subtitle
+      const subtitle = tpl
+        ? clampSubtitle(`Template ${tpl}`, 90)
+        : body
+          ? clampSubtitle(body, 90)
+          : name
+            ? clampSubtitle(name)
+            : data.subtitle
       return {
         subtitle,
         outputs: [
-          { ...SUCCESS_SEND_OUTPUT },
-          { id: "timeout", label: "Sem resposta", icon: "clock", err: true },
+          { id: "next", label: "Flow respondido" },
+          { id: "else", label: "Outra resposta" },
+          { id: "timeout", label: "Caso o contato não responda", icon: "clock", err: true },
           { ...FAILURE_OUTPUT },
         ],
       }

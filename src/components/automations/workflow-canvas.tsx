@@ -539,6 +539,21 @@ function buildEdges(steps: AutomationStep[], triggerDisconnected = false): Edge[
     // Mensagem / template SEM botões (ActionNode): aresta "Sem resposta".
     // Template COM botões já cai no bloco isInteractiveStep acima.
     if (
+      a.type === "send_whatsapp_flow" &&
+      typeof cfg.elseGotoStepId === "string" &&
+      cfg.elseGotoStepId &&
+      stepIds.has(cfg.elseGotoStepId)
+    ) {
+      out.push({
+        id: `${a.id}-else-${cfg.elseGotoStepId}`,
+        source: a.id, target: cfg.elseGotoStepId,
+        sourceHandle: "else",
+        animated: false, data: EDGE_DATA_ELSE, type: EDGE_TYPE,
+        interactionWidth: INTERACT_W, ...DELETE_LABEL_PROPS,
+      });
+    }
+
+    if (
       !isInteractiveStep(a) &&
       (a.type === "send_whatsapp_message" ||
         a.type === "send_whatsapp_template" ||

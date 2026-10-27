@@ -276,10 +276,17 @@ export function outputsFromStepConfig(
     }
     return outs
   }
+  if (type === "send_whatsapp_flow") {
+    return [
+      { key: "next", label: "Flow respondido", kind: "navigation", target: t("next", cfg.nextStepId) },
+      { key: "else", label: "Outra resposta", kind: "navigation", target: t("else", cfg.elseGotoStepId) },
+      { key: "timeout", label: "Caso o contato não responda", kind: "error", target: t("timeout", cfg.timeoutGotoStepId) },
+      { key: "failure", label: "Caso ocorrer erro no envio de mensagem", kind: "error", target: t("failure", cfg.failureGotoStepId) },
+    ]
+  }
   if (
     type === "send_whatsapp_message" ||
-    type === "send_whatsapp_template" ||
-    type === "send_whatsapp_flow"
+    type === "send_whatsapp_template"
   ) {
     return [
       { key: "next", label: "Próximo passo", kind: "navigation", target: t("next", cfg.nextStepId) },
