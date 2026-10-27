@@ -582,7 +582,12 @@ export default function KanbanV2ClientPage({
           .filter((stage) => !hasStage || (filters.stageIds ?? []).includes(stage.id))
           .map((stage) => {
             const deals = stage.deals.filter((d) => {
-              if (hasOwner && (!d.owner?.id || !(filters.ownerIds ?? []).includes(d.owner.id))) return false;
+              if (hasOwner || filters.withoutOwner) {
+                const id = d.owner?.id;
+                const listed = hasOwner && !!id && (filters.ownerIds ?? []).includes(id);
+                const unassigned = filters.withoutOwner === true && !id;
+                if (!listed && !unassigned) return false;
+              }
               if (hasTag) {
                 const ids = (d.tags ?? []).map((t) => t.id);
                 if (!(filters.tagIds ?? []).some((id) => ids.includes(id))) return false;

@@ -537,6 +537,18 @@ describe("applyDealMoved", () => {
       expect(filteredAfter({ withoutOwner: true }, owned("u-x")).same).toBe(true);
     });
 
+    it("sem responsável junto de um consultor: entram os dois, o outro fica de fora", () => {
+      expect(filteredAfter({ withoutOwner: true, ownerIds: ["u-x"] }, owned(null)).ids).toEqual([
+        "b1",
+        "novo",
+      ]);
+      expect(filteredAfter({ withoutOwner: true, ownerIds: ["u-x"] }, owned("u-x")).ids).toEqual([
+        "b1",
+        "novo",
+      ]);
+      expect(filteredAfter({ withoutOwner: true, ownerIds: ["u-x"] }, owned("u-y")).same).toBe(true);
+    });
+
     it("etapa, status e tags conferidos com o card", () => {
       expect(filteredAfter({ stageIds: ["s-b"], ownerIds: ["u-x"] }, owned("u-x")).ids).toEqual([
         "b1",

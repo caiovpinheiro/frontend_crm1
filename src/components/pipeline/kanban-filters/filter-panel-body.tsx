@@ -443,7 +443,7 @@ function UsersMultiPick({
       <div className="max-h-28 overflow-y-auto space-y-0.5">
         <button
           type="button"
-          onClick={() => onChange([], !withoutOwner)}
+          onClick={() => onChange(selected, !withoutOwner)}
           className={cn(
             "flex w-full items-center gap-2 rounded px-2 py-1 text-[11px] transition-colors",
             withoutOwner
@@ -462,7 +462,7 @@ function UsersMultiPick({
               type="button"
               onClick={() => {
                 const next = active ? selected.filter((x) => x !== u.id) : [...selected, u.id];
-                onChange(next, false);
+                onChange(next, Boolean(withoutOwner));
               }}
               className={cn(
                 "flex w-full items-center gap-2 rounded px-2 py-1 text-[11px] transition-colors",
