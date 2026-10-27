@@ -82,12 +82,13 @@ export function dealFilterChips(
 
   if (filters.withoutOwner) {
     chips.push({
-      id: "owner",
+      id: "owner-none",
       title: "Sem responsável",
       count: 1,
       onRemove: () => onPatch({ withoutOwner: undefined }),
     });
-  } else if (filters.ownerIds && filters.ownerIds.length > 0) {
+  }
+  if (filters.ownerIds && filters.ownerIds.length > 0) {
     chips.push({
       id: "owner",
       title: "Responsável",

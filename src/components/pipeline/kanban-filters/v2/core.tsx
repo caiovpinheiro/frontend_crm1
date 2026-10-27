@@ -847,13 +847,11 @@ export function OwnersSection({ draft, options, setDraftField }: SectionProps) {
           if (value === "__none__") {
             const next = !draft.withoutOwner;
             setDraftField("withoutOwner", next || undefined);
-            if (next) setDraftField("ownerIds", undefined);
             return;
           }
           const active = selected.includes(value);
           const next = active ? selected.filter((x) => x !== value) : [...selected, value];
           setDraftField("ownerIds", next.length ? next : undefined);
-          setDraftField("withoutOwner", undefined);
         }}
       />
     </FieldCard>

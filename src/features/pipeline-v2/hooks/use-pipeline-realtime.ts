@@ -643,10 +643,13 @@ function filteredBoardAcceptsCreated(
   if (statuses && (facts.status === undefined || !statuses.includes(facts.status))) return false;
 
   const ownerIds = nonEmptyList(filters.ownerIds);
-  if (filters.withoutOwner === true) {
-    if (facts.ownerId !== null) return false;
-  } else if (ownerIds) {
-    if (facts.ownerId === undefined || !ownerIds.includes(facts.ownerId)) return false;
+  const realOwnerIds = (ownerIds ?? []).filter((id): id is string => typeof id === "string" && id.length > 0);
+  const wantUnassigned = filters.withoutOwner === true || (ownerIds ?? []).some((id) => id === null);
+  if (wantUnassigned || realOwnerIds.length > 0) {
+    if (facts.ownerId === undefined) return false;
+    const listed = typeof facts.ownerId === "string" && realOwnerIds.includes(facts.ownerId);
+    const unassigned = wantUnassigned && facts.ownerId === null;
+    if (!listed && !unassigned) return false;
   }
 
   const tagIds = nonEmptyList(filters.tagIds);
