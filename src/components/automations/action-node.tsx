@@ -131,6 +131,7 @@ export function ActionNode({ data, selected }: NodeProps<ActionRF>) {
     data.stepType === "send_whatsapp_message" ||
     data.stepType === "send_whatsapp_template" ||
     data.stepType === "send_whatsapp_flow";
+  const isFlowNode = data.stepType === "send_whatsapp_flow";
 
   return (
     <FlowNodeShell
@@ -167,7 +168,9 @@ export function ActionNode({ data, selected }: NodeProps<ActionRF>) {
       {hasFailureOutput ? (
         <div className="wf-node__outs">
           <div className="wf-node__out wf-node__out--ok fx-out fx-out--flow">
-            <span className="fx-out__label flex-1">Próximo passo</span>
+            <span className="fx-out__label flex-1">
+              {isFlowNode ? "Flow respondido" : "Próximo passo"}
+            </span>
             <CustomHandle
               type="source"
               position={Position.Right}
@@ -176,6 +179,18 @@ export function ActionNode({ data, selected }: NodeProps<ActionRF>) {
               className="fx-port--flow"
             />
           </div>
+          {isFlowNode && (
+            <div className="wf-node__out fx-out fx-out--error">
+              <span className="fx-out__label flex-1">Outra resposta</span>
+              <CustomHandle
+                type="source"
+                position={Position.Right}
+                id="else"
+                connectionLimit={1}
+                className="fx-port--error"
+              />
+            </div>
+          )}
           {hasTimeoutOutput && (
             <div className="wf-node__out fx-out fx-out--error">
               <span className="fx-out__label flex-1">Caso o contato não responda</span>

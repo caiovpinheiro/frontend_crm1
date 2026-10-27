@@ -188,10 +188,16 @@ export function getStepOutgoing(step: StepLike): StepOutgoing {
       if (c.failureAction === "goto") push("falha ao enviar", c.failureGotoStepId);
       break;
     }
+    case "send_whatsapp_flow": {
+      push("Flow respondido", c.nextStepId);
+      push("Outra resposta", c.elseGotoStepId);
+      push("timeout (sem resposta)", c.timeoutGotoStepId);
+      if (c.failureAction === "goto") push("falha ao enviar", c.failureGotoStepId);
+      break;
+    }
     case "send_whatsapp_message":
     case "send_whatsapp_media":
-    case "send_whatsapp_template":
-    case "send_whatsapp_flow": {
+    case "send_whatsapp_template": {
       if (step.type === "send_whatsapp_template") {
         const buttons = Array.isArray(c.buttons) ? (c.buttons as Record<string, unknown>[]) : [];
         buttons.forEach((b, i) => {

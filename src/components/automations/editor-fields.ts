@@ -15,6 +15,7 @@ export type SourceKey =
   | "aiAgentUserId"
   | "template"
   | "publishedFlow"
+  | "flowOrTemplate"
   | "automation"
 
 type Common = {
@@ -250,10 +251,10 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "channelPicker" },
     {
       kind: "source",
-      source: "publishedFlow",
+      source: "flowOrTemplate",
       key: "flowDefinitionId",
       label: "Formulário",
-      hint: "Apenas flows publicados na Meta. Fora da janela 24h use um template com botão Flow.",
+      hint: "Flow publicado entra na janela de 24h. Fora dela, escolha um template aprovado com botão Flow.",
     },
     {
       kind: "textarea",

@@ -117,6 +117,9 @@ export function NodeConfigEditor({
   const fields = fieldsOverride ?? STEP_FIELDS[stepType]
   const set = (key: string, value: unknown) => onChange({ ...config, [key]: value })
 
+  const sessionFlow =
+    stepType === "send_whatsapp_flow" && !str(config.templateName)
+
   if (!fields) {
     return (
       <div className="n-config nodrag nopan nowheel" onClick={(e) => e.stopPropagation()}>
@@ -133,7 +136,16 @@ export function NodeConfigEditor({
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      {fields.map((f, i) => (
+      {fields.map((f, i) => {
+        if (
+          !sessionFlow &&
+          stepType === "send_whatsapp_flow" &&
+          "key" in f &&
+          (f.key === "body" || f.key === "flowCta" || f.key === "header" || f.key === "footer")
+        ) {
+          return null
+        }
+        return (
         <Field
           key={"key" in f ? f.key : `f${i}`}
           field={f}
@@ -147,7 +159,8 @@ export function NodeConfigEditor({
           bindToInbound={bindToInbound}
           hideStepTargets={hideStepTargets}
         />
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -315,6 +328,18 @@ function Field({
                   ...(stepType === "mark_deal_lost" ? { lostReason: "" } : {}),
                 })
               }
+            />
+          </Labeled>
+        )
+      }
+      if (field.source === "flowOrTemplate") {
+        return (
+          <Labeled label={field.label} optional={field.optional} hint={field.hint}>
+            <FlowOrTemplateSelect
+              config={config}
+              inheritedChannelId={inheritedChannelId}
+              bindToInbound={bindToInbound}
+              onChange={onChange}
             />
           </Labeled>
         )
@@ -900,6 +925,95 @@ function StageSelect({
         onPick(id, opt?.label ?? "")
       }}
     />
+  )
+}
+
+function FlowOrTemplateSelect({
+  config,
+  inheritedChannelId,
+  bindToInbound,
+  onChange,
+}: {
+  config: Cfg
+  inheritedChannelId?: string
+  bindToInbound?: boolean
+  onChange: (next: Cfg) => void
+}) {
+  const flows = usePublishedFlowOptions()
+  const catalog = useStepTemplateCatalog(config, inheritedChannelId, { bindToInbound })
+  const flowId = str(config.flowDefinitionId)
+  const templateName = str(config.templateName)
+  const value = templateName ? `tpl:${templateName}` : flowId ? `flow:${flowId}` : ""
+  const templateOptions = catalog.options.filter((opt) => {
+    const detail = getTemplateDetail(catalog.detailsMap, opt.value)
+    return detail?.buttons.some((b) => b.kind === "flow")
+  })
+  const options: Opt[] = [
+    ...flows.options.map((o) => ({ value: `flow:${o.value}`, label: o.label })),
+    ...templateOptions.map((o) => ({ value: `tpl:${o.value}`, label: `Template · ${o.label}` })),
+  ]
+  const selectedTpl = templateName
+    ? getTemplateDetail(catalog.detailsMap, templateName, str(config.languageCode))
+    : undefined
+  const flowButton = selectedTpl?.buttons.find((b) => b.kind === "flow")
+  const known = value === "" || options.some((o) => o.value === value)
+  const loading = flows.isLoading || catalog.isLoading
+
+  return (
+    <>
+      <ConfigSelect
+        value={value}
+        options={options}
+        loading={loading}
+        placeholder="Formulário ou template com Flow…"
+        searchable
+        searchPlaceholder="Buscar formulário ou template…"
+        onChange={(next) => {
+          if (next.startsWith("flow:")) {
+            const id = next.slice("flow:".length)
+            const opt = flows.options.find((o) => o.value === id)
+            onChange({
+              ...config,
+              flowDefinitionId: id,
+              flowName: opt?.label ?? "",
+              templateName: "",
+              templateLabel: "",
+              languageCode: "",
+            })
+            return
+          }
+          if (next.startsWith("tpl:")) {
+            const name = next.slice("tpl:".length)
+            const detail = getTemplateDetail(catalog.detailsMap, name)
+            onChange({
+              ...config,
+              templateName: name,
+              templateLabel: templateOptions.find((o) => o.value === name)?.label ?? name,
+              languageCode: detail?.language ?? "pt_BR",
+              flowDefinitionId: "",
+              flowName: "",
+            })
+          }
+        }}
+      />
+      {!loading && options.length === 0 ? (
+        <p className="cfg-info">
+          Nenhum formulário publicado nem template aprovado com botão Flow neste canal.
+        </p>
+      ) : null}
+      {templateName && !known && !loading ? (
+        <p className="cfg-warning">
+          O template {templateName} não tem botão Flow aprovado nos canais deste passo.
+        </p>
+      ) : null}
+      {selectedTpl ? (
+        <p className="cfg-hint">
+          {selectedTpl.language ?? "pt_BR"}
+          {flowButton ? ` · botão “${flowButton.title}”` : ""}
+          {selectedTpl.bodyPreview ? ` — ${selectedTpl.bodyPreview}` : ""}
+        </p>
+      ) : null}
+    </>
   )
 }
 

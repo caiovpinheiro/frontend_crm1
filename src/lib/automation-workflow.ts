@@ -644,8 +644,10 @@ export function summarizeStepConfig(stepType: string, config: unknown, lookup?: 
       return rows > 0 ? `[${rows} itens] ${bodyText}` : bodyText || "Configurar lista";
     }
     case "send_whatsapp_flow": {
+      const tpl = c.templateLabel ? String(c.templateLabel) : c.templateName ? String(c.templateName) : "";
       const flowName = c.flowName ? String(c.flowName) : "";
       const bodyText = c.body ? String(c.body).slice(0, 30) : "";
+      if (tpl) return `Template ${tpl}`;
       return flowName || bodyText || "Selecionar formulário";
     }
     case "webhook":
@@ -816,7 +818,7 @@ export function isStepIncomplete(
         !(Array.isArray(c.rows) && c.rows.length > 0)
       );
     case "send_whatsapp_flow":
-      return !str(c.flowDefinitionId);
+      return !str(c.flowDefinitionId) && !str(c.templateName);
     case "send_email":
       // `to` vazio = e-mail do contato (resolvido no motor).
       return !str(c.subject) || !str(c.body);
@@ -924,11 +926,15 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
       return {
         flowDefinitionId: "",
         flowName: "",
+        templateName: "",
+        languageCode: "pt_BR",
+        templateLabel: "",
         body: "",
         flowCta: "Abrir formulário",
         header: "",
         footer: "",
         saveToVariable: "",
+        elseGotoStepId: "",
         timeoutMs: 86_400_000,
         timeoutAction: "continue",
         timeoutGotoStepId: "",
