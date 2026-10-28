@@ -14,6 +14,7 @@ import {
   fetchPainelInsights,
   fetchPainelService,
   fetchPainelTeam,
+  LOSS_REASONS_EVENT,
   requestFilters,
   type PainelAgora,
   type PainelDealsResult,
@@ -44,7 +45,11 @@ import {
   mockFilterOptions,
   mockSystemUsageToday,
 } from "./mock-painel";
-import type { PainelCustomFieldCard, PainelEventCard } from "./painel-api";
+import type {
+  PainelCustomFieldCard,
+  PainelEventCard,
+  PainelLossReasonsCard,
+} from "./painel-api";
 import type { NegociosCustomCard } from "./use-negocios-grid";
 import { todayRangeISO, type DashboardPipelineOption } from "./use-dashboard-filters";
 import {
@@ -527,6 +532,20 @@ export function usePainelCustomFields(
   });
 }
 
+/** Card "Motivo de perda": perdidos no período com os filtros do painel. */
+export function usePainelLossReasons(filters: DashboardFiltersState, enabled = true) {
+  const reqFilters = useMemo(() => requestFilters(filters), [filters]);
+  return useQuery<PainelLossReasonsCard | null>({
+    queryKey: ["painel", "loss-reasons", reqFilters],
+    queryFn: async ({ signal }) => {
+      const data = await fetchPainelDeals(filters, "lossReasons", undefined, signal);
+      return data.lossReasons?.ok ? data.lossReasons.data : null;
+    },
+    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
+    staleTime: 30_000,
+  });
+}
+
 /**
  * Valores dos cards de evento da grade de Negócios. `cards` = só os visíveis.
  *  - mensagens recebidas/respondidas e fila: volume de `/api/painel/service`;
@@ -541,7 +560,10 @@ export function usePainelEventCards(
   cards: NegociosCustomCard[],
   enabled = true,
 ) {
-  const eventCards = cards.filter((c) => c.type === "event");
+  // "Motivo de perda" tem query própria (`usePainelLossReasons`).
+  const eventCards = cards.filter(
+    (c) => c.type === "event" && c.eventType !== LOSS_REASONS_EVENT,
+  );
   const stats = useActivityStats(enabled && eventCardsNeedActivityStats(eventCards), {
     period: filters.period ?? "today",
     startDate: filters.startDate,

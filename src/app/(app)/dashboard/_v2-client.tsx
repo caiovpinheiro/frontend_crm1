@@ -58,6 +58,7 @@ import {
   usePainelDeals,
   usePainelEventCards,
   usePainelInsights,
+  usePainelLossReasons,
   usePainelService,
   usePainelTeam,
   usePipelineOptions,
@@ -69,6 +70,7 @@ import {
   useDashboardFilters,
 } from "@/features/dashboard-v2/use-dashboard-filters";
 import type { DashboardFiltersState } from "@/features/dashboard-v2/api";
+import { LOSS_REASONS_EVENT } from "@/features/dashboard-v2/painel-api";
 import {
   createRemoteSliceSaver,
   loadRemoteDashboard,
@@ -478,6 +480,14 @@ function ManagerHome({
   );
   const customFieldsQuery = usePainelCustomFields(filters, fieldIds, tabReady && isDeals);
   const eventCards = usePainelEventCards(filters, visibleCards, tabReady && isDeals);
+  // Card "Motivo de perda" na grade: só então pede `section=lossReasons`.
+  const lossReasonsVisible = visibleCards.some(
+    (c) => c.type === "event" && c.eventType === LOSS_REASONS_EVENT,
+  );
+  const lossReasonsQuery = usePainelLossReasons(
+    filters,
+    tabReady && isDeals && lossReasonsVisible,
+  );
   const insightsQuery = usePainelInsights(filters, visibleCards, tabReady && isDeals);
   // O card de uso do sistema pode estar oculto: sem ele, sem GET.
   const usageVisible = grid.hydrated && grid.widgetIds.includes("usage");
@@ -800,6 +810,24 @@ function ManagerHome({
                       total={block?.total ?? 0}
                       groups={block?.groups ?? []}
                       chartType={def.chartType}
+                    />
+                  );
+                }
+                if (def.type === "event" && def.eventType === LOSS_REASONS_EVENT) {
+                  if (dealCardWaiting(lossReasonsQuery)) {
+                    return <PainelSkeleton className="min-h-32" />;
+                  }
+                  const block = lossReasonsQuery.data;
+                  return (
+                    <CustomMetricCard
+                      def={def}
+                      value={block?.total ?? null}
+                      unit="count"
+                      rows={(block?.items ?? []).map((r) => ({
+                        id: r.reason,
+                        name: r.reason,
+                        value: r.count,
+                      }))}
                     />
                   );
                 }

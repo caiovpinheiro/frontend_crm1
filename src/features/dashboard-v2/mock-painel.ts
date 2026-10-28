@@ -16,6 +16,7 @@ import type {
   PainelByDepartment,
   PainelConnections,
   PainelCustomFieldCard,
+  PainelLossReasonsCard,
   PainelDealsResult,
   PainelEventCard,
   PainelEvolution,
@@ -423,6 +424,25 @@ export function mockPainelDeals(
     sources: ok(sources(band)),
     exceptions: dealExceptions(),
     customFields: ok(mockCustomFieldCards(fieldIds, scale)),
+    lossReasons: ok(mockLossReasons(scale)),
+  };
+}
+
+function mockLossReasons(scale: number): PainelLossReasonsCard {
+  const items = [
+    { reason: "Preço", count: 18, value: 54_000 },
+    { reason: "Sem interesse", count: 12, value: 31_000 },
+    { reason: "Fechou com concorrente", count: 7, value: 26_000 },
+    { reason: "Sem motivo", count: 3, value: 6_000 },
+  ].map((i) => ({
+    ...i,
+    count: Math.max(1, Math.round(i.count * scale)),
+    value: Math.round(i.value * scale),
+  }));
+  return {
+    total: items.reduce((s, i) => s + i.count, 0),
+    totalValue: items.reduce((s, i) => s + i.value, 0),
+    items,
   };
 }
 
