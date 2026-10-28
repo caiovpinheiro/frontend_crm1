@@ -107,7 +107,8 @@ export function webchatPublicOrigin(): string {
 }
 
 export function webchatSnippet(publicKey: string, origin = webchatPublicOrigin()): string {
-  return `<script async src="${origin}/webchat/embed.js?v=1" data-key="${publicKey}"></script>`;
+  // `?v=2` só versiona o cache: o mesmo embed.js atende os snippets v1.
+  return `<script async src="${origin}/webchat/embed.js?v=2" data-key="${publicKey}"></script>`;
 }
 
 export function webchatHostedUrl(publicKey: string, origin = webchatPublicOrigin()): string {

@@ -279,6 +279,11 @@ export type WebchatPanelProps = {
   open?: boolean;
   /** Polling falhando (rede/5xx): aviso "Sem conexão…" sobre a conversa. */
   connectionError?: boolean;
+  /**
+   * Texto pré-preenchido pelo site (`open({ message })`, v2): vai para o
+   * campo SEM enviar; o visitante edita. `seq` muda a cada pedido.
+   */
+  prefill?: { text: string; seq: number } | null;
   onClose?: () => void;
   onSend: (text: string) => Promise<boolean> | void;
   onRetry: (id: string) => void;
@@ -298,6 +303,7 @@ export function WebchatPanel({
   offlineSent,
   open = true,
   connectionError = false,
+  prefill = null,
   onClose,
   onSend,
   onRetry,
@@ -309,6 +315,7 @@ export function WebchatPanel({
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const avatar = config.theme.avatarUrl;
   const title = config.theme.title;
   const modal = variant !== "preview";
@@ -337,6 +344,24 @@ export function WebchatPanel({
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, agentTyping, view]);
+
+  // Prefill do site: preenche o campo (não envia) a cada pedido novo
+  // (`seq`) e leva o foco ao fim do texto.
+  const [prefillSeen, setPrefillSeen] = useState<number | null>(null);
+  if (prefill && prefill.seq !== prefillSeen) {
+    setPrefillSeen(prefill.seq);
+    setDraft(prefill.text.slice(0, WEBCHAT_MAX_CONTENT));
+  }
+  useEffect(() => {
+    if (prefillSeen === null) return;
+    const t = setTimeout(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [prefillSeen]);
 
   const submitDraft = () => {
     const text = draft.trim();
@@ -480,6 +505,7 @@ export function WebchatPanel({
           }}
         >
           <textarea
+            ref={textareaRef}
             className={styles.textarea}
             rows={1}
             value={draft}
