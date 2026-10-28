@@ -33,6 +33,12 @@ export type ApiChannel = {
   /// / `logoUrl`) que o widget herda quando `config.theme.primary` /
   /// `config.theme.avatarUrl` estão ausentes ou `null`.
   webchatDefaults?: { primary?: string | null; avatarUrl?: string | null } | null;
+  /// Só em canais WEBCHAT (v2): chaves secretas configuradas (sim/não + data).
+  /// O valor nunca vem da API — aparece uma vez, na geração (§9.5 do contrato).
+  webchatSecrets?: {
+    identity?: { configured?: boolean; rotatedAt?: string | null } | null;
+    s2s?: { configured?: boolean; rotatedAt?: string | null } | null;
+  } | null;
 };
 
 export function parseChannelConfigRecord(
