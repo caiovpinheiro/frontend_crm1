@@ -33,6 +33,10 @@ export function WebchatIdentitySection({
   const identity = value.identity;
   const setIdentity = (p: Partial<typeof identity>) => onChange({ ...value, identity: { ...identity, ...p } });
   const matchValue = identity.matchField.type === "customField" ? identity.matchField.customFieldId : "";
+  const attributeCount = new Map<string, number>();
+  for (const row of identity.attributeMap) {
+    if (row.attribute) attributeCount.set(row.attribute, (attributeCount.get(row.attribute) ?? 0) + 1);
+  }
 
   return (
     <section className="space-y-3" aria-labelledby="wc-identity-title">
@@ -54,6 +58,15 @@ export function WebchatIdentitySection({
         status={secrets.identity}
         onRotated={onSecretsChange}
       />
+      <div className="space-y-1 rounded-md bg-[var(--glass-bg-subtle)] p-2 text-xs text-[var(--text-muted)]">
+        <p>
+          No servidor do site: <code>userHash = hex(HMAC-SHA256(chave, externalId))</code>. A chave
+          nunca vai para o navegador.
+        </p>
+        <p>
+          Na página: <code>BwipoWebchat.identify({"{ externalId, userHash, name, email, phone, attributes }"})</code>
+        </p>
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="wc-match-field" className="text-xs">
           Onde fica o identificador do site no contato
@@ -85,7 +98,10 @@ export function WebchatIdentitySection({
               aria-label={`Atributo ${i + 1}`}
               placeholder="nome_do_atributo"
               value={row.attribute}
-              aria-invalid={row.attribute !== "" && !WEBCHAT_ATTRIBUTE_RE.test(row.attribute)}
+              aria-invalid={
+                row.attribute !== "" &&
+                (!WEBCHAT_ATTRIBUTE_RE.test(row.attribute) || (attributeCount.get(row.attribute) ?? 0) > 1)
+              }
               className="font-mono text-xs"
               onChange={(e) => {
                 const next = [...identity.attributeMap];
@@ -132,7 +148,9 @@ export function WebchatIdentitySection({
           <Plus className="size-3.5" />
           Adicionar atributo
         </Button>
-        <p className="text-xs text-[var(--text-muted)]">Atributo sem campo escolhido é ignorado.</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          Atributo sem campo escolhido é ignorado. Cada atributo aparece uma vez só.
+        </p>
       </div>
     </section>
   );

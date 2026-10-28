@@ -7,29 +7,41 @@
  *    (1) `document.referrer` bater com `host`, (2) handshake `postMessage`
  *    com o loader confirmar a origem do pai e (3) `GET /config?host=`
  *    aprovar (`host ∈ allowedOrigins`). Qualquer falha → nada é exibido.
+ *    v2 (§9.1/§9.2): `open({ message, ref })` preenche o campo sem enviar e
+ *    guarda o `ref` para a próxima mensagem; `identify`/`setContext`/`track`
+ *    do site vão para a API (`site-sync.ts`).
  *  - **hosted** (aberta direto, sem iframe): página hospedada full-screen.
  *  - **preview** (`?preview=1`, iframe do painel do CRM, mesma origem):
  *    conversa de exemplo, sem API de sessão; o CRM manda a config ainda
  *    não salva via `postMessage`.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   backoffDelay,
   fetchWebchatConfig,
   isTransientWebchatError,
+  postWebchatContext,
+  postWebchatEvents,
   retryTransient,
   type WebchatIdentity,
 } from "./api";
 import {
   WEBCHAT_NS,
-  handshakeWithParent,
   isWebchatMessage,
   postToParent,
   type PageInfo,
   type PreviewConfigMessage,
   type PreviewView,
 } from "./protocol";
+import {
+  createLoaderBridge,
+  handshakeWithParentV2,
+  parseOpenMessage,
+  postIdentityToParent,
+  type LoaderBridge,
+} from "./site-bridge";
+import { SiteSync } from "./site-sync";
 import { normalizePublicConfig, type WebchatPublicConfig } from "./types";
 import { useWebchatChat, type UiMessage } from "./use-webchat-chat";
 import {
@@ -96,6 +108,19 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
   const [pageInfo, setPageInfo] = useState<PageInfo | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [offlineSent, setOfflineSent] = useState(false);
+  /** `open({ message })` do site: texto no campo, sem enviar. */
+  const [prefill, setPrefill] = useState<{ text: string; seq: number } | null>(null);
+  /** `open({ ref })` do site: vai junto da próxima mensagem do visitante. */
+  const pendingRefRef = useRef<string | null>(null);
+  const bridgeRef = useRef<LoaderBridge | null>(null);
+
+  useEffect(
+    () => () => {
+      bridgeRef.current?.dispose();
+      bridgeRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     const inFrame = window.parent !== window && Boolean(hostParam);
@@ -109,11 +134,15 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       if (embedded) {
+        // A ponte escuta antes do `ack`: o loader esvazia a fila v2
+        // (identify/contexto/eventos) logo depois dele.
+        const bridgeHost = normalizeOrigin(hostParam ?? "");
+        if (bridgeHost && !bridgeRef.current) bridgeRef.current = createLoaderBridge(bridgeHost);
         const res = await verifyEmbed({
           publicKey,
           host: hostParam ?? "",
           referrer: document.referrer,
-          handshake: handshakeWithParent,
+          handshake: handshakeWithParentV2,
           // Oscilação de rede/5xx não some com o widget da página: tenta de
           // novo algumas vezes (a bolha só aparece depois do `ready`).
           loadConfig: (key, h) => retryTransient(() => fetchWebchatConfig(key, h)),
@@ -183,13 +212,19 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     };
   }, [gate, panelOpen, publicKey, host]);
 
-  // Loader → iframe: abrir/fechar.
+  // Loader → iframe: abrir (v2: com prefill/ref) e fechar.
   useEffect(() => {
     if (!embedded || !host) return;
+    let seq = 0;
     const onMessage = (e: MessageEvent) => {
       if (e.source !== window.parent || e.origin !== host) return;
       if (!isWebchatMessage(e.data)) return;
-      if (e.data.type === "open") setPanelOpen(true);
+      const open = parseOpenMessage(e.data);
+      if (open) {
+        setPanelOpen(true);
+        if (open.ref) pendingRefRef.current = open.ref;
+        if (open.message) setPrefill({ text: open.message, seq: ++seq });
+      }
       if (e.data.type === "close") setPanelOpen(false);
     };
     window.addEventListener("message", onMessage);
@@ -203,6 +238,44 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     host,
     pageInfo,
   });
+
+  // v2: identify/contexto/eventos do site → API (depois do gate aprovado).
+  const chatRef = useRef(chat);
+  useEffect(() => {
+    chatRef.current = chat;
+  });
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (!embedded || !host || gate !== "ok" || !bridge) return;
+    const sync = new SiteSync({
+      identify: (payload) => chatRef.current.identifySigned(payload),
+      withToken: (fn) => chatRef.current.withSessionToken(fn),
+      postContext: postWebchatContext,
+      postEvents: postWebchatEvents,
+      onIdentity: (verified) => postIdentityToParent(host, verified),
+    });
+    const unsubscribe = bridge.subscribe((msg) => {
+      if (msg.type === "identify") void sync.identify(msg.identity);
+      else if (msg.type === "context") sync.setContext(msg.context);
+      else if (msg.type === "track") sync.track(msg.events);
+      else void sync.flush();
+    });
+    return () => {
+      unsubscribe();
+      sync.dispose();
+    };
+  }, [embedded, host, gate]);
+
+  const chatSend = chat.send;
+  const sendWithRef = useCallback(
+    (text: string) => {
+      // O `ref` vai com a próxima mensagem (e nas novas tentativas dela).
+      const ref = pendingRefRef.current ?? undefined;
+      pendingRefRef.current = null;
+      return chatSend(text, ref);
+    },
+    [chatSend],
+  );
 
   // Tema + não lidas para o loader (bolha/badge no site do cliente).
   const unread = chat.unreadCount;
@@ -274,8 +347,9 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
         offlineSent={offlineSent}
         open={panelOpen}
         connectionError={chat.connectionError}
+        prefill={prefill}
         onClose={embedded ? close : undefined}
-        onSend={chat.send}
+        onSend={sendWithRef}
         onRetry={chat.retry}
         onTyping={chat.notifyTyping}
         onIdentify={chat.identify}

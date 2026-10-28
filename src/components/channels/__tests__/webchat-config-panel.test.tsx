@@ -42,7 +42,7 @@ describe("WebchatConfigPanel", () => {
 
   it("snippet com data-key e embed versionado", () => {
     expect(webchatSnippet("wc_abc123456", "https://bwipo.com")).toBe(
-      '<script async src="https://bwipo.com/webchat/embed.js?v=1" data-key="wc_abc123456"></script>',
+      '<script async src="https://bwipo.com/webchat/embed.js?v=2" data-key="wc_abc123456"></script>',
     );
   });
 
@@ -57,7 +57,7 @@ describe("WebchatConfigPanel", () => {
     expect(
       (screen.getByDisplayValue(/data-key="wc_abcdefghijklmnopqrstuvwx"/) as HTMLInputElement)
         .value,
-    ).toContain("/webchat/embed.js?v=1");
+    ).toContain("/webchat/embed.js?v=2");
 
     const origin = screen.getByLabelText("Origem do site");
     fireEvent.change(origin, { target: { value: "not a url" } });

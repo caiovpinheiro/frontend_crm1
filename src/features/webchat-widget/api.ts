@@ -7,6 +7,12 @@
  * não lê). O token renova em `POST /session` (a cada carga) e muda no
  * `POST /session/identify`.
  */
+import type {
+  WebchatContextPatch,
+  WebchatIdentifyPayload,
+  WebchatIdentifyVerification,
+  WebchatTrackEvent,
+} from "./protocol";
 import {
   normalizeMessage,
   normalizePublicConfig,
@@ -75,6 +81,8 @@ type RequestOptions = {
   method?: "GET" | "POST";
   token?: string | null;
   body?: unknown;
+  /** Página fechando: a requisição sobrevive ao descarregamento. */
+  keepalive?: boolean;
 };
 
 async function request(path: string, opts: RequestOptions = {}): Promise<unknown> {
@@ -87,6 +95,7 @@ async function request(path: string, opts: RequestOptions = {}): Promise<unknown
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
     cache: "no-store",
     credentials: "omit",
+    ...(opts.keepalive ? { keepalive: true } : {}),
   });
   if (res.status === 204) return null;
   let data: unknown = null;
@@ -179,9 +188,79 @@ export async function identifyWebchatVisitor(
   };
 }
 
+/**
+ * Identify assinado (v2, §9.4): `{ externalId, userHash, name?, email?,
+ * phone?, attributes? }`. Devolve token NOVO (trocar o salvo) e se a
+ * assinatura valeu.
+ */
+export async function identifyWebchatVisitorSigned(
+  token: string,
+  payload: WebchatIdentifyPayload,
+): Promise<
+  WebchatIdentifyVerification & {
+    token: string | null;
+    contactId: string | null;
+    contact: (WebchatIdentity & { identified: boolean }) | null;
+  }
+> {
+  const r = rec(await request("/session/identify", { method: "POST", token, body: payload }));
+  const contact = r.contact ? rec(r.contact) : null;
+  const pick = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  const reason = r.reason;
+  return {
+    verified: r.verified === true,
+    ...(reason === "SIGNATURE_INVALID" || reason === "SIGNATURE_MISSING" || reason === "IDENTITY_NOT_CONFIGURED"
+      ? { reason }
+      : {}),
+    token: typeof r.token === "string" && r.token ? r.token : null,
+    contactId: typeof r.contactId === "string" ? r.contactId : null,
+    contact: contact
+      ? {
+          name: pick(contact.name),
+          email: pick(contact.email),
+          phone: pick(contact.phone),
+          identified: contact.identified === true,
+        }
+      : null,
+  };
+}
+
+/** Contexto vivo (v2, §9.3): merge raso; `null` remove a chave. */
+export async function postWebchatContext(
+  token: string,
+  context: WebchatContextPatch,
+  keepalive = false,
+): Promise<void> {
+  await request("/context", { method: "POST", token, body: { context }, keepalive });
+}
+
+/** Eventos da linha do tempo (v2, §9.3), em lote. */
+export async function postWebchatEvents(
+  token: string,
+  events: WebchatTrackEvent[],
+  keepalive = false,
+): Promise<void> {
+  try {
+    await request("/events", { method: "POST", token, body: { events }, keepalive });
+  } catch (e) {
+    // Página fechando e o fetch com keepalive recusado pelo navegador:
+    // `sendBeacon` (sem header → token no corpo, `text/plain`).
+    if (
+      !keepalive ||
+      e instanceof WebchatApiError ||
+      typeof navigator === "undefined" ||
+      typeof navigator.sendBeacon !== "function"
+    ) {
+      throw e;
+    }
+    const blob = new Blob([JSON.stringify({ events, token })], { type: "text/plain" });
+    if (!navigator.sendBeacon(`${BASE}/events`, blob)) throw e;
+  }
+}
+
 export async function sendWebchatMessage(
   token: string,
-  body: { clientMessageId: string; content: string },
+  body: { clientMessageId: string; content: string; ref?: string },
 ): Promise<WebchatMessage | null> {
   const r = rec(await request("/messages", { method: "POST", token, body }));
   return normalizeMessage(r.message ?? r);

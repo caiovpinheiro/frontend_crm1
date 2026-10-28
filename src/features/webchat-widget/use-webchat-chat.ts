@@ -20,6 +20,7 @@ import {
   backoffDelay,
   createWebchatSession,
   identifyWebchatVisitor,
+  identifyWebchatVisitorSigned,
   isWebchatAuthError,
   markWebchatRead,
   pollWebchatMessages,
@@ -29,7 +30,12 @@ import {
   type PollResponse,
   type WebchatIdentity,
 } from "./api";
-import { utmFromUrl, type PageInfo } from "./protocol";
+import {
+  utmFromUrl,
+  type PageInfo,
+  type WebchatIdentifyPayload,
+  type WebchatIdentifyVerification,
+} from "./protocol";
 import {
   clearStoredSessionIf,
   parseStoredSession,
@@ -52,7 +58,8 @@ const TYPING_IDLE_MS = 4000;
 /** Trocas de token seguidas aceitas num mesmo request antes de desistir. */
 const MAX_TOKEN_RECOVERIES = 2;
 
-export type UiMessage = WebchatMessage & { local?: "pending" | "failed" };
+/** `ref`: o `open({ ref })` do site (v2), enviado junto da mensagem. */
+export type UiMessage = WebchatMessage & { local?: "pending" | "failed"; ref?: string };
 
 export function newClientMessageId(): string {
   const c = typeof crypto !== "undefined" ? crypto : undefined;
@@ -466,6 +473,7 @@ export function useWebchatChat({ publicKey, enabled, panelVisible, host, pageInf
         const body = {
           clientMessageId: msg.clientMessageId ?? newClientMessageId(),
           content: msg.content,
+          ...(msg.ref ? { ref: msg.ref } : {}),
         };
         const saved = await withToken(st, (token) => sendWebchatMessage(token, body));
         setMessages((prev) =>
@@ -488,7 +496,7 @@ export function useWebchatChat({ publicKey, enabled, panelVisible, host, pageInf
   );
 
   const send = useCallback(
-    async (content: string) => {
+    async (content: string, ref?: string) => {
       const text = content.trim().slice(0, WEBCHAT_MAX_CONTENT);
       if (!text) return false;
       stopTyping();
@@ -501,6 +509,7 @@ export function useWebchatChat({ publicKey, enabled, panelVisible, host, pageInf
         createdAt: new Date().toISOString(),
         status: null,
         local: "pending",
+        ...(ref ? { ref } : {}),
       };
       setMessages((prev) => [...prev, optimistic]);
       return deliver(optimistic);
@@ -537,6 +546,37 @@ export function useWebchatChat({ publicKey, enabled, panelVisible, host, pageInf
     [ensureSession, persist, withToken],
   );
 
+  /**
+   * Identify assinado do site (v2, §9.4). Cria a sessão se preciso. Válido:
+   * a sessão passa para o contato identificado — o histórico é relido.
+   */
+  const identifySigned = useCallback(
+    async (payload: WebchatIdentifyPayload): Promise<WebchatIdentifyVerification> => {
+      const st = await ensureSession();
+      const res = await withToken(st, (token) => identifyWebchatVisitorSigned(token, payload));
+      const cur = storedRef.current ?? st;
+      const c = res.verified ? res.contact : null;
+      persist({
+        ...cur,
+        ...(res.token ? { token: res.token } : {}),
+        identified: cur.identified || Boolean(c?.identified) || res.verified,
+        ...(c ? { name: c.name, email: c.email, phone: c.phone } : {}),
+      });
+      if (res.verified) {
+        cursorRef.current = null;
+        pollNowRef.current();
+      }
+      return res.reason ? { verified: res.verified, reason: res.reason } : { verified: res.verified };
+    },
+    [ensureSession, persist, withToken],
+  );
+
+  /** `fn(token)` com a sessão do visitante (criada se preciso). */
+  const withSessionToken = useCallback(
+    async <T,>(fn: (token: string) => Promise<T>): Promise<T> => withToken(await ensureSession(), fn),
+    [ensureSession, withToken],
+  );
+
   const lastSeenOutAt = stored?.lastSeenOutAt ?? "";
   const unreadOut = useMemo(
     () =>
@@ -569,6 +609,8 @@ export function useWebchatChat({ publicKey, enabled, panelVisible, host, pageInf
     send,
     retry,
     identify,
+    identifySigned,
+    withSessionToken,
     notifyTyping,
   };
 }
