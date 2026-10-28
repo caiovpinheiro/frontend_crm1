@@ -104,6 +104,10 @@ import {
 } from "@/features/distribution/types";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import {
+  buildDepartmentWeights,
+  formatResponsibleDepartments,
+} from "@/features/distribution/department-weights";
+import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
 } from "@/features/distribution/mock";
@@ -1194,15 +1198,9 @@ function ResponsibleCard({
             </span>
             <span
               className="min-w-0 truncate border-l border-border pl-1.5 font-semibold"
-              title={
-                r.departments && r.departments.length > 0
-                  ? r.departments.map((d) => d.name).join(", ")
-                  : "Sem departamento"
-              }
+              title={formatResponsibleDepartments(r.departments)}
             >
-              {r.departments && r.departments.length > 0
-                ? r.departments.map((d) => d.name).join(", ")
-                : "Sem departamento"}
+              {formatResponsibleDepartments(r.departments)}
             </span>
           </div>
         </div>
@@ -1311,10 +1309,7 @@ function ResponsibleMobileCard({
     );
   };
 
-  const deptLabel =
-    r.departments && r.departments.length > 0
-      ? r.departments.map((d) => d.name).join(", ")
-      : "Sem departamento";
+  const deptLabel = formatResponsibleDepartments(r.departments);
   const metaLine = [r.email ?? "—", r.role, deptLabel].filter(Boolean).join(" · ");
 
   const blockedText =
@@ -2594,6 +2589,15 @@ function EditResponsibleDialog({
   const [deptIds, setDeptIds] = useState<string[]>(
     responsible.departments?.map((d) => d.id) ?? [],
   );
+  // Peso por departamento: "" = usa o peso geral.
+  const [deptWeights, setDeptWeights] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (responsible.departments ?? []).map((d) => [
+        d.id,
+        d.weight != null ? String(d.weight) : "",
+      ]),
+    ),
+  );
 
   const toggleDept = (id: string) =>
     setDeptIds((cur) =>
@@ -2613,7 +2617,8 @@ function EditResponsibleDialog({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const limit = Math.max(0, Math.floor(Number(queueLimit) || 0));
-    const weight = Math.max(0, Math.floor(Number(volume) || 0));
+    const weight = Math.max(1, Math.floor(Number(volume) || 1));
+    const departmentWeights = buildDepartmentWeights(deptIds, deptWeights);
     const preMins = Math.min(
       180,
       Math.max(0, Math.floor(Number(preLunchStop) || 0)),
@@ -2629,6 +2634,7 @@ function EditResponsibleDialog({
           volume: weight,
           type: type.trim() || null,
           departmentIds: deptIds,
+          departmentWeights,
           preLunchStopMinutes: preMins,
           schedule: {
             lunchStart: toHhmm(lunchStart),
@@ -2823,13 +2829,14 @@ function EditResponsibleDialog({
             </span>
             <input
               type="number"
-              min={0}
+              min={1}
               value={volume}
               onChange={(e) => setVolume(e.target.value)}
               className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
             />
             <span className="text-[11px] text-[var(--text-muted)]">
-              Peso no rateio entre consultores elegíveis. Maior = recebe mais.
+              Peso geral no rateio entre consultores elegíveis. Maior = recebe
+              mais. Pode ser trocado por departamento logo abaixo.
             </span>
           </label>
 
@@ -2864,23 +2871,50 @@ function EditResponsibleDialog({
                 {deptsQuery.data?.map((d) => {
                   const on = deptIds.includes(d.id);
                   return (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => toggleDept(d.id)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                        on
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
+                    <span key={d.id} className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleDept(d.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
+                          on
+                            ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
+                            : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
+                        )}
+                      >
+                        {on && <IconCheck size={12} stroke={2.4} />}
+                        {d.name}
+                      </button>
+                      {on && (
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          inputMode="numeric"
+                          aria-label={`Peso em ${d.name}`}
+                          title={`Peso em ${d.name} (vazio = peso geral)`}
+                          placeholder={volume || "1"}
+                          value={deptWeights[d.id] ?? ""}
+                          onChange={(e) =>
+                            setDeptWeights((cur) => ({
+                              ...cur,
+                              [d.id]: e.target.value,
+                            }))
+                          }
+                          className="w-14 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-1.5 py-1 text-center font-body text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                        />
                       )}
-                    >
-                      {on && <IconCheck size={12} stroke={2.4} />}
-                      {d.name}
-                    </button>
+                    </span>
                   );
                 })}
               </div>
+            )}
+            {deptIds.length > 0 && (
+              <span className="text-[11px] text-[var(--text-muted)]">
+                O número ao lado de cada departamento é o peso só ali: 3 = 3
+                chances para cada 1 de um colega com peso 1. Vazio = Peso
+                (volume).
+              </span>
             )}
           </div>
         </div>
