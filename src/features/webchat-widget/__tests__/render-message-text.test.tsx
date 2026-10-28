@@ -18,6 +18,15 @@ describe("renderMessageText (widget)", () => {
     );
   });
 
+  it("pontuação final da frase e marcador de formatação ficam fora do link", () => {
+    const a = (url: string) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">${url}</a>`;
+    expect(html("Veja https://loja.test/p?a=1.")).toBe(`Veja ${a("https://loja.test/p?a=1")}.`);
+    expect(html("(https://loja.test/x), ok!")).toBe(`(${a("https://loja.test/x")}), ok!`);
+    expect(html("acesse https://loja.test/a/b?")).toBe(`acesse ${a("https://loja.test/a/b")}?`);
+    expect(html("https://loja.test/#sec;")).toBe(`${a("https://loja.test/#sec")};`);
+  });
+
   it("não formata `javascript:` como link", () => {
     expect(html("javascript:alert(1)")).toBe("javascript:alert(1)");
   });

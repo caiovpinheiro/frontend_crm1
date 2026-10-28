@@ -475,7 +475,26 @@ export type UseSlashMenuOptions = {
    * (ex.: Webchat) — some do menu e nem busca. Default `true`.
    */
   whatsappFeatures?: boolean;
+  /**
+   * Canal aceita anexos. `false` (ex.: Webchat) esconde modelos internos e
+   * mensagens rápidas com mídia — o visitante veria uma bolha vazia. Default `true`.
+   */
+  mediaEnabled?: boolean;
 };
+
+/** Modelo interno / mensagem rápida que leva arquivo junto. */
+export function slashRowHasMedia(row: {
+  mediaUrl?: string | null;
+  attachments?: InternalAttachment[] | null;
+  attachmentUrl?: string | null;
+}): boolean {
+  if (typeof row.mediaUrl === "string" && row.mediaUrl.trim()) return true;
+  if (typeof row.attachmentUrl === "string" && row.attachmentUrl.trim()) return true;
+  return (
+    Array.isArray(row.attachments) &&
+    row.attachments.some((a) => typeof a?.url === "string" && a.url.trim() !== "")
+  );
+}
 
 export function useSlashMenu({
   draft,
@@ -491,6 +510,7 @@ export function useSlashMenu({
   channelId,
   disabled = false,
   whatsappFeatures = true,
+  mediaEnabled = true,
 }: UseSlashMenuOptions) {
   const [open, setOpen] = React.useState(false);
   const [token, setToken] = React.useState<{ start: number; end: number; query: string } | null>(
@@ -600,6 +620,7 @@ export function useSlashMenu({
     const out: SlashItem[] = [];
 
     for (const t of internalsQ.data ?? []) {
+      if (!mediaEnabled && slashRowHasMedia(t)) continue;
       const title = t.name;
       if (q === "" || hitTitle(title) || hitSec(t.content) || hitSec(t.category ?? "")) {
         const p = pref("internal-template", t.id);
@@ -621,6 +642,7 @@ export function useSlashMenu({
     }
 
     for (const q2 of quickRepliesQ.data ?? []) {
+      if (!mediaEnabled && slashRowHasMedia(q2)) continue;
       const title = q2.title;
       if (q === "" || hitTitle(title) || hitSec(q2.content) || hitSec(q2.group?.name ?? "")) {
         const p = pref("quick-reply", q2.id);
@@ -731,6 +753,7 @@ export function useSlashMenu({
     quickRepliesQ.data,
     flowsQ.data,
     whatsappFeatures,
+    mediaEnabled,
     automationsQ.data,
     automationsEnabled,
     effectiveQuery,

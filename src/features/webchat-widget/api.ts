@@ -26,6 +26,51 @@ export class WebchatApiError extends Error {
   }
 }
 
+/** 401/403: token rejeitado (vencido, trocado por outra aba, ou revogado). */
+export function isWebchatAuthError(e: unknown): e is WebchatApiError {
+  return e instanceof WebchatApiError && (e.status === 401 || e.status === 403);
+}
+
+/**
+ * Falha que vale tentar de novo: rede (fetch rejeitado/timeout), 5xx, 408 e
+ * 429. 4xx de regra (404 chave inexistente, 401/403) não melhora sozinho.
+ */
+export function isTransientWebchatError(e: unknown): boolean {
+  if (!(e instanceof WebchatApiError)) return true;
+  return e.status >= 500 || e.status === 408 || e.status === 429;
+}
+
+/**
+ * Espera da N-ésima falha seguida: exponencial a partir de `baseMs`, teto
+ * `maxMs`, com jitter (metade fixa + metade aleatória) para os widgets de
+ * vários sites não voltarem todos no mesmo segundo quando o backend volta.
+ */
+export function backoffDelay(
+  failures: number,
+  baseMs: number,
+  maxMs = 60_000,
+  random: () => number = Math.random,
+): number {
+  const exp = Math.min(maxMs, baseMs * 2 ** Math.min(Math.max(failures, 0), 16));
+  return Math.round(exp / 2 + random() * (exp / 2));
+}
+
+/** Repete `fn` em falha transitória (até `attempts` tentativas no total). */
+export async function retryTransient<T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+  baseMs = 1000,
+): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= attempts || !isTransientWebchatError(e)) throw e;
+      await new Promise((r) => setTimeout(r, backoffDelay(i - 1, baseMs, 10_000)));
+    }
+  }
+}
+
 type RequestOptions = {
   method?: "GET" | "POST";
   token?: string | null;

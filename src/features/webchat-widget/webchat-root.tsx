@@ -14,7 +14,13 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { fetchWebchatConfig, type WebchatIdentity } from "./api";
+import {
+  backoffDelay,
+  fetchWebchatConfig,
+  isTransientWebchatError,
+  retryTransient,
+  type WebchatIdentity,
+} from "./api";
 import {
   WEBCHAT_NS,
   handshakeWithParent,
@@ -26,7 +32,13 @@ import {
 } from "./protocol";
 import { normalizePublicConfig, type WebchatPublicConfig } from "./types";
 import { useWebchatChat, type UiMessage } from "./use-webchat-chat";
-import { ChatIcon, WebchatPanel, themeStyle, webchatStyles as styles } from "./webchat-panel";
+import {
+  ChatIcon,
+  WebchatPanel,
+  themeStyle,
+  webchatStyles as styles,
+  type PanelView,
+} from "./webchat-panel";
 import { logger } from "@/lib/logger";
 import { isOriginAllowed, normalizeOrigin, referrerMatchesHost } from "@/lib/webchat-origin";
 
@@ -36,7 +48,12 @@ export type WebchatRootProps = {
   preview: boolean;
 };
 
-type Gate = "checking" | "ok" | "refused" | "error";
+type Gate = "checking" | "ok" | "refused" | "retrying" | "error";
+
+/** Releitura do `online` (horário/agentes) com o painel aberto. */
+export const CONFIG_REFRESH_MS = 60_000;
+const CONFIG_RETRY_BASE_MS = 2000;
+const CONFIG_RETRY_MAX_MS = 30_000;
 
 export function WebchatRoot({ publicKey, host, preview }: WebchatRootProps) {
   if (preview) return <PreviewRoot publicKey={publicKey} />;
@@ -89,6 +106,7 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
   useEffect(() => {
     if (embedded === null) return;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     (async () => {
       if (embedded) {
         const res = await verifyEmbed({
@@ -96,7 +114,9 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
           host: hostParam ?? "",
           referrer: document.referrer,
           handshake: handshakeWithParent,
-          loadConfig: fetchWebchatConfig,
+          // Oscilação de rede/5xx não some com o widget da página: tenta de
+          // novo algumas vezes (a bolha só aparece depois do `ready`).
+          loadConfig: (key, h) => retryTransient(() => fetchWebchatConfig(key, h)),
         });
         if (cancelled) return;
         if (!res.ok) {
@@ -109,19 +129,59 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
         setGate("ok");
         return;
       }
-      try {
-        const cfg = await fetchWebchatConfig(publicKey);
-        if (cancelled) return;
-        setConfig(cfg);
-        setGate("ok");
-      } catch {
-        if (!cancelled) setGate("error");
-      }
+      // Página hospedada: backend fora do ar → "Sem conexão, tentando de
+      // novo…" com backoff, em vez de "indisponível" para sempre.
+      let failures = 0;
+      const load = async () => {
+        try {
+          const cfg = await fetchWebchatConfig(publicKey);
+          if (cancelled) return;
+          setConfig(cfg);
+          setGate("ok");
+        } catch (e) {
+          if (cancelled) return;
+          if (!isTransientWebchatError(e)) {
+            setGate("error");
+            return;
+          }
+          failures++;
+          setGate("retrying");
+          retryTimer = setTimeout(
+            () => void load(),
+            backoffDelay(failures, CONFIG_RETRY_BASE_MS, CONFIG_RETRY_MAX_MS),
+          );
+        }
+      };
+      await load();
     })();
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [embedded, hostParam, publicKey]);
+
+  // `online` muda com o horário e com agentes entrando/saindo: relê a config
+  // de tempos em tempos com o painel aberto e a aba visível.
+  useEffect(() => {
+    if (gate !== "ok" || !panelOpen) return;
+    let cancelled = false;
+    const refresh = () => {
+      if (document.hidden) return;
+      fetchWebchatConfig(publicKey, host)
+        .then((cfg) => {
+          if (cancelled) return;
+          setConfig((prev) =>
+            prev && prev.online !== cfg.online ? { ...prev, online: cfg.online } : prev,
+          );
+        })
+        .catch(() => {});
+    };
+    const id = setInterval(refresh, CONFIG_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [gate, panelOpen, publicKey, host]);
 
   // Loader → iframe: abrir/fechar.
   useEffect(() => {
@@ -181,9 +241,11 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
 
   const session = chat.session;
   const hasHistory = chat.messages.length > 0;
-  let view: "loading" | "unavailable" | "prechat" | "offline" | "chat";
+  let view: PanelView;
   if (gate === "error") view = "unavailable";
-  else if (gate === "checking" || !chat.historyLoaded) view = "loading";
+  else if (gate === "retrying") view = "reconnecting";
+  else if (gate === "checking") view = "loading";
+  else if (!chat.historyLoaded) view = chat.connectionError ? "reconnecting" : "loading";
   else if (!effectiveConfig.online && !hasHistory) view = "offline";
   else if (effectiveConfig.identification !== "none" && !session?.identified && !hasHistory)
     view = "prechat";
@@ -210,6 +272,8 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
         agentReadAt={chat.agentReadAt}
         identity={identity}
         offlineSent={offlineSent}
+        open={panelOpen}
+        connectionError={chat.connectionError}
         onClose={embedded ? close : undefined}
         onSend={chat.send}
         onRetry={chat.retry}
