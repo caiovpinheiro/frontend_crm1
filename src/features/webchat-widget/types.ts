@@ -86,15 +86,19 @@ export function safeHexColor(value: unknown, fallback = WEBCHAT_DEFAULT_PRIMARY)
     : fallback;
 }
 
-/** Só http(s) absoluta ou caminho same-origin (`/uploads/...`). */
+/**
+ * Só https absoluta ou caminho same-origin (`/uploads/...`). `http:` fica de
+ * fora: conteúdo misto no iframe (bloqueado/aviso) e imagem trafegando em
+ * claro a partir do site do cliente.
+ */
 export function safeAvatarUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const v = value.trim();
   if (!v) return null;
-  if (v.startsWith("/") && !v.startsWith("//")) return v;
+  if (v.startsWith("/") && !v.startsWith("//") && !v.startsWith("/\\")) return v;
   try {
     const u = new URL(v);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
+    return u.protocol === "https:" ? u.href : null;
   } catch {
     return null;
   }

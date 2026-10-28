@@ -17,7 +17,7 @@ import {
 } from "react";
 
 import type { WebchatIdentity } from "./api";
-import type { UiMessage } from "./use-webchat-chat";
+import { compareTimestamps, type UiMessage } from "./use-webchat-chat";
 import {
   WEBCHAT_MAX_CONTENT,
   safeHexColor,
@@ -27,7 +27,15 @@ import {
 import styles from "./webchat.module.css";
 
 export type PanelVariant = "embedded" | "hosted" | "preview";
-export type PanelView = "loading" | "unavailable" | "prechat" | "offline" | "chat";
+export type PanelView =
+  | "loading"
+  | "reconnecting"
+  | "unavailable"
+  | "prechat"
+  | "offline"
+  | "chat";
+
+export const RECONNECTING_TEXT = "Sem conexão, tentando de novo…";
 
 /** Texto escuro sobre cores claras (amarelo, verde-limão…). */
 export function contrastFor(hex: string): "light" | "dark" {
@@ -64,12 +72,18 @@ function formatInline(text: string, keyPrefix: string): ReactNode[] {
 }
 
 /**
+ * URL http(s) sem a pontuação final da frase (`veja https://x.com.` não leva
+ * o ponto para o link) nem o marcador de formatação colado (`*https://…*`).
+ */
+const LINK_RE = /(https?:\/\/[^\s<>"]*[^\s<>".,;:!?')\]}*~])/g;
+
+/**
  * Texto da mensagem como nós React (sem HTML cru): links http(s) clicáveis +
  * formatação simples do WhatsApp — a assinatura do agente chega como
  * `*Nome*: texto`.
  */
 export function renderMessageText(text: string): ReactNode[] {
-  const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+  const parts = text.split(LINK_RE);
   return parts.flatMap((part, i) =>
     i % 2 === 1
       ? [
@@ -261,6 +275,10 @@ export type WebchatPanelProps = {
   agentReadAt: string | null;
   identity?: WebchatIdentity;
   offlineSent?: boolean;
+  /** Painel visível (embutido: aberto pela bolha). Ao abrir, o foco vem para o diálogo. */
+  open?: boolean;
+  /** Polling falhando (rede/5xx): aviso "Sem conexão…" sobre a conversa. */
+  connectionError?: boolean;
   onClose?: () => void;
   onSend: (text: string) => Promise<boolean> | void;
   onRetry: (id: string) => void;
@@ -278,6 +296,8 @@ export function WebchatPanel({
   agentReadAt,
   identity,
   offlineSent,
+  open = true,
+  connectionError = false,
   onClose,
   onSend,
   onRetry,
@@ -288,8 +308,30 @@ export function WebchatPanel({
   const [draft, setDraft] = useState("");
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const avatar = config.theme.avatarUrl;
   const title = config.theme.title;
+  const modal = variant !== "preview";
+
+  // Abriu → foco no diálogo (o loader já focou o iframe). A prévia do CRM
+  // não rouba o foco do formulário de configuração.
+  useEffect(() => {
+    if (open && modal) dialogRef.current?.focus({ preventScroll: true });
+  }, [open, modal]);
+
+  const onDialogKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Escape" || e.nativeEvent.isComposing) return;
+    if (identifyOpen) {
+      e.stopPropagation();
+      setIdentifyOpen(false);
+      dialogRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (variant === "embedded" && onClose) {
+      e.stopPropagation();
+      onClose();
+    }
+  };
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -325,7 +367,9 @@ export function WebchatPanel({
     }
     if (m.id !== lastInId) return null;
     if (m.local === "pending") return <span className={styles.meta}>Enviando…</span>;
-    const read = m.status === "read" || (agentReadAt != null && m.createdAt <= agentReadAt);
+    const read =
+      m.status === "read" ||
+      (agentReadAt != null && compareTimestamps(m.createdAt, agentReadAt) <= 0);
     return (
       <span className={styles.meta}>
         {formatTime(m.createdAt)} · {read ? "Lida" : "Enviada"}
@@ -336,6 +380,8 @@ export function WebchatPanel({
   let content: ReactNode;
   if (view === "loading") {
     content = <div className={styles.center}>Carregando…</div>;
+  } else if (view === "reconnecting") {
+    content = <div className={styles.center}>{RECONNECTING_TEXT}</div>;
   } else if (view === "unavailable") {
     content = <div className={styles.center}>Chat indisponível no momento.</div>;
   } else if (view === "prechat") {
@@ -383,7 +429,11 @@ export function WebchatPanel({
   } else {
     content = (
       <>
-        {!config.online ? <div className={styles.banner}>{config.offlineMessage}</div> : null}
+        {connectionError ? (
+          <div className={styles.banner}>{RECONNECTING_TEXT}</div>
+        ) : !config.online ? (
+          <div className={styles.banner}>{config.offlineMessage}</div>
+        ) : null}
         <div
           ref={bodyRef}
           className={styles.body}
@@ -415,7 +465,7 @@ export function WebchatPanel({
             );
           })}
           {agentTyping ? (
-            <div className={styles.typing} aria-label="Atendente digitando">
+            <div className={styles.typing} aria-hidden="true">
               <span />
               <span />
               <span />
@@ -462,7 +512,15 @@ export function WebchatPanel({
   }
 
   return (
-    <div className={styles.panel} role="dialog" aria-label={title}>
+    <div
+      ref={dialogRef}
+      className={styles.panel}
+      role="dialog"
+      aria-label={title}
+      aria-modal={modal ? true : undefined}
+      tabIndex={-1}
+      onKeyDown={onDialogKeyDown}
+    >
       <header className={styles.header}>
         <span className={styles.avatar} aria-hidden="true">
           {avatar ? (
@@ -503,6 +561,14 @@ export function WebchatPanel({
         ) : null}
       </header>
       {content}
+      {/* Fora do log rolável: anúncio curto, sem reler a conversa. */}
+      <div className={styles.srOnly} role="status">
+        {view === "reconnecting" || connectionError
+          ? RECONNECTING_TEXT
+          : view === "chat" && agentTyping
+            ? "Atendente digitando…"
+            : ""}
+      </div>
       {identifyOpen ? (
         <div className={styles.sheet}>
           <IdentityForm

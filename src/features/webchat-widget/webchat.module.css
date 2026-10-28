@@ -127,6 +127,24 @@
   overflow: hidden;
 }
 
+/* O próprio diálogo recebe o foco ao abrir (tabIndex -1): sem anel. */
+.panel:focus {
+  outline: none;
+}
+
+/* Texto só para leitor de tela (ex.: "Atendente digitando"). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .header {
   display: flex;
   align-items: center;

@@ -129,4 +129,107 @@ describe("webchat-origin", () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error("down"));
     expect(await loadWebchatAllowedOrigins(KEY, { apiBase: "http://api", fetchImpl })).toEqual([]);
   });
+
+  describe("frame-ancestors com o backend instável (stale-if-error)", () => {
+    const ok = (origins: string[]) =>
+      new Response(JSON.stringify({ allowedOrigins: origins }), { status: 200 });
+    const base = { apiBase: "http://api" };
+
+    it("cache vencido: devolve a lista conhecida na hora e atualiza em segundo plano", async () => {
+      clearWebchatFramePolicyCache();
+      let release: (r: Response) => void = () => {};
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(ok(["https://a.com"]))
+        .mockImplementationOnce(() => new Promise<Response>((r) => (release = r)));
+      const waitUntil = vi.fn();
+      expect(await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, now: 1000 })).toEqual([
+        "https://a.com",
+      ]);
+      // 61 s depois: não espera o backend (a busca fica pendurada).
+      expect(
+        await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, waitUntil, now: 62_000 }),
+      ).toEqual(["https://a.com"]);
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(waitUntil).toHaveBeenCalledTimes(1);
+      release(ok(["https://a.com", "https://b.com"]));
+      await waitUntil.mock.calls[0]![0];
+      expect(await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, now: 63_000 })).toEqual([
+        "https://a.com",
+        "https://b.com",
+      ]);
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it("timeout / 5xx / 429 com cache vencido → mantém a última lista (o widget não some)", async () => {
+      clearWebchatFramePolicyCache();
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(ok(["https://a.com"]))
+        .mockResolvedValueOnce(new Response("{}", { status: 503 }))
+        .mockResolvedValueOnce(new Response("{}", { status: 429 }))
+        .mockRejectedValue(new Error("timeout"));
+      const run = async (now: number) => {
+        const waitUntil = vi.fn();
+        const origins = await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, waitUntil, now });
+        await Promise.all(waitUntil.mock.calls.map(([p]) => p));
+        return origins;
+      };
+      expect(await run(1000)).toEqual(["https://a.com"]);
+      expect(await run(70_000)).toEqual(["https://a.com"]); // 503
+      expect(await run(80_000)).toEqual(["https://a.com"]); // 429
+      expect(await run(90_000)).toEqual(["https://a.com"]); // timeout
+      expect(fetchImpl).toHaveBeenCalledTimes(4);
+    });
+
+    it("origem nova (host fora da lista) com o backend fora → lista conhecida, sem travar", async () => {
+      clearWebchatFramePolicyCache();
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(ok(["https://a.com"]))
+        .mockRejectedValue(new Error("down"));
+      await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, now: 1000 });
+      expect(
+        await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, host: "https://b.com", now: 70_000 }),
+      ).toEqual(["https://a.com"]);
+      // Falhou há < 5 s: nem tenta de novo.
+      expect(
+        await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, host: "https://b.com", now: 72_000 }),
+      ).toEqual(["https://a.com"]);
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it("só 404 grava a lista vazia; 5xx sem lista conhecida não fica no cache", async () => {
+      clearWebchatFramePolicyCache();
+      const notFound = vi.fn().mockResolvedValue(new Response("{}", { status: 404 }));
+      expect(await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl: notFound, now: 1000 })).toEqual([]);
+      expect(await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl: notFound, now: 2000 })).toEqual([]);
+      expect(notFound).toHaveBeenCalledTimes(1);
+
+      clearWebchatFramePolicyCache();
+      const flaky = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("{}", { status: 502 }))
+        .mockResolvedValueOnce(ok(["https://a.com"]));
+      expect(await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl: flaky, now: 1000 })).toEqual([]);
+      // Depois da janela de 5 s, busca de novo e libera.
+      expect(await loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl: flaky, now: 7000 })).toEqual([
+        "https://a.com",
+      ]);
+      expect(flaky).toHaveBeenCalledTimes(2);
+    });
+
+    it("sem lista conhecida, o middleware espera no máximo ~1,5 s", async () => {
+      clearWebchatFramePolicyCache();
+      vi.useFakeTimers();
+      try {
+        const fetchImpl = vi.fn(() => new Promise<Response>(() => {}));
+        const p = loadWebchatAllowedOrigins(KEY, { ...base, fetchImpl, now: 1000 });
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(await p).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

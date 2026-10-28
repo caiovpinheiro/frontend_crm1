@@ -334,7 +334,13 @@ export function Composer({
       messageBefore?: string | null;
     }> | null,
   ) {
-    const list = media && media.length > 0 ? media : [];
+    // Canal sem anexo (Webchat): entra só o texto do modelo — a mídia viraria
+    // uma bolha vazia para o visitante.
+    const hasMedia = !!media && media.length > 0;
+    if (hasMedia && !attachmentsEnabled) {
+      toast.info("Este canal não aceita anexos — entrou só o texto do modelo.");
+    }
+    const list = hasMedia && attachmentsEnabled ? media : [];
     const base = value;
     const next = base.trim()
       ? `${base}${base.endsWith("\n") ? "" : "\n"}${text}`
@@ -409,6 +415,7 @@ export function Composer({
     conversationChannelId,
     disabled,
     whatsappFeatures,
+    attachmentsEnabled,
     noteMode,
     qc,
     setSequenceSending,

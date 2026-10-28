@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import type { NextFetchEvent, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
@@ -245,6 +245,7 @@ async function webchatResponse(
   req: NextRequest,
   pathname: string,
   next: () => NextResponse,
+  event?: NextFetchEvent,
 ): Promise<NextResponse> {
   const res = next();
   const key = webchatPageKeyFromPath(pathname);
@@ -254,6 +255,9 @@ async function webchatResponse(
     apiBase,
     host: req.nextUrl.searchParams.get("host"),
     clientIp: clientIpFromRequest(req),
+    // Cache vencido: a lista conhecida sai já e a atualização segue depois
+    // da resposta (stale-while-revalidate) — o iframe não espera o backend.
+    waitUntil: event ? (p) => event.waitUntil(p) : undefined,
   });
   res.headers.delete("X-Frame-Options");
   res.headers.set("Content-Security-Policy", webchatFrameAncestors(origins));
@@ -310,7 +314,7 @@ async function verifyTenantSlugExists(
   }
 }
 
-export async function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   try {
     const { pathname } = req.nextUrl;
 
@@ -434,7 +438,7 @@ export async function middleware(req: NextRequest) {
     }
 
     if (pathname.startsWith("/webchat/") || pathname.startsWith("/api/public/webchat/")) {
-      return webchatResponse(req, pathname, nextWithTenant);
+      return webchatResponse(req, pathname, nextWithTenant, event);
     }
 
     if (
