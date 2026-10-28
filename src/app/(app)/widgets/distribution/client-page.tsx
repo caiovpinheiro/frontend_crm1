@@ -2871,62 +2871,50 @@ function EditResponsibleDialog({
                 {deptsQuery.data?.map((d) => {
                   const on = deptIds.includes(d.id);
                   return (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() => toggleDept(d.id)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                        on
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
+                    <span key={d.id} className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleDept(d.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
+                          on
+                            ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
+                            : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
+                        )}
+                      >
+                        {on && <IconCheck size={12} stroke={2.4} />}
+                        {d.name}
+                      </button>
+                      {on && (
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          inputMode="numeric"
+                          aria-label={`Peso em ${d.name}`}
+                          title={`Peso em ${d.name} (vazio = peso geral)`}
+                          placeholder={volume || "1"}
+                          value={deptWeights[d.id] ?? ""}
+                          onChange={(e) =>
+                            setDeptWeights((cur) => ({
+                              ...cur,
+                              [d.id]: e.target.value,
+                            }))
+                          }
+                          className="w-14 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-1.5 py-1 text-center font-body text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                        />
                       )}
-                    >
-                      {on && <IconCheck size={12} stroke={2.4} />}
-                      {d.name}
-                    </button>
+                    </span>
                   );
                 })}
               </div>
             )}
-            {deptIds.length > 0 && (deptsQuery.data?.length ?? 0) > 0 && (
-              <div className="mt-2 flex flex-col gap-1.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] p-2.5">
-                <span className="font-body text-[12px] font-semibold text-[var(--text-secondary)]">
-                  Peso em cada departamento
-                </span>
-                <span className="text-[11px] text-[var(--text-muted)]">
-                  Vale só para leads daquele departamento. Peso 3 = 3 chances
-                  para cada 1 de um colega com peso 1. Vazio = peso geral.
-                </span>
-                {deptsQuery.data
-                  ?.filter((d) => deptIds.includes(d.id))
-                  .map((d) => (
-                    <label
-                      key={d.id}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <span className="min-w-0 truncate font-body text-[12px] text-[var(--text-primary)]">
-                        {d.name}
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        inputMode="numeric"
-                        aria-label={`Peso em ${d.name}`}
-                        placeholder={volume || "1"}
-                        value={deptWeights[d.id] ?? ""}
-                        onChange={(e) =>
-                          setDeptWeights((cur) => ({
-                            ...cur,
-                            [d.id]: e.target.value,
-                          }))
-                        }
-                        className="w-20 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-1 text-right font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-                      />
-                    </label>
-                  ))}
-              </div>
+            {deptIds.length > 0 && (
+              <span className="text-[11px] text-[var(--text-muted)]">
+                O número ao lado de cada departamento é o peso só ali: 3 = 3
+                chances para cada 1 de um colega com peso 1. Vazio = Peso
+                (volume).
+              </span>
             )}
           </div>
         </div>
