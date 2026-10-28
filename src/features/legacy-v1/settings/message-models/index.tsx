@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/api";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconBolt as Bolt, IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow, IconTool as Wrench } from "@tabler/icons-react";
+import { IconBolt as Bolt, IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconEye as Eye, IconEyeOff as EyeOff, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow, IconTool as Wrench } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -76,6 +76,7 @@ type FlowListRow = {
   name: string;
   status: string;
   metaFlowId: string | null;
+  hiddenAt?: string | null;
   updatedAt: string;
 };
 
@@ -302,6 +303,30 @@ export default function MessageModelsHubPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const hideFlowMutation = useMutation({
+    mutationFn: async ({ id, hidden }: { id: string; hidden: boolean }) => {
+      const r = await fetch(apiUrl(`/api/whatsapp-flow-definitions/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hidden }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(typeof j?.message === "string" ? j.message : "Erro ao ocultar flow.");
+      }
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-flow-definitions"] });
+      queryClient.invalidateQueries({ queryKey: ["editor-wa-published-flows"] });
+      toast.success(
+        vars.hidden
+          ? "Flow oculto na seleção. Ele continua nesta lista."
+          : "Flow visível de novo na seleção do formulário.",
+      );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const {
     data: metaFlowsData,
     isLoading: loadingMetaFlows,
@@ -453,7 +478,11 @@ export default function MessageModelsHubPage() {
           preview: f.metaFlowId ? `Meta flow id ${f.metaFlowId}` : "Flow criado no CRM",
           vars: [],
           statusKind: "none",
-          statusLabel: f.status === "PUBLISHED" ? "Publicado" : "Rascunho",
+          statusLabel: f.hiddenAt
+            ? "Oculto"
+            : f.status === "PUBLISHED"
+              ? "Publicado"
+              : "Rascunho",
           channel: f.status === "PUBLISHED" ? "Flow · publicado" : "Flow · rascunho",
           onOpen: () => router.push(`/settings/message-models/flows/${f.shortId ?? f.id}`),
         });
@@ -942,7 +971,10 @@ export default function MessageModelsHubPage() {
                 {flowRows.map((f) => (
                   <div
                     key={f.id}
-                    className="group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3.5 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--input-border-focus)] hover:shadow-[var(--glass-shadow)]"
+                    className={cn(
+                      "group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3.5 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--input-border-focus)] hover:shadow-[var(--glass-shadow)]",
+                      f.hiddenAt && "opacity-75",
+                    )}
                   >
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]">
                       <Workflow className="size-[18px]" />
@@ -954,12 +986,32 @@ export default function MessageModelsHubPage() {
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <FlowStateBadge published={f.status === "PUBLISHED"} />
+                        {f.hiddenAt ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-[var(--radius-full)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1 text-[11.5px] font-bold text-[var(--text-muted)]">
+                            <EyeOff className="size-3" />
+                            Oculto
+                          </span>
+                        ) : null}
                         <span className="text-[11px] text-[var(--text-muted)]">
                           {new Date(f.updatedAt).toLocaleDateString("pt-BR")}
                         </span>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        aria-label={f.hiddenAt ? "Mostrar na seleção" : "Ocultar da seleção"}
+                        title={
+                          f.hiddenAt
+                            ? "Volta a aparecer no formulário da automação"
+                            : "Some da seleção do formulário. Continua nesta lista."
+                        }
+                        onClick={() => hideFlowMutation.mutate({ id: f.id, hidden: !f.hiddenAt })}
+                        disabled={hideFlowMutation.isPending}
+                        className="flex size-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:border-[var(--input-border-focus)] hover:bg-[var(--color-enterprise-bg)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+                      >
+                        {f.hiddenAt ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                      </button>
                       <button
                         type="button"
                         aria-label="Excluir flow"

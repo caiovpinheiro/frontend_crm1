@@ -349,6 +349,7 @@ function Field({
           <Labeled label={field.label} optional={field.optional} hint={field.hint}>
             <PublishedFlowSelect
               value={str(config[field.key])}
+              currentLabel={str(config.flowName)}
               onPick={(id, name) =>
                 onChange({ ...config, flowDefinitionId: id, flowName: name })
               }
@@ -890,6 +891,7 @@ function SourceSelect({
       return (
         <PublishedFlowSelect
           value={value}
+          currentLabel={str(config.flowName)}
           onPick={(id) => onChange(id)}
         />
       )
@@ -928,6 +930,13 @@ function StageSelect({
   )
 }
 
+/** Mantém o formulário já escolhido visível mesmo depois de oculto. */
+function keepCurrentFlow(options: Opt[], id: string, name: string): Opt[] {
+  const current = id.trim()
+  if (!current || options.some((o) => o.value === current)) return options
+  return [{ value: current, label: name.trim() || "Formulário oculto" }, ...options]
+}
+
 function FlowOrTemplateSelect({
   config,
   inheritedChannelId,
@@ -948,8 +957,9 @@ function FlowOrTemplateSelect({
     const detail = getTemplateDetail(catalog.detailsMap, opt.value)
     return detail?.buttons.some((b) => b.kind === "flow")
   })
+  const flowChoices = keepCurrentFlow(flows.options, flowId, str(config.flowName))
   const options: Opt[] = [
-    ...flows.options.map((o) => ({ value: `flow:${o.value}`, label: o.label })),
+    ...flowChoices.map((o) => ({ value: `flow:${o.value}`, label: o.label })),
     ...templateOptions.map((o) => ({ value: `tpl:${o.value}`, label: `Template · ${o.label}` })),
   ]
   const selectedTpl = templateName
@@ -971,7 +981,7 @@ function FlowOrTemplateSelect({
         onChange={(next) => {
           if (next.startsWith("flow:")) {
             const id = next.slice("flow:".length)
-            const opt = flows.options.find((o) => o.value === id)
+            const opt = flowChoices.find((o) => o.value === id)
             onChange({
               ...config,
               flowDefinitionId: id,
@@ -1019,13 +1029,16 @@ function FlowOrTemplateSelect({
 
 function PublishedFlowSelect({
   value,
+  currentLabel,
   onPick,
 }: {
   value: string
+  currentLabel?: string
   onPick: (id: string, name: string) => void
 }) {
-  const { options, isLoading } = usePublishedFlowOptions()
-  if (!isLoading && options.length === 0) {
+  const { options: published, isLoading } = usePublishedFlowOptions()
+  const options = keepCurrentFlow(published, value, currentLabel ?? "")
+  if (!isLoading && published.length === 0 && !value) {
     return (
       <p className="cfg-info">
         Nenhum formulário publicado. Crie e publique em Modelos → Flows.
