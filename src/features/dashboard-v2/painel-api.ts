@@ -125,6 +125,16 @@ export type PainelCustomFieldCard = {
   byUser: { id: string; name: string; count: number; sum: number | null }[];
 };
 
+/** `eventType` do card "Motivo de perda" (lê `lossReasons`, não o log). */
+export const LOSS_REASONS_EVENT = "loss_reasons";
+
+/** Bloco `lossReasons` de `/api/painel/deals`: perdidos no período, por motivo. */
+export type PainelLossReasonsCard = {
+  total: number;
+  totalValue: number;
+  items: { reason: string; count: number; value: number }[];
+};
+
 export type PainelEventCard = {
   eventType: string;
   title: string;
@@ -178,6 +188,8 @@ export type PainelDealsResult = {
   sources: PainelBlock<PainelSourceRow[]>;
   exceptions: PainelBlock<PainelDealException[]>;
   customFields?: PainelBlock<PainelCustomFieldCard[]>;
+  /** Só vem quando `section=lossReasons` é pedido. */
+  lossReasons?: PainelBlock<PainelLossReasonsCard>;
 };
 
 export type PainelTimeStat = {

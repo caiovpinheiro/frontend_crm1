@@ -24,6 +24,7 @@ import {
   stageWidgetId,
   type NegociosCustomCard,
 } from "@/features/dashboard-v2/use-negocios-grid";
+import { LOSS_REASONS_EVENT } from "@/features/dashboard-v2/painel-api";
 import { cn } from "@/lib/utils";
 
 export const PRESET_EVENT_TYPES = [
@@ -31,6 +32,7 @@ export const PRESET_EVENT_TYPES = [
   { id: "messages_out", label: "Mensagens respondidas" },
   { id: "avg_response", label: "Tempo médio de resposta" },
   { id: "queue", label: "Quantidade por fila" },
+  { id: LOSS_REASONS_EVENT, label: "Motivo de perda" },
 ] as const;
 
 function activityEventOptions() {
@@ -292,7 +294,15 @@ export function AddDashboardCardDialog({
           <span className={formLabelClass}>Tipo</span>
           <div className="mb-4 flex flex-wrap gap-2">
             {DYNAMIC_KINDS.map(([id, label]) => (
-              <button key={id} type="button" onClick={() => setKind(id)} className={pillClass(kind === id)}>
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setKind(id);
+                  if (id === "users" && eventType === LOSS_REASONS_EVENT) setEventType("messages_in");
+                }}
+                className={pillClass(kind === id)}
+              >
                 {label}
               </button>
             ))}
@@ -390,11 +400,14 @@ export function AddDashboardCardDialog({
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
               >
-                {eventOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
+                {eventOptions
+                  // Motivo de perda é por motivo, não por usuário.
+                  .filter((o) => kind !== "users" || o.id !== LOSS_REASONS_EVENT)
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
               </select>
             </>
           )}
