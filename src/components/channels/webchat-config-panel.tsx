@@ -12,6 +12,10 @@
  * no config significa "herdar".
  * Preview ao vivo: o próprio widget em `/webchat/{publicKey}?preview=1`
  * (mesma origem do CRM), recebendo a config não salva por `postMessage`.
+ *
+ * Webchat v2 (`config.v2` + chaves secretas): uma seção por frente em
+ * `./webchat/{identity,context,s2s}-section.tsx`; este arquivo só guarda o
+ * estado e manda `v2` no PUT. Contrato: `backend_crm1/docs/decisoes/webchat-widget.md` §9.
  */
 import {
   IconCheck as Check,
@@ -52,6 +56,16 @@ import { normalizeOrigin } from "@/lib/webchat-origin";
 import { ChannelPipelineSelect } from "./channel-pipeline-select";
 import type { ApiChannel } from "./types";
 import { parseChannelConfigRecord } from "./types";
+import { WebchatContextSection } from "./webchat/context-section";
+import { WebchatIdentitySection } from "./webchat/identity-section";
+import { WebchatS2SSection } from "./webchat/s2s-section";
+import {
+  prepareWebchatV2ForSave,
+  readWebchatSecretsStatus,
+  readWebchatV2Config,
+  type WebchatSecretsStatus,
+  type WebchatV2Config,
+} from "./webchat/v2-config";
 
 const IDENTIFICATION_OPTIONS: { value: WebchatIdentification; label: string }[] = [
   { value: "none", label: "Não pedir (visitante começa anônimo)" },
@@ -172,6 +186,10 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
     channel.defaultPipelineId ?? null,
   );
   const [cfg, setCfg] = useState<WebchatChannelConfig>(initial);
+  const [v2, setV2] = useState<WebchatV2Config>(() => readWebchatV2Config(channel.config));
+  const [secrets, setSecrets] = useState<WebchatSecretsStatus>(() =>
+    readWebchatSecretsStatus(channel.webchatSecrets),
+  );
   const orgPrimary = channel.webchatDefaults?.primary
     ? safeHexColor(channel.webchatDefaults.primary, "")
     : "";
@@ -274,6 +292,7 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
           avatarUrl: inheritAvatar ? null : cfg.theme.avatarUrl?.trim() || null,
         },
         businessHours: cfg.businessHours ?? null,
+        v2: prepareWebchatV2ForSave(v2),
       };
       const res = await fetch(apiUrl(`/api/channels/${channel.id}`), {
         method: "PUT",
@@ -297,6 +316,18 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
   });
 
   const origin = webchatPublicOrigin();
+  const v2Props = {
+    channelId: channel.id,
+    publicKey,
+    value: v2,
+    onChange: setV2,
+    secrets,
+    onSecretsChange: (next: WebchatSecretsStatus) => {
+      setSecrets(next);
+      // A lista de canais traz o status das chaves: recarrega em segundo plano.
+      void queryClient.invalidateQueries({ queryKey: ["channels"] });
+    },
+  };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -661,6 +692,13 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
             />
           </div>
         </section>
+
+        <Separator />
+        <WebchatIdentitySection {...v2Props} />
+        <Separator />
+        <WebchatContextSection {...v2Props} />
+        <Separator />
+        <WebchatS2SSection {...v2Props} publicOrigin={origin} />
 
         {saveMutation.isError ? (
           <p className="text-sm text-[var(--color-danger-text)]" role="alert">
