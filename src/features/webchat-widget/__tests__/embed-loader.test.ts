@@ -9,9 +9,9 @@ const LOADER = readFileSync(
   "utf8",
 );
 
-function runLoader(key = "wc_abcdefghijklmnopqrstuvwx") {
+function runLoader(key = "wc_abcdefghijklmnopqrstuvwx", version = 1) {
   const s = document.createElement("script");
-  s.src = "https://bwipo.com/webchat/embed.js?v=1";
+  s.src = `https://bwipo.com/webchat/embed.js?v=${version}`;
   s.setAttribute("data-key", key);
   document.head.appendChild(s);
   new Function(LOADER)();
@@ -36,6 +36,7 @@ describe("public/webchat/embed.js", () => {
     document.head.innerHTML = "";
     document.body.innerHTML = "";
     delete (window as unknown as { BwipoWebchat?: unknown }).BwipoWebchat;
+    delete (window as unknown as { BwipoWebchatQueue?: unknown }).BwipoWebchatQueue;
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -46,7 +47,7 @@ describe("public/webchat/embed.js", () => {
     expect(f!.src).toBe(
       `https://bwipo.com/webchat/wc_abcdefghijklmnopqrstuvwx?host=${encodeURIComponent(
         window.location.origin,
-      )}&v=1`,
+      )}&v=2`,
     );
     // Oculto até o iframe aprovar a origem (mensagem `ready`).
     expect(f!.style.getPropertyValue("display")).toBe("none");
