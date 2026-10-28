@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
 /**
  * Painel "No site agora": renderização (rótulos, valores, eventos e tempo
- * relativo), atualização ao vivo pelo SSE e o que é ignorado (outro
- * contato/canal, evento repetido ou atrasado). Dados neutros.
+ * relativo) e atualização ao vivo: os sinais SSE não trazem valores do site,
+ * o painel refaz o GET (com checagem de acesso) quando o sinal é do seu
+ * contato/canal e ignora os demais. Dados neutros.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
@@ -27,9 +28,8 @@ const sse = vi.hoisted(() => {
 vi.mock("@/hooks/use-sse", () => ({ subscribeSSEEvents: sse.subscribeSSEEvents }));
 
 import {
-  applyWebchatContextEvent,
-  applyWebchatSiteEvent,
   formatSiteRelativeTime,
+  isWebchatPanelSignal,
   formatSiteValue,
   siteKeyLabel,
   type WebchatSitePanelData,
@@ -72,35 +72,14 @@ describe("model", () => {
     expect(formatSiteRelativeTime(iso(72 * 3_600_000), NOW)).toBe("há 3 dias");
   });
 
-  it("webchat_context troca o estado; outro contato/canal ou evento atrasado não", () => {
+  it("sinal só vale para o contato/canal do painel disponível", () => {
     const p = panel();
-    const next = applyWebchatContextEvent(p, {
-      contactId: "ct-1",
-      channelId: "ch-1",
-      state: { etapa: "3" },
-      updatedAt: iso(0),
-    });
-    expect(next.context).toEqual({ state: { etapa: "3" }, updatedAt: iso(0) });
-    expect(applyWebchatContextEvent(p, { contactId: "ct-2", channelId: "ch-1", state: {}, updatedAt: iso(0) })).toBe(p);
-    expect(applyWebchatContextEvent(p, { contactId: "ct-1", channelId: "ch-2", state: {}, updatedAt: iso(0) })).toBe(p);
-    expect(
-      applyWebchatContextEvent(p, { contactId: "ct-1", channelId: "ch-1", state: {}, updatedAt: iso(3_600_000) }),
-    ).toBe(p);
-  });
-
-  it("webchat_event entra no topo, sem repetir, com teto de 10", () => {
-    const ev = (id: string, msAgo: number) => ({
-      contactId: "ct-1",
-      channelId: "ch-1",
-      event: { id, name: "x", data: null, important: false, occurredAt: iso(msAgo) },
-    });
-    const p = applyWebchatSiteEvent(panel(), ev("e3", 0));
-    expect(p.events.map((e) => e.id)).toEqual(["e3", "e2", "e1"]);
-    expect(applyWebchatSiteEvent(p, ev("e3", 0))).toBe(p);
-    let many = panel({ events: [] });
-    for (let i = 0; i < 12; i++) many = applyWebchatSiteEvent(many, ev(`n${i}`, 1000 * (12 - i)));
-    expect(many.events).toHaveLength(10);
-    expect(many.events[0]?.id).toBe("n11");
+    expect(isWebchatPanelSignal(p, { contactId: "ct-1", channelId: "ch-1" })).toBe(true);
+    expect(isWebchatPanelSignal(p, { contactId: "ct-2", channelId: "ch-1" })).toBe(false);
+    expect(isWebchatPanelSignal(p, { contactId: "ct-1", channelId: "ch-2" })).toBe(false);
+    expect(isWebchatPanelSignal(panel({ available: false }), { contactId: "ct-1", channelId: "ch-1" })).toBe(false);
+    expect(isWebchatPanelSignal(undefined, { contactId: "ct-1", channelId: "ch-1" })).toBe(false);
+    expect(isWebchatPanelSignal(p, null)).toBe(false);
   });
 });
 
@@ -155,45 +134,47 @@ describe("WebchatSitePanel (GET + SSE)", () => {
     return render(<QueryClientProvider client={qc}>{node}</QueryClientProvider>);
   };
 
-  it("lê o último estado e atualiza ao vivo pelo SSE do mesmo contato/canal", async () => {
+  it("sinal do mesmo contato/canal refaz o GET (sem usar valores do SSE); outro contato é ignorado", async () => {
     wrap(<WebchatSitePanel conversationId="conv-1" />);
     await waitFor(() => expect(screen.getByText("Etapa atual")).toBeTruthy());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/conversations/conv-1/webchat-context");
 
-    act(() =>
-      sse.emit("webchat_context", {
-        organizationId: "org-1",
-        contactId: "ct-1",
-        channelId: "ch-1",
-        state: { etapa: "5", secao: "b" },
-        updatedAt: iso(0),
-      }),
+    // Próximo GET devolve o estado novo (o SSE só avisa).
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify(
+            panel({
+              context: { state: { etapa: "5", secao: "b" }, updatedAt: iso(0) },
+              events: [{ id: "e9", name: "pediu_ajuda", data: null, important: false, occurredAt: iso(0) }],
+            }),
+          ),
+          { status: 200 },
+        ),
     );
-    // O react-query notifica fora do act (notifyManager agenda).
-    await waitFor(() => expect(screen.getByText("5")).toBeTruthy());
-    expect(screen.getByText("secao")).toBeTruthy();
-    expect(screen.queryByText("progresso")).toBeNull();
 
+    // Outro contato: nenhum GET.
     act(() =>
+      sse.emit("webchat_context", { organizationId: "org-1", contactId: "ct-2", channelId: "ch-1", updatedAt: iso(0) }),
+    );
+    await new Promise((r) => setTimeout(r, 600));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Rajada de sinais do contato do painel: um GET só.
+    act(() => {
+      sse.emit("webchat_context", { organizationId: "org-1", contactId: "ct-1", channelId: "ch-1", updatedAt: iso(0) });
       sse.emit("webchat_event", {
         organizationId: "org-1",
         contactId: "ct-1",
         channelId: "ch-1",
-        event: { id: "e9", name: "pediu_ajuda", data: null, important: false, occurredAt: iso(0) },
-      }),
-    );
+        count: 2,
+        latestOccurredAt: iso(0),
+      });
+    });
     await waitFor(() => expect(screen.getByText("pediu_ajuda")).toBeTruthy());
-
-    // Outro contato: ignorado.
-    act(() =>
-      sse.emit("webchat_event", {
-        organizationId: "org-1",
-        contactId: "ct-2",
-        channelId: "ch-1",
-        event: { id: "e10", name: "de_outro", data: null, important: false, occurredAt: iso(0) },
-      }),
-    );
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByText("de_outro")).toBeNull();
+    expect(screen.getByText("5")).toBeTruthy();
+    expect(screen.getByText("secao")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
