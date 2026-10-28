@@ -3,7 +3,9 @@
 /**
  * Seção "Servidor a servidor" (frente C) do painel Webchat: chave S2S,
  * endereço de entrada, etiqueta da fila, URL de callback, campo do negócio
- * que recebe o `ref` e regras de category/priority.
+ * que recebe o `ref` e regras de category/priority. Avisa na hora o que o
+ * backend recusaria (URL de retorno sem https) ou o salvamento descartaria
+ * (regra sem critério ou sem ação), e resume o contrato para quem integra.
  * Contrato: `backend_crm1/docs/decisoes/webchat-widget.md` §9.6/§9.7.
  */
 import { IconPlus as Plus, IconX as X } from "@tabler/icons-react";
@@ -22,6 +24,35 @@ export type WebchatS2SSectionProps = WebchatV2SectionProps & {
   /** Origem pública (`https://bwipo.com`) para mostrar o endereço de entrada. */
   publicOrigin: string;
 };
+
+/** Mesmo teto do backend (`s2s.rules[].category/priority`). */
+const RULE_VALUE_MAX = 64;
+const CALLBACK_URL_MAX = 2000;
+
+/** Motivo para a URL de retorno não ser aceita pelo backend (ou `null`). */
+export function callbackUrlProblem(raw: string | null): string | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  if (v.length > CALLBACK_URL_MAX) return `No máximo ${CALLBACK_URL_MAX} caracteres.`;
+  let url: URL;
+  try {
+    url = new URL(v);
+  } catch {
+    return "Endereço inválido.";
+  }
+  if (url.protocol !== "https:") return "Use https://.";
+  if (url.username || url.password) return "Sem usuário/senha no endereço.";
+  return null;
+}
+
+/** Regra que o salvamento descartaria (sem critério ou sem ação). */
+export function isIncompleteRule(rule: WebchatRoutingRule): boolean {
+  const hasCriterion = Boolean(rule.category?.trim() || rule.priority?.trim());
+  const hasAction = Boolean(rule.tagId || rule.departmentId || rule.pinNote);
+  return !hasCriterion || !hasAction;
+}
+
+const code = "rounded bg-[var(--glass-bg-strong)] px-1 font-mono";
 
 export function WebchatS2SSection({
   channelId,
@@ -56,6 +87,7 @@ export function WebchatS2SSection({
     setS2S({ rules });
   };
   const endpoint = publicKey ? `${publicOrigin}/api/public/webchat/s2s/${publicKey}` : null;
+  const callbackError = callbackUrlProblem(s2s.callbackUrl);
 
   return (
     <section className="space-y-3" aria-labelledby="wc-s2s-title">
@@ -123,25 +155,46 @@ export function WebchatS2SSection({
         </Label>
         <Input
           id="wc-s2s-callback"
+          type="url"
+          inputMode="url"
           placeholder="https://…"
+          maxLength={CALLBACK_URL_MAX}
+          aria-invalid={callbackError ? true : undefined}
+          aria-describedby="wc-s2s-callback-help"
           value={s2s.callbackUrl ?? ""}
           onChange={(e) => setS2S({ callbackUrl: e.target.value.trim() || null })}
         />
-        <p className="text-xs text-[var(--text-muted)]">Opcional. Só https; assinada com a mesma chave.</p>
+        {callbackError ? (
+          <p id="wc-s2s-callback-help" className="text-xs text-[var(--color-danger-text)]" role="alert">
+            {callbackError}
+          </p>
+        ) : (
+          <p id="wc-s2s-callback-help" className="text-xs text-[var(--text-muted)]">
+            Opcional. Só https público; o CRM avisa quando a conversa é atendida e quando é
+            resolvida, assinando com a mesma chave.
+          </p>
+        )}
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Regras por categoria / prioridade</Label>
+        <p className="text-xs text-[var(--text-muted)]">
+          Valores livres que o site manda em <code className={code}>category</code> e{" "}
+          <code className={code}>priority</code> (sem diferença de maiúsculas). A regra vale quando
+          todos os critérios preenchidos batem; várias regras podem valer juntas.
+        </p>
         {s2s.rules.map((rule, i) => (
           <div key={i} className="grid gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] p-2 sm:grid-cols-2">
             <Input
               aria-label={`Categoria da regra ${i + 1}`}
               placeholder="categoria (opcional)"
+              maxLength={RULE_VALUE_MAX}
               value={rule.category ?? ""}
               onChange={(e) => setRule(i, { category: e.target.value })}
             />
             <Input
               aria-label={`Prioridade da regra ${i + 1}`}
               placeholder="prioridade (opcional)"
+              maxLength={RULE_VALUE_MAX}
               value={rule.priority ?? ""}
               onChange={(e) => setRule(i, { priority: e.target.value })}
             />
@@ -188,6 +241,12 @@ export function WebchatS2SSection({
                 <X className="size-3.5" />
               </Button>
             </div>
+            {isIncompleteRule(rule) ? (
+              <p className="text-xs text-[var(--text-muted)] sm:col-span-2">
+                Incompleta: informe categoria e/ou prioridade e escolha ao menos uma ação. Regra
+                incompleta não é salva.
+              </p>
+            ) : null}
           </div>
         ))}
         <Button
@@ -201,6 +260,40 @@ export function WebchatS2SSection({
           Adicionar regra
         </Button>
       </div>
+      <details className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-2 text-xs">
+        <summary className="cursor-pointer font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+          Como integrar
+        </summary>
+        <div className="mt-2 space-y-2 text-[var(--text-muted)]">
+          <p>
+            Cabeçalhos: <code className={code}>X-Timestamp</code> (segundos Unix, até 5 min de
+            diferença), <code className={code}>X-Signature</code> ={" "}
+            <code className={code}>sha256=</code> + HMAC-SHA256 da chave sobre{" "}
+            <code className={code}>timestamp + &quot;.&quot; + corpo</code> em hex, e{" "}
+            <code className={code}>Idempotency-Key</code> (a mesma chave com o mesmo corpo não
+            duplica nada por 24 h).
+          </p>
+          <p>
+            Corpo (JSON, até 32 KB): <code className={code}>external_id</code> (obrigatório),{" "}
+            <code className={code}>ref</code>, <code className={code}>category</code>,{" "}
+            <code className={code}>priority</code>, <code className={code}>text</code> (vira nota
+            interna), <code className={code}>fields</code> (contexto do site) e{" "}
+            <code className={code}>links</code> (até 5 <code className={code}>{"{ label, url }"}</code>{" "}
+            https, listados na nota). Informe <code className={code}>text</code> ou{" "}
+            <code className={code}>fields</code>.
+          </p>
+          <p>
+            Resposta: <code className={code}>{"{ conversation_id, url }"}</code>. Sem conversa
+            aberta, o CRM abre uma na fila deste canal com a etiqueta escolhida acima.
+          </p>
+          <p>
+            Retorno: <code className={code}>POST</code> com os mesmos cabeçalhos assinados e{" "}
+            <code className={code}>{"{ ref, status, conversation_id }"}</code>, status{" "}
+            <code className={code}>attended</code> ou <code className={code}>resolved</code>, uma vez
+            por <code className={code}>ref</code>.
+          </p>
+        </div>
+      </details>
     </section>
   );
 }
