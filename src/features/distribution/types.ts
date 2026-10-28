@@ -30,6 +30,8 @@ export interface ResponsibleScheduleDto {
 export interface ResponsibleDepartmentRef {
   id: string;
   name: string;
+  /** Peso só neste departamento (null/ausente = usa o peso geral). */
+  weight?: number | null;
 }
 
 export interface DistributionResponsibleDto {
@@ -152,6 +154,8 @@ export interface UpdateResponsibleInput {
   preLunchStopMinutes?: number;
   /** Substitui o conjunto de departamentos do responsável. */
   departmentIds?: string[];
+  /** Peso por departamento (1–100); null = usa o peso geral. */
+  departmentWeights?: Record<string, number | null>;
   /** Upsert parcial do AgentSchedule (almoço / expediente). */
   schedule?: {
     startTime?: string;
