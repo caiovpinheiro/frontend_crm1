@@ -176,6 +176,8 @@ interface ContactAsideProps {
   dealFieldConfigSlot?: React.ReactNode
   /** @deprecated Use contactFieldConfigSlot + dealFieldConfigSlot */
   fieldConfigSlot?: React.ReactNode
+  /** Painel "No site agora" (webchat v2): fixo abaixo do hero, fora das abas. */
+  siteContextNode?: React.ReactNode
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -696,6 +698,7 @@ export function ContactAside({
   fieldConfigSlot, // legado
   headerActionsNode,
   contactTagsNode,
+  siteContextNode,
 }: ContactAsideProps) {
   const course = contact.course ?? contact.product
   const deals = contact.deals ?? []
@@ -977,6 +980,8 @@ export function ContactAside({
             })}
           </div>
         )}
+
+        {siteContextNode}
 
         {/* ── Abas: Perfil / Produto + toggle de visão (ref. Stitch) ── */}
         <nav className="flex shrink-0 items-center gap-1.5 px-2.5 py-2" aria-label="Alternar entre Perfil e Produto">

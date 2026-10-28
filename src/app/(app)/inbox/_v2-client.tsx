@@ -1000,6 +1000,7 @@ export default function InboxV2ClientPage({
         onToggleCollapse={() =>
           isTablet ? setTabletDrawerOpen(false) : setAsideCollapsed((v) => !v)
         }
+        conversationChannel={activeRow.channel}
       />
     ) : (
       <EmptyAside />

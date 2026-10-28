@@ -5,9 +5,12 @@
  * de contexto, limites de `setContext`/`track`, retenção, eventos
  * importantes e rastreio de visitante anônimo.
  * Contrato: `backend_crm1/docs/decisoes/webchat-widget.md` §9.3/§9.7.
+ *
+ * Nada fixo de cliente: as chaves e os nomes de evento são os que o site
+ * manda; aqui a org só dá rótulos e decide o que vira nota.
  */
 import { IconPlus as Plus, IconX as X } from "@tabler/icons-react";
-import { useState } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,15 +25,22 @@ import {
   type WebchatV2SectionProps,
 } from "./v2-config";
 
+/** Mesmos tetos do backend (`v2-config.ts`). */
+const MAX_LABELS = 100;
+const MAX_LABEL_CHARS = 80;
+const MAX_IMPORTANT_EVENTS = 50;
+
 type Range = { min: number; max: number; def: number };
 
 function NumberField(props: {
   id: string;
   label: string;
+  hint?: string;
   value: number;
   range: Range;
   onChange: (n: number) => void;
 }) {
+  const hintId = props.hint ? `${props.id}-hint` : undefined;
   return (
     <div className="space-y-1.5">
       <Label htmlFor={props.id} className="text-xs">
@@ -42,9 +52,23 @@ function NumberField(props: {
         min={props.range.min}
         max={props.range.max}
         value={props.value}
+        aria-describedby={hintId}
         onChange={(e) => props.onChange(clampInt(e.target.value, props.range, props.range.def))}
       />
+      {props.hint ? (
+        <p id={hintId} className="text-[11px] text-[var(--text-muted)]">
+          {props.hint}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+function FieldError({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <p id={id} role="alert" className="text-xs text-[var(--warning)]">
+      {children}
+    </p>
   );
 }
 
@@ -54,22 +78,53 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
   const setEvents = (p: Partial<typeof events>) => onChange({ ...value, events: { ...events, ...p } });
   const [labelKey, setLabelKey] = useState("");
   const [labelText, setLabelText] = useState("");
+  const [labelError, setLabelError] = useState<string | null>(null);
   const [eventDraft, setEventDraft] = useState("");
+  const [eventError, setEventError] = useState<string | null>(null);
   const L = WEBCHAT_V2_LIMITS;
+  const labelEntries = Object.entries(context.labels);
 
   const addLabel = () => {
     const k = labelKey.trim();
     const t = labelText.trim();
-    if (!WEBCHAT_CONTEXT_KEY_RE.test(k) || !t) return;
-    setContext({ labels: { ...context.labels, [k]: t } });
+    if (!WEBCHAT_CONTEXT_KEY_RE.test(k)) {
+      setLabelError("Chave inválida: letras, números, _ . - (até 64, sem espaço).");
+      return;
+    }
+    if (!t) {
+      setLabelError("Informe o rótulo.");
+      return;
+    }
+    if (!(k in context.labels) && labelEntries.length >= MAX_LABELS) {
+      setLabelError(`No máximo ${MAX_LABELS} rótulos.`);
+      return;
+    }
+    setContext({ labels: { ...context.labels, [k]: t.slice(0, MAX_LABEL_CHARS) } });
     setLabelKey("");
     setLabelText("");
+    setLabelError(null);
   };
   const addEvent = () => {
     const n = eventDraft.trim();
-    if (!WEBCHAT_EVENT_NAME_RE.test(n)) return;
-    if (!events.important.includes(n)) setEvents({ important: [...events.important, n] });
+    if (!WEBCHAT_EVENT_NAME_RE.test(n)) {
+      setEventError("Nome inválido: comece com letra ou número; use letras, números, _ . : - (até 64).");
+      return;
+    }
+    if (!events.important.includes(n)) {
+      if (events.important.length >= MAX_IMPORTANT_EVENTS) {
+        setEventError(`No máximo ${MAX_IMPORTANT_EVENTS} eventos.`);
+        return;
+      }
+      setEvents({ important: [...events.important, n] });
+    }
     setEventDraft("");
+    setEventError(null);
+  };
+  const onEnter = (fn: () => void) => (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      fn();
+    }
   };
 
   return (
@@ -79,11 +134,17 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
       </p>
       <p className="text-xs text-[var(--text-muted)]">
         O site pode mandar o estado atual (<code>setContext</code>) e eventos (<code>track</code>)
-        para quem atende ver onde o visitante está. O que é enviado, e o aviso ao usuário, são
-        decisão do site.
+        para quem atende ver onde o visitante está, no painel “No site agora” da conversa. O que é
+        enviado, e o aviso ao usuário, são decisão do site.
       </p>
       <label className="flex items-center justify-between gap-3 text-sm">
-        <span>Aceitar de visitante não identificado</span>
+        <span>
+          Aceitar de visitante não identificado
+          <span className="block text-xs text-[var(--text-muted)]">
+            Sem isso, só depois do identify assinado. O que chegar antes passa para o contato quando
+            ele for identificado.
+          </span>
+        </span>
         <SwitchGlass
           size="sm"
           checked={context.anonymous}
@@ -94,9 +155,9 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
 
       <div className="space-y-1.5">
         <Label className="text-xs">Rótulos das chaves (sem rótulo, aparece a chave)</Label>
-        {Object.entries(context.labels).length ? (
+        {labelEntries.length ? (
           <ul className="space-y-1">
-            {Object.entries(context.labels).map(([k, t]) => (
+            {labelEntries.map(([k, t]) => (
               <li key={k} className="flex items-center gap-2 text-xs">
                 <code className="font-mono">{k}</code>
                 <span className="text-[var(--text-muted)]">→</span>
@@ -123,27 +184,40 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
             aria-label="Chave do contexto"
             placeholder="chave"
             className="font-mono text-xs"
+            maxLength={64}
             value={labelKey}
-            onChange={(e) => setLabelKey(e.target.value)}
+            aria-invalid={!!labelError}
+            aria-describedby={labelError ? "wc-label-error" : undefined}
+            onChange={(e) => {
+              setLabelKey(e.target.value);
+              setLabelError(null);
+            }}
+            onKeyDown={onEnter(addLabel)}
           />
           <Input
             aria-label="Rótulo da chave"
             placeholder="Rótulo"
-            maxLength={80}
+            maxLength={MAX_LABEL_CHARS}
             value={labelText}
-            onChange={(e) => setLabelText(e.target.value)}
+            onChange={(e) => {
+              setLabelText(e.target.value);
+              setLabelError(null);
+            }}
+            onKeyDown={onEnter(addLabel)}
           />
           <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addLabel}>
             <Plus className="size-3.5" />
             Rótulo
           </Button>
         </div>
+        {labelError ? <FieldError id="wc-label-error">{labelError}</FieldError> : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField
           id="wc-ctx-max-keys"
           label="Máximo de chaves"
+          hint="Chave nova além disso é ignorada."
           value={context.maxKeys}
           range={L.contextMaxKeys}
           onChange={(n) => setContext({ maxKeys: n })}
@@ -151,6 +225,7 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
         <NumberField
           id="wc-ctx-max-chars"
           label="Caracteres por valor"
+          hint="Texto maior é cortado."
           value={context.maxValueChars}
           range={L.contextMaxValueChars}
           onChange={(n) => setContext({ maxValueChars: n })}
@@ -165,6 +240,7 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
         <NumberField
           id="wc-ev-retention"
           label="Guardar eventos e contexto por (dias)"
+          hint="Depois disso são apagados (varredura diária)."
           value={events.retentionDays}
           range={L.eventsRetentionDays}
           onChange={(n) => setEvents({ retentionDays: n })}
@@ -200,20 +276,22 @@ export function WebchatContextSection({ value, onChange }: WebchatV2SectionProps
             id="wc-ev-important"
             placeholder="nome_do_evento"
             className="font-mono text-xs"
+            maxLength={64}
             value={eventDraft}
-            onChange={(e) => setEventDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addEvent();
-              }
+            aria-invalid={!!eventError}
+            aria-describedby={eventError ? "wc-event-error" : undefined}
+            onChange={(e) => {
+              setEventDraft(e.target.value);
+              setEventError(null);
             }}
+            onKeyDown={onEnter(addEvent)}
           />
           <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addEvent}>
             <Plus className="size-3.5" />
             Evento
           </Button>
         </div>
+        {eventError ? <FieldError id="wc-event-error">{eventError}</FieldError> : null}
         <p className="text-xs text-[var(--text-muted)]">O site também pode marcar um evento como importante.</p>
       </div>
       <label className="flex items-center justify-between gap-3 text-sm">

@@ -319,6 +319,36 @@ export type DealMovedEvent = {
   card?: DealMovedCard;
 };
 
+// ── Webchat v2: contexto vivo e linha do tempo do site ──────────────────
+
+/** Valor simples mandado pelo site (`setContext`/`track`). */
+export type WebchatSiteValue = string | number | boolean;
+
+/** Estado atual do site para o contato mudou (painel "No site agora"). */
+export type WebchatContextEvent = {
+  organizationId: string;
+  contactId: string;
+  channelId: string;
+  state: Record<string, WebchatSiteValue>;
+  /** ISO */
+  updatedAt: string;
+};
+
+/** Evento novo na linha do tempo do site do contato. */
+export type WebchatSiteEvent = {
+  organizationId: string;
+  contactId: string;
+  channelId: string;
+  event: {
+    id: string;
+    name: string;
+    data: Record<string, WebchatSiteValue> | null;
+    important: boolean;
+    /** ISO */
+    occurredAt: string;
+  };
+};
+
 // ── União discriminada ──────────────────────────────────────────────────
 
 export type RealtimeEventMap = {
@@ -348,6 +378,8 @@ export type RealtimeEventMap = {
   team_chat_work_item_updated: TeamChatEvent;
   team_chat_forward_updated: TeamChatEvent;
   deal_moved: DealMovedEvent;
+  webchat_context: WebchatContextEvent;
+  webchat_event: WebchatSiteEvent;
 };
 
 export type RealtimeEventName = keyof RealtimeEventMap;
@@ -385,6 +417,8 @@ export const REALTIME_EVENT_NAMES = [
   "team_chat_work_item_updated",
   "team_chat_forward_updated",
   "deal_moved",
+  "webchat_context",
+  "webchat_event",
 ] as const satisfies readonly RealtimeEventName[];
 
 /**
