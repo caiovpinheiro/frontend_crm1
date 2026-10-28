@@ -45,6 +45,8 @@ describe("contrato: nomes de evento", () => {
       "team_chat_work_item_updated",
       "team_chat_forward_updated",
       "deal_moved",
+      "webchat_context",
+      "webchat_event",
     ]);
     expect(new Set(REALTIME_EVENT_NAMES).size).toBe(REALTIME_EVENT_NAMES.length);
   });
