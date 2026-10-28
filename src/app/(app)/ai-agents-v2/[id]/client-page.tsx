@@ -4628,6 +4628,129 @@ const FOLLOWUP_DEFAULTS = {
   questionMessage: "Ainda está por aí? Fico no aguardo da sua resposta para continuar.",
 };
 
+type ThemeIdle = { followUps?: FollowUpStep[]; closeAfter?: number; onTimeout?: "close" | "handoff"; timeoutMessage?: string };
+
+const THEME_IDLE_MODES = [
+  { value: "agent", label: "Regra do agente" },
+  { value: "own", label: "Regra deste assunto" },
+];
+const THEME_IDLE_TIMEOUT = [
+  { value: "close", label: "Encerrar" },
+  { value: "handoff", label: "Transferir" },
+];
+
+/** "Do que ele cuida › assunto › Se o cliente não responder". */
+function ThemeIdleEditor({
+  value,
+  agentInactivity,
+  onChange,
+}: {
+  value: ThemeIdle | undefined;
+  agentInactivity: Record<string, unknown>;
+  onChange: (v: ThemeIdle | undefined) => void;
+}) {
+  const own = !!value;
+  const agentOn = !!agentInactivity.enabled;
+  const agentClose = typeof agentInactivity.closeAfter === "number" ? agentInactivity.closeAfter : 0;
+  const steps = value?.followUps ?? [];
+  const closeAfter = value?.closeAfter ?? 0;
+  const limit = closeAfter || agentClose;
+  const set = (patch: Partial<ThemeIdle>) => onChange({ ...(value ?? {}), ...patch });
+  const setSteps = (next: FollowUpStep[]) => set({ followUps: next });
+  const update = (i: number, patch: Partial<FollowUpStep>) => setSteps(steps.map((st, j) => (j === i ? { ...st, ...patch } : st)));
+  return (
+    <div className="space-y-3">
+      <Segmented value={own ? "own" : "agent"} onChange={(v) => onChange(v === "own" ? { followUps: [], onTimeout: "close" } : undefined)} options={THEME_IDLE_MODES} />
+      {!agentOn && own && (
+        <p className="text-xs text-amber-700 v2-dark:text-amber-400">
+          Ligue “Lembrar e encerrar por falta de resposta” em Começo e fim: sem ela, esta regra não roda.
+        </p>
+      )}
+      {own && (
+        <div className="space-y-3">
+          {steps.map((st, i) => {
+            const mode = st.mode ?? "fixed";
+            const late = limit > 0 && st.after >= limit;
+            return (
+              <div key={i} className="space-y-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="w-40">
+                    <NumberField
+                      label={`Lembrete ${i + 1} depois de (min)`}
+                      value={st.after || undefined}
+                      min={1}
+                      placeholder="15"
+                      onChange={(v) => update(i, { after: Math.max(1, Math.round(v ?? 1)) })}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Segmented value={mode} onChange={(v) => update(i, { mode: v as FollowUpStep["mode"] })} options={FOLLOWUP_MODES} />
+                  </div>
+                  <Button variant="ghost" size="icon" aria-label={`Remover lembrete ${i + 1}`} onClick={() => setSteps(steps.filter((_, j) => j !== i))}>
+                    <IconTrash className="size-4" />
+                  </Button>
+                </div>
+                {late && <p className="text-xs text-amber-700 v2-dark:text-amber-400">Este lembrete sai depois do fim do prazo; do jeito que está, ele não é enviado.</p>}
+                {mode === "fixed" && (
+                  <Field label="Texto" hint={`Vazio: “${FOLLOWUP_DEFAULTS.message}”`}>
+                    <Textarea value={st.message ?? ""} onChange={(e) => update(i, { message: e.target.value })} />
+                  </Field>
+                )}
+                {mode !== "fixed" && (
+                  <>
+                    <Field label="Depois de um passo a passo" hint={`Vazio: “${FOLLOWUP_DEFAULTS.procedureMessage}”`}>
+                      <Textarea value={st.procedureMessage ?? ""} onChange={(e) => update(i, { procedureMessage: e.target.value })} />
+                    </Field>
+                    <Field label="Depois de uma pergunta do agente" hint={`Vazio: “${FOLLOWUP_DEFAULTS.questionMessage}”`}>
+                      <Textarea value={st.questionMessage ?? ""} onChange={(e) => update(i, { questionMessage: e.target.value })} />
+                    </Field>
+                    <Field label="Nos outros casos" hint={`Vazio: “${FOLLOWUP_DEFAULTS.message}”`}>
+                      <Textarea value={st.message ?? ""} onChange={(e) => update(i, { message: e.target.value })} />
+                    </Field>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {steps.length < 3 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const last = steps[steps.length - 1]?.after ?? 0;
+                setSteps([...steps, { after: last + 15, mode: "by_reply" }]);
+              }}
+            >
+              <IconPlus className="size-4" /> Adicionar lembrete
+            </Button>
+          )}
+          <NumberField
+            label="Fim do prazo depois de (min)"
+            value={closeAfter || undefined}
+            min={1}
+            placeholder={agentClose ? String(agentClose) : "30"}
+            onChange={(v) => set({ closeAfter: v ? Math.max(1, Math.round(v)) : undefined })}
+          />
+          <p className="text-xs text-muted-foreground">Contado da última mensagem do agente. Vazio: o prazo de encerramento do agente.</p>
+          <Field label="No fim do prazo">
+            <Segmented value={value?.onTimeout ?? "close"} onChange={(v) => set({ onTimeout: v as ThemeIdle["onTimeout"] })} options={THEME_IDLE_TIMEOUT} />
+          </Field>
+          {value?.onTimeout === "handoff" && (
+            <Field label="Mensagem ao transferir" hint="Vazio: a mensagem do destino do assunto (Se precisar transferir).">
+              <Textarea value={value?.timeoutMessage ?? ""} onChange={(e) => set({ timeoutMessage: e.target.value })} />
+            </Field>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {value?.onTimeout === "handoff"
+              ? "Transfere para o destino deste assunto (ou o padrão do agente), com tabulação e resumo, como numa transferência normal."
+              : "Encerra como o agente: mensagem de encerramento e, se ligado, negócio para perdido."}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InactivitySettings({
   config,
   catalogs,
@@ -5307,6 +5430,16 @@ function ThemeEditor({
             onChange={(v) => onPatch({ handoffDestination: v })}
           />
         </EditorBlock>
+
+        {!t.directHandoff && (
+          <EditorBlock title="Se o cliente não responder" description="Vazio: vale “Começo e fim › Cliente sem responder” do agente.">
+            <ThemeIdleEditor
+              value={t.idle as ThemeIdle | undefined}
+              agentInactivity={(getPath(config, "inactivity", {}) ?? {}) as Record<string, unknown>}
+              onChange={(v) => onPatch({ idle: v })}
+            />
+          </EditorBlock>
+        )}
 
         {!t.directHandoff && (
           <EditorBlock title="Materiais e mensagens prontas deste assunto">
