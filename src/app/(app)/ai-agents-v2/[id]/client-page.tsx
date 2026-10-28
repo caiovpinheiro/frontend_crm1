@@ -4922,6 +4922,8 @@ const TABULATION_WHEN = [
   { value: "always", label: "Ao encerrar e ao transferir" },
 ];
 const NO_TABULATION = "__none__";
+/** `tabulation.transferFallbackId`: sem padrão ao transferir (igual ao motor). */
+const TRANSFER_FALLBACK_NONE = "none";
 
 /** "Começo e fim › Tabulação". */
 function TabulationSettings({
@@ -4959,6 +4961,27 @@ function TabulationSettings({
   const fixedRules = (
     <>
       <Field label="Tabulação padrão">{picker(tab.fallbackId as string | undefined, (v) => onChange("tabulation.fallbackId", v), "Nenhuma")}</Field>
+      {((tab.when as string) || "on_close") !== "on_close" && (
+        <Field label="Padrão ao transferir" hint="Vale quando ele transfere para a equipe e não escolhe outra. Passar para outro agente não tabula.">
+          <Select
+            value={(tab.transferFallbackId as string | undefined) || NO_TABULATION}
+            onValueChange={(v) => onChange("tabulation.transferFallbackId", v === NO_TABULATION ? undefined : v)}
+          >
+            <SelectTrigger className="w-full min-w-0 sm:w-[420px] [&>span]:truncate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_TABULATION}>A mesma da padrão</SelectItem>
+              <SelectItem value={TRANSFER_FALLBACK_NONE}>Nenhuma</SelectItem>
+              {options.map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
       {themes.length > 0 && (
         <Field label="Por assunto" hint="Vazio: usa a padrão.">
           <div className="space-y-2">

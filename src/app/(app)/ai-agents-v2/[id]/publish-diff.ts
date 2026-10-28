@@ -113,6 +113,7 @@ const PATH_LABEL: Record<string, string> = {
   "tabulation.enabled": "Tabular a conversa",
   "tabulation.when": "Quando tabular",
   "tabulation.fallbackId": "Tabulação padrão",
+  "tabulation.transferFallbackId": "Tabulação padrão ao transferir",
   "tabulation.byTheme": "Tabulação por assunto",
   "themeRecognition.preset": "Reconhecimento de assunto",
   "knowledgeSearch.preset": "Trechos que ele lê",
