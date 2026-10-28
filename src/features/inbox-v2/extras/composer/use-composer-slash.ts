@@ -23,6 +23,7 @@ export function useComposerSlash({
   conversationChannelId,
   disabled,
   whatsappFeatures,
+  attachmentsEnabled,
   noteMode,
   qc,
   setSequenceSending,
@@ -39,6 +40,7 @@ export function useComposerSlash({
   | "conversationChannelId"
   | "disabled"
   | "whatsappFeatures"
+  | "attachmentsEnabled"
 > & {
   draftRef: RefObject<string>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -76,10 +78,15 @@ export function useComposerSlash({
     // Desabilita o atalho em modo nota (não faz sentido inserir templates ali)
     disabled: disabled || noteMode,
     whatsappFeatures: whatsappFeatures !== false,
+    // Canal sem anexo (Webchat): modelos com mídia nem aparecem no "/".
+    mediaEnabled: attachmentsEnabled !== false,
     // Modelo/mensagem rápida com anexo — 1 anexo sem messageBefore encosta
     // pra ir junto no Enter (editável); multi-anexo ou messageBefore>=1
     // exige a SEQUÊNCIA imediata (texto já está em `draftRef` — ver acima).
     onInsertMedia: (media) => {
+      // Defesa extra: o menu já esconde esses itens quando o canal não aceita
+      // anexo — nunca encosta nem dispara a sequência com mídia.
+      if (attachmentsEnabled === false) return;
       const list = Array.isArray(media) ? media : [media];
       if (mediaNeedsSequence(list) && conversationId) {
         const targetConversationId = conversationId;

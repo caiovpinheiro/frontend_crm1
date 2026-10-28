@@ -17,7 +17,7 @@
   var base;
   try { base = new URL(s.src, w.location.href).origin; } catch (e) { return; }
   var NS = "bwipo:webchat", Z = "2147483000";
-  var st = { open: false, ready: false, pos: "right", color: "#2563eb", unread: 0 };
+  var st = { open: false, ready: false, pos: "right", color: "#2563eb", unread: 0, title: "" };
   var mq = w.matchMedia ? w.matchMedia("(max-width: 640px)") : null;
   var ICON_CHAT = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.4A8 8 0 1 1 21 12z"/></svg>';
   var ICON_X = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
@@ -41,6 +41,7 @@
     "z-index": Z, "box-shadow": "0 6px 20px rgba(16,24,40,.22)", transition: "transform .15s ease" });
 
   var badge = d.createElement("span");
+  badge.setAttribute("aria-hidden", "true");
   css(badge, { position: "absolute", top: "-2px", right: "-2px", "min-width": "20px", height: "20px", padding: "0 5px",
     "border-radius": "10px", background: "#e11d48", color: "#fff", "font": "600 11px/20px system-ui,sans-serif",
     "text-align": "center", display: "none", "box-sizing": "border-box" });
@@ -58,7 +59,11 @@
     btn.style.setProperty("display", st.ready && !(st.open && mobile) ? "flex" : "none", "important");
     btn.innerHTML = st.open ? ICON_X : ICON_CHAT;
     btn.appendChild(badge);
-    btn.setAttribute("aria-label", st.open ? "Fechar chat" : "Abrir chat");
+    var label = st.open ? "Fechar chat" : "Abrir chat";
+    if (!st.open && st.unread > 0) {
+      label += " (" + st.unread + (st.unread === 1 ? " mensagem não lida)" : " mensagens não lidas)");
+    }
+    btn.setAttribute("aria-label", label);
     btn.setAttribute("aria-expanded", String(st.open));
     css(badge, { display: !st.open && st.unread > 0 ? "block" : "none" });
     badge.textContent = st.unread > 9 ? "9+" : String(st.unread);
@@ -75,7 +80,14 @@
   }
 
   function send(type) { try { frame.contentWindow.postMessage({ ns: NS, type: type }, base); } catch (e) {} }
-  function setOpen(v) { if (!st.ready) return; st.open = !!v; layout(); send(st.open ? "open" : "close"); }
+  function focusEl(el) { try { el.focus({ preventScroll: true }); } catch (e) { try { el.focus(); } catch (e2) {} } }
+  // Abrir leva o foco para dentro do iframe (o painel foca o diálogo ao
+  // receber `open`); fechar devolve o foco para a bolha.
+  function setOpen(v) {
+    if (!st.ready) return;
+    st.open = !!v; layout(); send(st.open ? "open" : "close");
+    focusEl(st.open ? frame : btn);
+  }
 
   w.addEventListener("message", function (e) {
     if (e.source !== frame.contentWindow || e.origin !== base) return;
@@ -89,16 +101,29 @@
       var t = m.theme || {};
       if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(t.primary || "")) st.color = t.primary;
       st.pos = t.position === "left" ? "left" : "right";
-      if (t.title) btn.title = String(t.title).slice(0, 60);
+      if (t.title) {
+        st.title = String(t.title).slice(0, 60);
+        btn.title = st.title;
+        frame.title = "Chat: " + st.title;
+      }
       st.ready = true; layout();
     } else if (m.type === "unread") {
       st.unread = Math.max(0, parseInt(m.count, 10) || 0); layout();
     } else if (m.type === "close") {
+      // Fechar/Esc dentro do iframe: foco volta para a bolha.
+      var wasOpen = st.open;
       st.open = false; layout();
+      if (wasOpen) focusEl(btn);
     }
   });
 
   btn.addEventListener("click", function () { setOpen(!st.open); });
+  // Esc com o foco na bolha/iframe (dentro do iframe o próprio painel trata).
+  d.addEventListener("keydown", function (e) {
+    if (!st.open || (e.key !== "Escape" && e.key !== "Esc")) return;
+    if (d.activeElement !== btn && d.activeElement !== frame) return;
+    setOpen(false);
+  });
   if (mq && mq.addEventListener) mq.addEventListener("change", layout);
 
   function mount() { d.body.appendChild(frame); d.body.appendChild(btn); layout(); }

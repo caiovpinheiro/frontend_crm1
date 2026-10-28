@@ -200,6 +200,11 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   return m.toUpperCase();
 }
 
+/** API pública sem sessão (`/api/public/*`, ex.: Webchat do visitante). */
+function isPublicApiPath(apiPath: string | null): boolean {
+  return !!apiPath && (apiPath === "/api/public" || apiPath.startsWith("/api/public/"));
+}
+
 /**
  * O `fetch` do app (instalado em `window.fetch`), em volta do original:
  *  1. GET da API servido pelo bootstrap em voo, quando houver bloco;
@@ -207,7 +212,11 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
  *     vão com `cache: "no-cache"`: o cache HTTP do navegador guarda o
  *     corpo e revalida com `If-None-Match` — 304 vira o 200 guardado
  *     sem o JS ver (funciona cross-origin sem expor o `ETag`);
- *  3. reescrita same-origin → host da API (cookie de `.bwipo.com`);
+ *  3. reescrita same-origin → host da API (cookie de `.bwipo.com`), menos
+ *     `/api/public/*` (Webchat do visitante): esse vai para o mesmo host,
+ *     mas SEM forçar `credentials: "include"` — vale o de quem chamou (o
+ *     widget usa `"omit"`), e a sessão do CRM aberta no mesmo navegador não
+ *     viaja junto;
  *  4. 429/503 da API com prazo: anota (`noteRateLimited`) ANTES de
  *     devolver, para o `retryDelay` das queries esperar o prazo.
  */
@@ -240,17 +249,23 @@ export function createAppFetch(original: typeof fetch): typeof fetch {
       }
     }
     const dest = rewriteToDirectApi(href);
+    const publicApi = isPublicApiPath(apiPath);
     let res: Response;
     if (!dest) {
       res = await original(input, nextInit);
     } else if (input instanceof Request) {
+      // `new Request(dest, input)` já herda o `credentials` de `input`.
       res = await original(new Request(dest, input), {
         ...nextInit,
-        credentials: "include",
+        ...(publicApi ? {} : { credentials: "include" as const }),
         mode: "cors",
       });
     } else {
-      res = await original(dest, { ...nextInit, credentials: "include", mode: "cors" });
+      res = await original(dest, {
+        ...nextInit,
+        credentials: publicApi ? (nextInit?.credentials ?? "omit") : "include",
+        mode: "cors",
+      });
     }
     if (apiPath && isRateLimitStatus(res.status)) {
       const info = await readRetryAfter(res).catch(() => null);

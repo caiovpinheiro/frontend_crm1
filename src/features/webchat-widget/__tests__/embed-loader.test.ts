@@ -97,4 +97,39 @@ describe("public/webchat/embed.js", () => {
     expect(badge.textContent).toBe("3");
     expect(badge.style.getPropertyValue("display")).toBe("block");
   });
+  it("acessibilidade: título do iframe, foco ao abrir/fechar, Esc e não lidas no rótulo", () => {
+    runLoader();
+    fromFrame({
+      ns: "bwipo:webchat",
+      type: "ready",
+      theme: { primary: "#0f766e", position: "right", title: "Loja" },
+    });
+    const f = frame()!;
+    const btn = document.querySelector("button")!;
+    expect(f.title).toBe("Chat: Loja");
+
+    fromFrame({ ns: "bwipo:webchat", type: "unread", count: 3 });
+    expect(btn.getAttribute("aria-label")).toBe("Abrir chat (3 mensagens não lidas)");
+    expect(btn.querySelector("span")!.getAttribute("aria-hidden")).toBe("true");
+    fromFrame({ ns: "bwipo:webchat", type: "unread", count: 1 });
+    expect(btn.getAttribute("aria-label")).toBe("Abrir chat (1 mensagem não lida)");
+
+    const post = vi.spyOn(f.contentWindow!, "postMessage");
+    btn.click();
+    expect(document.activeElement).toBe(f);
+    expect(btn.getAttribute("aria-label")).toBe("Fechar chat");
+
+    // Fechar por dentro do iframe (botão X ou Esc no painel) devolve o foco à bolha.
+    fromFrame({ ns: "bwipo:webchat", type: "close" });
+    expect(f.style.getPropertyValue("display")).toBe("none");
+    expect(document.activeElement).toBe(btn);
+
+    // Esc com o foco na bolha fecha o chat aberto.
+    btn.click();
+    btn.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(f.style.getPropertyValue("display")).toBe("none");
+    expect(post).toHaveBeenLastCalledWith({ ns: "bwipo:webchat", type: "close" }, "https://bwipo.com");
+    expect(document.activeElement).toBe(btn);
+  });
 });
