@@ -84,7 +84,7 @@ const LINK_RE = /(https?:\/\/[^\s<>"]*[^\s<>".,;:!?')\]}*~])/g;
  */
 export function renderMessageText(text: string): ReactNode[] {
   const parts = text.split(LINK_RE);
-  return parts.flatMap((part, i) =>
+  return parts.flatMap<ReactNode>((part, i) =>
     i % 2 === 1
       ? [
           <a key={`l-${i}`} href={part} target="_blank" rel="noopener noreferrer nofollow">
