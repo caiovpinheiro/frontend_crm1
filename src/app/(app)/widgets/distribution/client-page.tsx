@@ -104,6 +104,10 @@ import {
 } from "@/features/distribution/types";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import {
+  buildDepartmentWeights,
+  formatResponsibleDepartments,
+} from "@/features/distribution/department-weights";
+import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
 } from "@/features/distribution/mock";
@@ -1194,15 +1198,9 @@ function ResponsibleCard({
             </span>
             <span
               className="min-w-0 truncate border-l border-border pl-1.5 font-semibold"
-              title={
-                r.departments && r.departments.length > 0
-                  ? r.departments.map((d) => d.name).join(", ")
-                  : "Sem departamento"
-              }
+              title={formatResponsibleDepartments(r.departments)}
             >
-              {r.departments && r.departments.length > 0
-                ? r.departments.map((d) => d.name).join(", ")
-                : "Sem departamento"}
+              {formatResponsibleDepartments(r.departments)}
             </span>
           </div>
         </div>
@@ -1311,10 +1309,7 @@ function ResponsibleMobileCard({
     );
   };
 
-  const deptLabel =
-    r.departments && r.departments.length > 0
-      ? r.departments.map((d) => d.name).join(", ")
-      : "Sem departamento";
+  const deptLabel = formatResponsibleDepartments(r.departments);
   const metaLine = [r.email ?? "—", r.role, deptLabel].filter(Boolean).join(" · ");
 
   const blockedText =
@@ -2594,6 +2589,15 @@ function EditResponsibleDialog({
   const [deptIds, setDeptIds] = useState<string[]>(
     responsible.departments?.map((d) => d.id) ?? [],
   );
+  // Peso por departamento: "" = usa o peso geral.
+  const [deptWeights, setDeptWeights] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (responsible.departments ?? []).map((d) => [
+        d.id,
+        d.weight != null ? String(d.weight) : "",
+      ]),
+    ),
+  );
 
   const toggleDept = (id: string) =>
     setDeptIds((cur) =>
@@ -2613,7 +2617,8 @@ function EditResponsibleDialog({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const limit = Math.max(0, Math.floor(Number(queueLimit) || 0));
-    const weight = Math.max(0, Math.floor(Number(volume) || 0));
+    const weight = Math.max(1, Math.floor(Number(volume) || 1));
+    const departmentWeights = buildDepartmentWeights(deptIds, deptWeights);
     const preMins = Math.min(
       180,
       Math.max(0, Math.floor(Number(preLunchStop) || 0)),
@@ -2629,6 +2634,7 @@ function EditResponsibleDialog({
           volume: weight,
           type: type.trim() || null,
           departmentIds: deptIds,
+          departmentWeights,
           preLunchStopMinutes: preMins,
           schedule: {
             lunchStart: toHhmm(lunchStart),
@@ -2823,13 +2829,14 @@ function EditResponsibleDialog({
             </span>
             <input
               type="number"
-              min={0}
+              min={1}
               value={volume}
               onChange={(e) => setVolume(e.target.value)}
               className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
             />
             <span className="text-[11px] text-[var(--text-muted)]">
-              Peso no rateio entre consultores elegíveis. Maior = recebe mais.
+              Peso geral no rateio entre consultores elegíveis. Maior = recebe
+              mais. Pode ser trocado por departamento logo abaixo.
             </span>
           </label>
 
@@ -2880,6 +2887,45 @@ function EditResponsibleDialog({
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {deptIds.length > 0 && (deptsQuery.data?.length ?? 0) > 0 && (
+              <div className="mt-2 flex flex-col gap-1.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] p-2.5">
+                <span className="font-body text-[12px] font-semibold text-[var(--text-secondary)]">
+                  Peso em cada departamento
+                </span>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  Vale só para leads daquele departamento. Peso 3 = 3 chances
+                  para cada 1 de um colega com peso 1. Vazio = peso geral.
+                </span>
+                {deptsQuery.data
+                  ?.filter((d) => deptIds.includes(d.id))
+                  .map((d) => (
+                    <label
+                      key={d.id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="min-w-0 truncate font-body text-[12px] text-[var(--text-primary)]">
+                        {d.name}
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        inputMode="numeric"
+                        aria-label={`Peso em ${d.name}`}
+                        placeholder={volume || "1"}
+                        value={deptWeights[d.id] ?? ""}
+                        onChange={(e) =>
+                          setDeptWeights((cur) => ({
+                            ...cur,
+                            [d.id]: e.target.value,
+                          }))
+                        }
+                        className="w-20 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-1 text-right font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                      />
+                    </label>
+                  ))}
               </div>
             )}
           </div>
