@@ -324,29 +324,31 @@ export type DealMovedEvent = {
 /** Valor simples mandado pelo site (`setContext`/`track`). */
 export type WebchatSiteValue = string | number | boolean;
 
-/** Estado atual do site para o contato mudou (painel "No site agora"). */
+/*
+ * Privacidade: o bus é por org e estes eventos não passam pelo gate de
+ * conversa — por isso são só SINAIS, sem valores do site. O painel da
+ * conversa aberta refaz o GET `/api/conversations/:id/webchat-context`
+ * (com checagem de acesso) quando o sinal é do seu contato/canal.
+ */
+
+/** O estado mandado pelo site para o contato mudou (sem o estado). */
 export type WebchatContextEvent = {
   organizationId: string;
   contactId: string;
   channelId: string;
-  state: Record<string, WebchatSiteValue>;
   /** ISO */
   updatedAt: string;
 };
 
-/** Evento novo na linha do tempo do site do contato. */
+/** Eventos novos na linha do tempo do site do contato (sem nome/dados). */
 export type WebchatSiteEvent = {
   organizationId: string;
   contactId: string;
   channelId: string;
-  event: {
-    id: string;
-    name: string;
-    data: Record<string, WebchatSiteValue> | null;
-    important: boolean;
-    /** ISO */
-    occurredAt: string;
-  };
+  /** Quantos eventos entraram no lote. */
+  count: number;
+  /** ISO — o mais recente do lote. */
+  latestOccurredAt: string;
 };
 
 // ── União discriminada ──────────────────────────────────────────────────
