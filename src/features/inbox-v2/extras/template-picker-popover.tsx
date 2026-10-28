@@ -9,7 +9,11 @@ import {
   IconCopy,
   IconFileText,
   IconSend,
+  IconStar,
+  IconStarFilled,
 } from "@tabler/icons-react";
+
+import { apiUrl } from "@/lib/api";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { InputGlass } from "@/components/crm/input-glass";
@@ -29,7 +33,32 @@ import {
 import type { InboxMessageDto } from "@/features/inbox-v2/api/types";
 import { cn } from "@/lib/utils";
 
-type CategoryFilter = "all" | "UTILITY" | "MARKETING";
+type CategoryFilter = "all" | "UTILITY" | "MARKETING" | "FAVORITES";
+
+type ShortcutRow = {
+  itemKind: string;
+  itemId: string;
+  favorite: boolean;
+  useCount: number;
+};
+
+async function fetchAgentShortcuts(): Promise<ShortcutRow[]> {
+  const r = await fetch(apiUrl("/api/slash-shortcuts"));
+  if (!r.ok) return [];
+  const data = await r.json().catch(() => ({}));
+  const list = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+  return list as ShortcutRow[];
+}
+
+function favoriteMetaIds(rows: ShortcutRow[] | undefined): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows ?? []) {
+    if (row.itemKind === "meta-template" && row.favorite && row.itemId.trim()) {
+      ids.add(row.itemId);
+    }
+  }
+  return ids;
+}
 
 interface PriorSend {
   sentAt: string;
@@ -118,14 +147,19 @@ function TemplateCard({
   tpl,
   conversationId,
   selected,
+  favorite,
+  onToggleFavorite,
   onSelect,
 }: {
   tpl: WhatsappTemplate;
   conversationId: string;
   selected: boolean;
+  favorite: boolean;
+  onToggleFavorite?: () => void;
   onSelect: () => void;
 }) {
   const prior = usePriorSend(conversationId, tpl.metaTemplateName ?? tpl.name);
+  const metaId = tpl.metaTemplateId?.trim() ?? "";
   return (
     <button
       type="button"
@@ -167,6 +201,36 @@ function TemplateCard({
             </p>
           ) : null}
         </div>
+        {metaId && onToggleFavorite ? (
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+            aria-pressed={favorite}
+            title={favorite ? "Remover dos favoritos" : "Favoritar"}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            className={cn(
+              "mt-0.5 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors",
+              favorite
+                ? "text-[var(--color-warn,#f59e0b)]"
+                : "text-[var(--text-muted)] hover:text-[var(--color-warn,#f59e0b)]",
+            )}
+          >
+            {favorite ? (
+              <IconStarFilled className="size-3.5" />
+            ) : (
+              <IconStar className="size-3.5" strokeWidth={2.2} />
+            )}
+          </span>
+        ) : null}
         <span
           className={cn(
             "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border-2",
@@ -203,6 +267,7 @@ export function TemplatePickerList({
   category: CategoryFilter;
   onCategoryChange: (c: CategoryFilter) => void;
 }) {
+  const qc = useQueryClient();
   const { data, isLoading, error, isError } = useQuery<WhatsappTemplate[]>({
     queryKey: ["whatsapp-templates", "agent-enabled", channelId ?? "default"],
     queryFn: () => listAgentEnabledTemplates(channelId),
@@ -212,19 +277,59 @@ export function TemplatePickerList({
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
+  const shortcutsQ = useQuery({
+    queryKey: ["slash-shortcuts"],
+    queryFn: fetchAgentShortcuts,
+    enabled: !!conversationId,
+    staleTime: 30_000,
+  });
+  const favorites = useMemo(() => favoriteMetaIds(shortcutsQ.data), [shortcutsQ.data]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (data ?? []).filter((tpl) => {
-      if (category !== "all" && (tpl.category ?? "").toUpperCase() !== category) return false;
+      if (category === "FAVORITES") {
+        const metaId = tpl.metaTemplateId?.trim() ?? "";
+        if (!metaId || !favorites.has(metaId)) return false;
+      } else if (category !== "all" && (tpl.category ?? "").toUpperCase() !== category) {
+        return false;
+      }
       return matchesQuery(tpl, q);
     });
-  }, [data, query, category]);
+  }, [data, query, category, favorites]);
+
+  function toggleFavorite(tpl: WhatsappTemplate) {
+    const metaId = tpl.metaTemplateId?.trim() ?? "";
+    if (!metaId) return;
+    const nextFav = !favorites.has(metaId);
+    qc.setQueryData<ShortcutRow[]>(["slash-shortcuts"], (old) => {
+      const list = Array.isArray(old) ? [...old] : [];
+      const idx = list.findIndex((s) => s.itemKind === "meta-template" && s.itemId === metaId);
+      if (idx >= 0) list[idx] = { ...list[idx], favorite: nextFav };
+      else list.push({ itemKind: "meta-template", itemId: metaId, favorite: nextFav, useCount: 0 });
+      return list;
+    });
+    void fetch(apiUrl("/api/slash-shortcuts"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "favorite",
+        itemKind: "meta-template",
+        itemId: metaId,
+        favorite: nextFav,
+      }),
+    })
+      .catch(() => undefined)
+      .finally(() => {
+        void qc.invalidateQueries({ queryKey: ["slash-shortcuts"] });
+      });
+  }
 
   const chips: { id: CategoryFilter; label: string }[] = [
     { id: "all", label: "Todos" },
     { id: "UTILITY", label: "Utilidade" },
     { id: "MARKETING", label: "Marketing" },
+    { id: "FAVORITES", label: "Favoritos" },
   ];
 
   return (
@@ -273,7 +378,11 @@ export function TemplatePickerList({
             </span>
           </p>
         ) : visible.length === 0 ? (
-          <p className="py-6 text-center text-xs text-[var(--text-muted)]">Nenhum modelo nesta busca.</p>
+          <p className="py-6 text-center text-xs text-[var(--text-muted)]">
+            {category === "FAVORITES" && !query.trim()
+              ? "Nenhum template favorito."
+              : "Nenhum modelo nesta busca."}
+          </p>
         ) : (
           visible.map((tpl) => (
             <TemplateCard
@@ -281,6 +390,8 @@ export function TemplatePickerList({
               tpl={tpl}
               conversationId={conversationId}
               selected={selectedId === tpl.id}
+              favorite={favorites.has(tpl.metaTemplateId?.trim() ?? "")}
+              onToggleFavorite={() => toggleFavorite(tpl)}
               onSelect={() => onSelect(tpl)}
             />
           ))
