@@ -376,7 +376,23 @@ const CONDITION_TYPE_OPTIONS: Opt[] = [
   { value: "tag", label: "Tag" },
   { value: "field", label: "Campo" },
   { value: "channel", label: "Canal" },
+  { value: "site_context", label: "Contexto do site" },
+  { value: "site_event", label: "Evento do site" },
 ];
+
+/** Webchat v2: chave do contexto vivo (texto livre da org). */
+const SITE_CONTEXT_OP_OPTIONS: Opt[] = [
+  { value: "exists", label: "existe" },
+  { value: "not_exists", label: "não existe" },
+  { value: "eq", label: "igual a" },
+  { value: "includes", label: "contém" },
+];
+const SITE_EVENT_OP_OPTIONS: Opt[] = [
+  { value: "occurred", label: "ocorreu nos últimos" },
+  { value: "not_occurred", label: "não ocorreu nos últimos" },
+];
+const CONDITION_INPUT_CLASS =
+  "w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] px-2.5 py-1.5 font-display text-[12.5px] text-[var(--text-primary)] shadow-sm placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]/20";
 
 function ConditionsEditor({
   conditions,
@@ -416,6 +432,10 @@ function ConditionsEditor({
     else if (type === "field")
       update(idx, { type: "field", entity: "contact", fieldId: "", value: "" });
     else if (type === "channel") update(idx, { type: "channel", channelId: "" });
+    else if (type === "site_context")
+      update(idx, { type: "site_context", key: "", op: "exists", value: "" });
+    else if (type === "site_event")
+      update(idx, { type: "site_event", name: "", minutes: 60, op: "occurred" });
   };
 
   return (
@@ -476,6 +496,73 @@ function ConditionsEditor({
                       }
                       className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] px-2.5 py-1.5 font-display text-[12.5px] text-[var(--text-primary)] shadow-sm placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]/20"
                     />
+                  </>
+                )}
+
+                {cond.type === "site_context" && (
+                  <>
+                    <input
+                      type="text"
+                      value={cond.key}
+                      maxLength={64}
+                      aria-label="Chave do contexto do site"
+                      placeholder="Chave enviada pelo site..."
+                      onChange={(e) => update(idx, { ...cond, key: e.target.value.trim() })}
+                      className={CONDITION_INPUT_CLASS}
+                    />
+                    <InlineSelect
+                      value={cond.op}
+                      options={SITE_CONTEXT_OP_OPTIONS}
+                      onChange={(v) =>
+                        update(idx, { ...cond, op: v as typeof cond.op })
+                      }
+                    />
+                    {cond.op !== "exists" && cond.op !== "not_exists" && (
+                      <input
+                        type="text"
+                        value={cond.value}
+                        aria-label="Valor esperado"
+                        placeholder="Valor esperado..."
+                        onChange={(e) => update(idx, { ...cond, value: e.target.value })}
+                        className={CONDITION_INPUT_CLASS}
+                      />
+                    )}
+                  </>
+                )}
+
+                {cond.type === "site_event" && (
+                  <>
+                    <input
+                      type="text"
+                      value={cond.name}
+                      maxLength={64}
+                      aria-label="Nome do evento do site"
+                      placeholder="Nome do evento enviado pelo site..."
+                      onChange={(e) => update(idx, { ...cond, name: e.target.value.trim() })}
+                      className={CONDITION_INPUT_CLASS}
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <InlineSelect
+                        className="min-w-0 flex-1"
+                        value={cond.op}
+                        options={SITE_EVENT_OP_OPTIONS}
+                        onChange={(v) =>
+                          update(idx, { ...cond, op: v === "not_occurred" ? "not_occurred" : "occurred" })
+                        }
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={cond.minutes}
+                        aria-label="Minutos"
+                        onChange={(e) =>
+                          update(idx, { ...cond, minutes: Math.max(1, Math.floor(Number(e.target.value) || 0)) })
+                        }
+                        className={CONDITION_INPUT_CLASS.replace("w-full", "w-[76px] shrink-0")}
+                      />
+                      <span className="shrink-0 font-display text-[12px] text-[var(--text-muted)]">min</span>
+                    </div>
                   </>
                 )}
 

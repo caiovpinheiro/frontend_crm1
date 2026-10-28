@@ -1,17 +1,14 @@
 /**
  * Painel "No site agora" — tipos, leitura da API e funções puras de
- * apresentação/atualização. Contrato: `GET /api/conversations/:id/webchat-context`
- * e os eventos SSE `webchat_context`/`webchat_event`
- * (backend: docs/decisoes/webchat-widget.md §9.3).
+ * apresentação. Contrato: `GET /api/conversations/:id/webchat-context` e os
+ * sinais SSE `webchat_context`/`webchat_event` (sem valores; o painel refaz
+ * o GET) — backend: docs/decisoes/webchat-widget.md §9.3.
  *
  * Nada fixo de cliente: chaves e valores são do site; o rótulo vem da config
  * do canal (sem rótulo, mostra a chave).
  */
 import { apiUrl } from "@/lib/api";
-import type {
-  RealtimePayload,
-  WebchatSiteValue,
-} from "@/lib/realtime-contract";
+import type { WebchatSiteValue } from "@/lib/realtime-contract";
 
 /** Quantos eventos o painel mostra (o backend manda até 10). */
 export const WEBCHAT_PANEL_EVENTS = 10;
@@ -75,49 +72,21 @@ export function formatSiteRelativeTime(iso: string, now: number = Date.now()): s
   return `há ${d} ${d === 1 ? "dia" : "dias"}`;
 }
 
-/** O evento SSE é do contato/canal deste painel? */
-function samePanel(
-  panel: WebchatSitePanelData,
-  ev: { contactId?: string; channelId?: string },
+/**
+ * O sinal SSE (`webchat_context`/`webchat_event`) é do contato/canal deste
+ * painel? Os sinais não trazem valores: o painel refaz o GET (que confere o
+ * acesso à conversa).
+ */
+export function isWebchatPanelSignal(
+  panel: WebchatSitePanelData | undefined,
+  ev: { contactId?: unknown; channelId?: unknown } | null | undefined,
 ): boolean {
   return (
+    !!panel &&
     panel.available &&
     !!panel.contactId &&
+    !!ev &&
     ev.contactId === panel.contactId &&
     ev.channelId === panel.channelId
   );
-}
-
-/** `webchat_context`: troca o estado inteiro (o backend manda o estado completo). */
-export function applyWebchatContextEvent(
-  panel: WebchatSitePanelData,
-  ev: RealtimePayload<"webchat_context">,
-): WebchatSitePanelData {
-  if (!samePanel(panel, ev) || !ev.state || typeof ev.updatedAt !== "string") return panel;
-  // Evento atrasado (mais velho que o gravado) não volta o painel no tempo.
-  if (panel.context && Date.parse(ev.updatedAt) < Date.parse(panel.context.updatedAt)) return panel;
-  return { ...panel, context: { state: ev.state, updatedAt: ev.updatedAt } };
-}
-
-/** `webchat_event`: entra na lista (sem repetir), mais recentes primeiro, até o teto. */
-export function applyWebchatSiteEvent(
-  panel: WebchatSitePanelData,
-  ev: RealtimePayload<"webchat_event">,
-): WebchatSitePanelData {
-  const e = ev.event;
-  if (!samePanel(panel, ev) || !e || typeof e.id !== "string") return panel;
-  if (panel.events.some((x) => x.id === e.id)) return panel;
-  const events = [
-    {
-      id: e.id,
-      name: e.name,
-      data: e.data ?? null,
-      important: !!e.important,
-      occurredAt: e.occurredAt,
-    },
-    ...panel.events,
-  ]
-    .sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
-    .slice(0, WEBCHAT_PANEL_EVENTS);
-  return { ...panel, events };
 }

@@ -164,25 +164,19 @@ export type WebchatV2ErrorCode =
   | "IDEMPOTENCY_KEY_REUSED"
   | "IDEMPOTENCY_IN_PROGRESS";
 
-/** SSE do inbox (frente B). */
+/** SSE do inbox (frente B) — só sinal de invalidação, sem valores do site. */
 export type WebchatContextSseEvent = {
   type: "webchat_context";
   contactId: string;
   channelId: string;
-  state: Record<string, WebchatScalar>;
   updatedAt: string;
 };
 export type WebchatTimelineSseEvent = {
   type: "webchat_event";
   contactId: string;
   channelId: string;
-  event: {
-    id: string;
-    name: string;
-    data: Record<string, WebchatScalar> | null;
-    important: boolean;
-    occurredAt: string;
-  };
+  count: number;
+  latestOccurredAt: string;
 };
 
 export type PreviewView = "chat" | "prechat" | "offline";
