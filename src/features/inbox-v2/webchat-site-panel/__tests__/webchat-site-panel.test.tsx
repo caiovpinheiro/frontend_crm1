@@ -84,23 +84,23 @@ describe("model", () => {
 });
 
 describe("WebchatSitePanelView", () => {
-  it("estado com rótulo (ou chave legível) e valores; eventos com tempo relativo e marca de importante", () => {
+  it("resumo: destaque do importante, estado em chips, caminho e linha do tempo sob demanda", () => {
     render(<WebchatSitePanelView data={panel()} now={NOW} />);
     expect(screen.getByText("No site agora")).toBeTruthy();
-        expect(screen.getByText("Etapa atual")).toBeTruthy();
-    expect(screen.getByText("Progresso")).toBeTruthy();
-    expect(screen.getByText("· atualizado há 3 min")).toBeTruthy();
-    expect(screen.getByText("40")).toBeTruthy();
-    expect(screen.getByText("não")).toBeTruthy();
-    const list = screen.getByRole("list", { name: "Últimos eventos no site" });
-    const items = within(list).getAllByRole("listitem");
+    expect(screen.getByText("· agora")).toBeTruthy();
+    expect(screen.getByText(/Passo concluido · Etapa atual: 2/)).toBeTruthy();
+    const chips = screen.getByRole("list", { name: "Estado atual no site" });
+    expect(within(chips).getByText("Etapa atual: 2")).toBeTruthy();
+    expect(within(chips).getByText("Progresso: 40")).toBeTruthy();
+    expect(within(chips).getByText("Concluido: não")).toBeTruthy();
+    const path = screen.getByRole("list", { name: "Caminho recente no site" });
+    expect(within(path).getByText("Abriu pagina")).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Últimos eventos no site" })).toBeNull();
+    act(() => screen.getByRole("button", { name: /Ver linha do tempo completa/ }).click());
+    const items = within(screen.getByRole("list", { name: "Últimos eventos no site" })).getAllByRole("listitem");
     expect(items).toHaveLength(2);
-    expect(within(items[0]!).getByText("Passo concluido")).toBeTruthy();
     expect(within(items[0]!).getByText("importante")).toBeTruthy();
-    expect(within(items[0]!).getByText("agora")).toBeTruthy();
-    expect(within(items[0]!).getByText("Etapa atual: 2")).toBeTruthy();
     expect(within(items[1]!).getByText("há 2 h")).toBeTruthy();
-    expect(within(items[1]!).queryByText("importante")).toBeNull();
   });
 
   it("não aparece fora do webchat nem sem nada enviado pelo site", () => {
@@ -117,7 +117,7 @@ describe("WebchatSitePanelView", () => {
     const toggle = screen.getByRole("button", { name: /No site agora/ });
     act(() => toggle.click());
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText("Etapa atual")).toBeNull();
+    expect(screen.queryByText("Etapa atual: 2")).toBeNull();
   });
 });
 
@@ -136,7 +136,7 @@ describe("WebchatSitePanel (GET + SSE)", () => {
 
   it("sinal do mesmo contato/canal refaz o GET (sem usar valores do SSE); outro contato é ignorado", async () => {
     wrap(<WebchatSitePanel conversationId="conv-1" />);
-    await waitFor(() => expect(screen.getByText("Etapa atual")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Etapa atual: 2")).toBeTruthy());
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/conversations/conv-1/webchat-context");
 
@@ -173,8 +173,8 @@ describe("WebchatSitePanel (GET + SSE)", () => {
       });
     });
     await waitFor(() => expect(screen.getByText("Pediu ajuda")).toBeTruthy());
-    expect(screen.getByText("5")).toBeTruthy();
-    expect(screen.getByText("Secao")).toBeTruthy();
+    expect(screen.getByText("Etapa atual: 5")).toBeTruthy();
+    expect(screen.getByText("b")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

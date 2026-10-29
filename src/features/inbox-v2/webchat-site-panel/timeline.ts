@@ -37,7 +37,7 @@ export type SiteTimelineRow = SiteEventView & {
 const HAS_LETTER = new RegExp("\\p{L}", "u");
 
 /** Texto com letra repetido de outra chave = mesmo dado; número/booleano não. */
-function isDedupable(value: WebchatSiteValue, text: string): boolean {
+export function isTextualSiteValue(value: WebchatSiteValue, text: string): boolean {
   return typeof value === "string" && HAS_LETTER.test(text);
 }
 
@@ -50,7 +50,7 @@ export function describeSiteEvent(
   for (const [key, raw] of Object.entries(event.data ?? {})) {
     const value = formatSiteValue(raw).trim();
     if (!value) continue;
-    const textual = isDedupable(raw, value);
+    const textual = isTextualSiteValue(raw, value);
     if (textual) {
       if (seen.has(value)) continue;
       seen.add(value);
