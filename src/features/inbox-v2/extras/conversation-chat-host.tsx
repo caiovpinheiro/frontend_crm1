@@ -68,6 +68,11 @@ import {
   useUpdateNote,
   useWhatsappChannels,
 } from "@/features/inbox-v2/hooks";
+// Helpers puros (fora do barrel de hooks, que os testes do host mockam).
+import {
+  isWebchatChannel,
+  outboundChannelsForConversation,
+} from "@/features/inbox-v2/hooks/use-channels";
 import { useConversationTyping } from "@/features/inbox-v2/hooks/use-conversation-typing";
 import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
 import { DealNotesTab } from "@/features/pipeline-v2/extras/deal-notes-tab";
@@ -298,7 +303,14 @@ export function ConversationChatHost({
   const typingHint = useConversationTyping(conversationId, session?.user?.id ?? null);
 
   // ── Canal de envio (multi-WABA) + janela de 24h ──────────────────
-  const { data: whatsappChannels } = useWhatsappChannels(!!conversationId);
+  const { data: orgChannels } = useWhatsappChannels(!!conversationId);
+  // Webchat responde só pelo widget: sem "Enviar por" nem recursos WhatsApp.
+  const isWebchat =
+    isWebchatChannel(contactChannel) || isWebchatChannel(messagesData?.channel?.type);
+  const whatsappChannels = outboundChannelsForConversation(
+    orgChannels,
+    isWebchat ? "webchat" : null,
+  );
   const conversationChannelId = messagesData?.channel?.id ?? null;
   const lastMessageChannelId = useMemo(
     () => findLastPublicMessageChannelId(messagesData?.messages),
@@ -732,6 +744,8 @@ export function ConversationChatHost({
             signatureAllowed={convFeatures.agentSignatureEnabled}
             signatureEditable={convFeatures.agentSignatureEditable}
             availableChannels={whatsappChannels}
+            whatsappFeatures={!isWebchat}
+            attachmentsEnabled={!isWebchat}
             selectedChannelId={selectedChannelId}
             conversationChannelId={conversationChannelId}
             lastMessageChannelId={lastMessageChannelId}

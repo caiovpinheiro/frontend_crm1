@@ -29,6 +29,8 @@ import {
   hydrateConditionBranches,
   looksLikeOpaqueId,
   newBranchId,
+  SITE_CONTEXT_PREFIX,
+  SITE_EVENT_PREFIX,
   type ConditionBranch,
   type ConditionRule,
 } from "@/lib/automation-condition"
@@ -36,8 +38,34 @@ import { useContactSources } from "@/hooks/use-contact-sources"
 import { FlowVariableInput } from "./flow-variable-picker"
 import type { NodeConfig } from "@/lib/flow-data"
 
-const NO_VALUE_OPS = new Set(["empty", "not_empty"])
+const NO_VALUE_OPS = new Set(["empty", "not_empty", "exists", "not_exists"])
 const CUSTOM_FIELD_SENTINEL = "__custom__"
+
+/*
+ * Webchat v2 — campos do site: `siteContext.<chave>` (contexto vivo) e
+ * `siteEvent.<nome>` (linha do tempo). Chave e nome são texto livre da org.
+ */
+const SITE_FIELD_OPTIONS = [
+  { value: SITE_CONTEXT_PREFIX, label: "Contexto do site (chave)", group: "Site" },
+  { value: SITE_EVENT_PREFIX, label: "Evento do site", group: "Site" },
+]
+const SITE_CONTEXT_OPS = [
+  { value: "exists", label: "Existe" },
+  { value: "not_exists", label: "Não existe" },
+  { value: "eq", label: "Igual a" },
+  { value: "ne", label: "Diferente de" },
+  { value: "includes", label: "Contém" },
+]
+const SITE_EVENT_OPS = [
+  { value: "occurred_within", label: "Ocorreu nos últimos N min" },
+  { value: "not_occurred_within", label: "Não ocorreu nos últimos N min" },
+]
+
+function siteKindOf(field: string): "context" | "event" | null {
+  if (field.startsWith(SITE_CONTEXT_PREFIX)) return "context"
+  if (field.startsWith(SITE_EVENT_PREFIX)) return "event"
+  return null
+}
 
 type Schedule = { days?: number[]; from?: string; to?: string }
 
@@ -46,15 +74,26 @@ function asBranches(cfg: NodeConfig): ConditionBranch[] {
 }
 
 function fieldLabel(field: string): string {
+  const site = siteKindOf(field)
+  if (site === "context") return `Contexto do site: ${field.slice(SITE_CONTEXT_PREFIX.length)}`
+  if (site === "event") return `Evento do site: ${field.slice(SITE_EVENT_PREFIX.length)}`
   return CONDITION_FIELDS.find((f) => f.value === field)?.label ?? field
 }
 
 function opLabel(op: string): string {
+  const site = [...SITE_CONTEXT_OPS, ...SITE_EVENT_OPS].find((o) => o.value === op)
+  if (site) return site.label.replace(" N min", "").toLowerCase()
   return CONDITION_OPS.find((o) => o.value === op)?.label ?? op
 }
 
 function isRuleReady(rule: ConditionRule): boolean {
   if (!rule.field) return false
+  const site = siteKindOf(rule.field)
+  if (site === "event") {
+    const minutes = Number(rule.value)
+    return rule.field.length > SITE_EVENT_PREFIX.length && Number.isInteger(minutes) && minutes >= 1
+  }
+  if (site === "context" && rule.field.length <= SITE_CONTEXT_PREFIX.length) return false
   if (NO_VALUE_OPS.has(rule.op) || CONDITION_SCHEDULE_OPS.has(rule.op)) return true
   return String(rule.value ?? "").trim() !== ""
 }
@@ -70,6 +109,9 @@ function displayValue(raw: string, lookup?: Record<string, string>): string {
 
 function summarizeRule(rule: ConditionRule, lookup?: Record<string, string>): string {
   if (!rule.field) return "Definir regra"
+  if (siteKindOf(rule.field) === "event") {
+    return `${fieldLabel(rule.field)} ${opLabel(rule.op)} ${String(rule.value ?? "")} min`
+  }
   const value =
     NO_VALUE_OPS.has(rule.op) || CONDITION_SCHEDULE_OPS.has(rule.op)
       ? ""
@@ -274,10 +316,11 @@ function ConditionRuleRow({
     () => new Set([...CONDITION_FIELDS, ...customFields].map((o) => o.value)),
     [customFields],
   )
-  const isCustom = !!rule.field && !knownFields.has(rule.field) && !isLoading
+  const siteKind = siteKindOf(rule.field)
+  const isCustom = !!rule.field && !siteKind && !knownFields.has(rule.field) && !isLoading
   const fieldOptions = useMemo(() => {
     const catalog = [
-      ...CONDITION_FIELDS.map((o) => ({
+      ...[...CONDITION_FIELDS, ...SITE_FIELD_OPTIONS].map((o) => ({
         value: o.value,
         label: o.label,
         description: o.group,
@@ -290,7 +333,7 @@ function ConditionRuleRow({
         searchText: `${o.label} ${o.value} ${o.group ?? ""}`,
       })),
     ]
-    const withSaved = isCustom
+    const withSaved = isCustom || siteKindOf(rule.field)
       ? catalog
       : optionsWithSaved(catalog, rule.field, lookup[rule.field] ?? fieldLabel(rule.field))
     return [
@@ -309,12 +352,41 @@ function ConditionRuleRow({
             searchable
             searchPlaceholder="Buscar campo…"
             placeholder={isLoading ? "Carregando…" : "Campo"}
-            value={isCustom ? CUSTOM_FIELD_SENTINEL : rule.field}
-            options={fieldOptions}
-            onValueChange={(v) =>
-              onChange({ field: v === CUSTOM_FIELD_SENTINEL ? "variables." : v, value: "" }, false)
+            value={
+              isCustom
+                ? CUSTOM_FIELD_SENTINEL
+                : siteKind === "context"
+                  ? SITE_CONTEXT_PREFIX
+                  : siteKind === "event"
+                    ? SITE_EVENT_PREFIX
+                    : rule.field
             }
+            options={fieldOptions}
+            onValueChange={(v) => {
+              if (v === SITE_CONTEXT_PREFIX) onChange({ field: v, op: "exists", value: "" }, false)
+              else if (v === SITE_EVENT_PREFIX) onChange({ field: v, op: "occurred_within", value: "60" }, false)
+              else onChange({ field: v === CUSTOM_FIELD_SENTINEL ? "variables." : v, value: "" }, false)
+            }}
           />
+          {siteKind && (
+            <Input
+              value={rule.field.slice((siteKind === "context" ? SITE_CONTEXT_PREFIX : SITE_EVENT_PREFIX).length)}
+              maxLength={64}
+              aria-label={siteKind === "context" ? "Chave do contexto do site" : "Nome do evento do site"}
+              onChange={(e) =>
+                onChange(
+                  {
+                    field:
+                      (siteKind === "context" ? SITE_CONTEXT_PREFIX : SITE_EVENT_PREFIX) +
+                      e.target.value.trim(),
+                  },
+                  false,
+                )
+              }
+              placeholder={siteKind === "context" ? "chave enviada pelo site" : "nome do evento enviado pelo site"}
+              className="h-8 text-[13px]"
+            />
+          )}
           {isCustom && (
             <Input
               value={rule.field}
@@ -326,12 +398,43 @@ function ConditionRuleRow({
           <DropdownGlass
             triggerClassName="w-full"
             value={rule.op}
-            options={optionsWithSaved(CONDITION_OPS, rule.op, opLabel(rule.op))}
+            options={
+              siteKind === "context"
+                ? SITE_CONTEXT_OPS
+                : siteKind === "event"
+                  ? SITE_EVENT_OPS
+                  : optionsWithSaved(CONDITION_OPS, rule.op, opLabel(rule.op))
+            }
             onValueChange={(v) =>
               onChange({ op: v as ConditionRule["op"] }, NO_VALUE_OPS.has(v) || CONDITION_SCHEDULE_OPS.has(v))
             }
           />
-          {!hideValue && (
+          {siteKind === "event" ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={String(rule.value ?? "")}
+                aria-label="Minutos"
+                onChange={(e) => onChange({ value: e.target.value }, false)}
+                className="h-8 text-[13px]"
+              />
+              <span className="shrink-0 text-[12px] text-muted-foreground">min</span>
+            </div>
+          ) : siteKind === "context" ? (
+            !hideValue && (
+              <FlowVariableInput
+                value={String(rule.value ?? "")}
+                onChange={(v) => onChange({ value: v }, false)}
+                onBlur={() => {
+                  if (String(rule.value ?? "").trim()) onChange({ value: rule.value }, true)
+                }}
+                placeholder="Valor ou { para variáveis"
+                className="h-9"
+              />
+            )
+          ) : !hideValue && (
             <ConditionValue
               field={rule.field}
               op={rule.op}

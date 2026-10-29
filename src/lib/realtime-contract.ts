@@ -319,6 +319,38 @@ export type DealMovedEvent = {
   card?: DealMovedCard;
 };
 
+// ── Webchat v2: contexto vivo e linha do tempo do site ──────────────────
+
+/** Valor simples mandado pelo site (`setContext`/`track`). */
+export type WebchatSiteValue = string | number | boolean;
+
+/*
+ * Privacidade: o bus é por org e estes eventos não passam pelo gate de
+ * conversa — por isso são só SINAIS, sem valores do site. O painel da
+ * conversa aberta refaz o GET `/api/conversations/:id/webchat-context`
+ * (com checagem de acesso) quando o sinal é do seu contato/canal.
+ */
+
+/** O estado mandado pelo site para o contato mudou (sem o estado). */
+export type WebchatContextEvent = {
+  organizationId: string;
+  contactId: string;
+  channelId: string;
+  /** ISO */
+  updatedAt: string;
+};
+
+/** Eventos novos na linha do tempo do site do contato (sem nome/dados). */
+export type WebchatSiteEvent = {
+  organizationId: string;
+  contactId: string;
+  channelId: string;
+  /** Quantos eventos entraram no lote. */
+  count: number;
+  /** ISO — o mais recente do lote. */
+  latestOccurredAt: string;
+};
+
 // ── União discriminada ──────────────────────────────────────────────────
 
 export type RealtimeEventMap = {
@@ -348,6 +380,8 @@ export type RealtimeEventMap = {
   team_chat_work_item_updated: TeamChatEvent;
   team_chat_forward_updated: TeamChatEvent;
   deal_moved: DealMovedEvent;
+  webchat_context: WebchatContextEvent;
+  webchat_event: WebchatSiteEvent;
 };
 
 export type RealtimeEventName = keyof RealtimeEventMap;
@@ -385,6 +419,8 @@ export const REALTIME_EVENT_NAMES = [
   "team_chat_work_item_updated",
   "team_chat_forward_updated",
   "deal_moved",
+  "webchat_context",
+  "webchat_event",
 ] as const satisfies readonly RealtimeEventName[];
 
 /**

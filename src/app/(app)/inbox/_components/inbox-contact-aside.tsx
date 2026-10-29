@@ -18,6 +18,13 @@ const ContactAside = dynamic(
     })),
   { ssr: false },
 );
+const WebchatSitePanel = dynamic(
+  () =>
+    import("@/features/inbox-v2/webchat-site-panel").then((m) => ({
+      default: m.WebchatSitePanel,
+    })),
+  { ssr: false },
+);
 const FieldConfigPanel = dynamic(
   () =>
     import("@/components/crm/fields/field-config-panel").then((m) => ({
@@ -38,6 +45,7 @@ export function InboxContactAside({
   contactTags,
   collapsed,
   onToggleCollapse,
+  conversationChannel,
 }: {
   contactAsideView: ContactAsideView;
   firstDeal: ReturnType<typeof useInboxFirstDeal>;
@@ -49,6 +57,8 @@ export function InboxContactAside({
   contactTags: ContactDetail["tags"] | undefined;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Canal da conversa (`webchat` mostra o painel "No site agora"). */
+  conversationChannel?: string | null;
 }) {
   const {
     firstDealId,
@@ -135,6 +145,11 @@ export function InboxContactAside({
       }
       collapsed={collapsed}
       onToggleCollapse={onToggleCollapse}
+      siteContextNode={
+        conversationChannel === "webchat" && conversationId ? (
+          <WebchatSitePanel conversationId={conversationId} />
+        ) : undefined
+      }
       contactFieldConfigSlot={
         <RequirePermission permission="settings:custom_fields">
           <FieldConfigPanel entities={["contact"]} context="inbox_lead_v2" />

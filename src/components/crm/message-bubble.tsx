@@ -368,6 +368,7 @@ export {
 } from "./message-bubble/day-separators"
 export {
   ConnectionDivider,
+  MessageChannelSeal,
   TicketDivider,
   ConversationClosedMarker,
 } from "./message-bubble/dividers"

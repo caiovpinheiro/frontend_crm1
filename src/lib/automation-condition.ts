@@ -44,7 +44,13 @@ export type ConditionOp =
   | "has_tag"
   | "not_has_tag"
   | "in_business_hours"
-  | "not_in_business_hours";
+  | "not_in_business_hours"
+  // Webchat v2 — `siteContext.<chave>` existe/não existe e
+  // `siteEvent.<nome>` ocorreu (ou não) nos últimos N min (`value` = N).
+  | "exists"
+  | "not_exists"
+  | "occurred_within"
+  | "not_occurred_within";
 
 export type ConditionRule = {
   field: string;
@@ -95,6 +101,7 @@ function normalizeOp(raw: unknown): ConditionOp {
     "empty", "not_empty",
     "has_tag", "not_has_tag",
     "in_business_hours", "not_in_business_hours",
+    "exists", "not_exists", "occurred_within", "not_occurred_within",
   ];
   return (allowed.includes(s as ConditionOp) ? s : "eq") as ConditionOp;
 }
@@ -294,6 +301,10 @@ const FIELD_LABELS: Record<string, string> = {
   "system.now": "Momento atual",
 };
 
+/** Webchat v2: prefixos dos campos do site nas regras (chave/nome livres). */
+export const SITE_CONTEXT_PREFIX = "siteContext.";
+export const SITE_EVENT_PREFIX = "siteEvent.";
+
 const OP_LABELS: Record<string, string> = {
   eq: "=",
   ne: "≠",
@@ -310,6 +321,10 @@ const OP_LABELS: Record<string, string> = {
   not_has_tag: "não tem tag",
   in_business_hours: "no expediente",
   not_in_business_hours: "fora do expediente",
+  exists: "existe",
+  not_exists: "não existe",
+  occurred_within: "ocorreu nos últimos",
+  not_occurred_within: "não ocorreu nos últimos",
 };
 
 const VALUE_LABELS: Record<string, string> = {
@@ -341,6 +356,17 @@ function describeRule(rule: ConditionRule, lookup?: Record<string, string>): str
   }
   if (rule.op === "not_has_tag") {
     return resolved ? `não tem tag "${resolved}"` : "não tem tag";
+  }
+  if (rule.field.startsWith(SITE_EVENT_PREFIX)) {
+    const name = rule.field.slice(SITE_EVENT_PREFIX.length) || "?";
+    const op = rule.op === "not_occurred_within" ? "não ocorreu" : "ocorreu";
+    return `evento do site "${name}" ${op} nos últimos ${String(rule.value ?? "").trim() || "?"} min`;
+  }
+  if (rule.field.startsWith(SITE_CONTEXT_PREFIX)) {
+    const key = rule.field.slice(SITE_CONTEXT_PREFIX.length) || "?";
+    const op = OP_LABELS[rule.op] ?? rule.op;
+    if (rule.op === "exists" || rule.op === "not_exists") return `contexto do site "${key}" ${op}`;
+    return `contexto do site "${key}" ${op} ${resolved.slice(0, 28)}`.trim();
   }
   const fieldFromLookup = lookup?.[rule.field];
   const field =

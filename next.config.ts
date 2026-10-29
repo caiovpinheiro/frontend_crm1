@@ -76,7 +76,6 @@ const withSerwist = withSerwistInit({
 
 function securityHeaders(): { key: string; value: string }[] {
   const headers: { key: string; value: string }[] = [
-    { key: "X-Frame-Options", value: "DENY" },
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
     {
@@ -261,6 +260,23 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders(),
+      },
+      // Anti-clickjacking em tudo, MENOS `/webchat/*`: a página do widget
+      // é embutida no site do cliente e recebe `frame-ancestors` dinâmico
+      // (allowedOrigins do canal) no middleware. `embed.js` é JS, não frame.
+      {
+        source: "/:path((?!webchat/).*)",
+        headers: [{ key: "X-Frame-Options", value: "DENY" }],
+      },
+      // Loader do Webchat no site do cliente: o snippet aponta para
+      // `embed.js?v=N`. Cache de 1 dia + SWR (não `immutable`: o snippet já
+      // instalado não muda de versão, então correções precisam propagar).
+      {
+        source: "/webchat/embed.js",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+          { key: "Access-Control-Allow-Origin", value: "*" },
+        ],
       },
       // Binários pesados de `public/` (vídeo de tutorial, APK): o Next manda
       // `max-age=0` por padrão. Os nomes são versionados (hash/versão no

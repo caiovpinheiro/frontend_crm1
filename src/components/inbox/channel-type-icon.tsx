@@ -5,6 +5,7 @@ import {
   IconBrandInstagram,
   IconBrandWhatsapp,
   IconMail,
+  IconWorld,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -38,6 +39,14 @@ export function ChannelTypeIcon({
   }
   if (t === "EMAIL") {
     return <IconMail size={size} className={cn("shrink-0", className)} />;
+  }
+  if (t === "WEBCHAT") {
+    return (
+      <IconWorld
+        size={size}
+        className={cn("shrink-0 text-[var(--channel-webchat)]", className)}
+      />
+    );
   }
   return (
     <IconBrandWhatsapp

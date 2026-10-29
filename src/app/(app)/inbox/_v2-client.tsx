@@ -20,10 +20,12 @@ const FavoritesPanel = dynamic(
     })),
   { ssr: false },
 );
-const ChatArea = dynamic(
+// ChatArea + "digitando…" (SSE typing do agente/visitante) — o hook de
+// typing fica no wrapper para não re-renderizar a página a cada evento.
+const ChatAreaWithTyping = dynamic(
   () =>
-    import("@/components/crm/chat-area").then((m) => ({
-      default: m.ChatArea,
+    import("@/features/inbox-v2/extras/chat-area-with-typing").then((m) => ({
+      default: m.ChatAreaWithTyping,
     })),
   {
     ssr: false,
@@ -424,6 +426,7 @@ export default function InboxV2ClientPage({
   });
 
   const {
+    isWebchat,
     whatsappChannels,
     conversationChannelId,
     lastMessageChannelId,
@@ -813,7 +816,8 @@ export default function InboxV2ClientPage({
 
   const chatNode =
     chatContact && activeRow ? (
-      <ChatArea
+      <ChatAreaWithTyping
+        typingSelfId={session?.user?.id ?? null}
         contact={chatContact}
         messages={messageBubbles}
         stages={stagePillsView}
@@ -915,6 +919,8 @@ export default function InboxV2ClientPage({
             signatureAllowed={convFeatures.agentSignatureEnabled}
             signatureEditable={convFeatures.agentSignatureEditable}
             availableChannels={whatsappChannels}
+            whatsappFeatures={!isWebchat}
+            attachmentsEnabled={!isWebchat}
             selectedChannelId={selectedChannelId}
             conversationChannelId={conversationChannelId}
             lastMessageChannelId={lastMessageChannelId}
@@ -994,6 +1000,7 @@ export default function InboxV2ClientPage({
         onToggleCollapse={() =>
           isTablet ? setTabletDrawerOpen(false) : setAsideCollapsed((v) => !v)
         }
+        conversationChannel={activeRow.channel}
       />
     ) : (
       <EmptyAside />
