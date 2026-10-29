@@ -12,8 +12,6 @@ import type { WebchatSiteValue } from "@/lib/realtime-contract";
 
 /** Quantos eventos o painel mostra (o backend manda até 10). */
 export const WEBCHAT_PANEL_EVENTS = 10;
-/** Chaves do estado atual visíveis antes do "ver tudo". */
-export const WEBCHAT_PANEL_STATE_KEYS = 6;
 /** Linhas da linha do tempo (já agrupadas) visíveis antes do "ver mais". */
 export const WEBCHAT_PANEL_TIMELINE_ROWS = 5;
 

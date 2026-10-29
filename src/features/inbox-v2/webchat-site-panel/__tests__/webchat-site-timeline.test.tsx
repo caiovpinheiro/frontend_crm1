@@ -2,8 +2,7 @@
 /**
  * Painel "No site agora" — apresentação: chave legível e rótulo da config,
  * detalhe principal, agrupamento de eventos repetidos, destaque de
- * importante, grade do estado com "ver tudo" e linha do tempo com
- * "ver mais". Dados neutros.
+ * importante e linha do tempo completa com "ver mais". Dados neutros.
  */
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,10 +10,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   humanizeSiteKey,
   siteKeyLabel,
-  WEBCHAT_PANEL_STATE_KEYS,
   WEBCHAT_PANEL_TIMELINE_ROWS,
   type WebchatPanelEvent,
-  type WebchatSitePanelData,
 } from "@/features/inbox-v2/webchat-site-panel/model";
 import {
   describeSiteEvent,
@@ -22,7 +19,7 @@ import {
   otherDetailsText,
   primaryDetailText,
 } from "@/features/inbox-v2/webchat-site-panel/timeline";
-import { WebchatSitePanelView } from "@/features/inbox-v2/webchat-site-panel";
+import { SiteTimeline } from "@/features/inbox-v2/webchat-site-panel/site-timeline";
 
 const NOW = Date.parse("2026-10-28T12:00:00.000Z");
 const iso = (msAgo: number) => new Date(NOW - msAgo).toISOString();
@@ -31,18 +28,6 @@ let seq = 0;
 function ev(name: string, data: WebchatPanelEvent["data"], minAgo: number, important = false): WebchatPanelEvent {
   seq += 1;
   return { id: `e${seq}`, name, data, important, occurredAt: iso(minAgo * 60_000) };
-}
-
-function panel(over: Partial<WebchatSitePanelData> = {}): WebchatSitePanelData {
-  return {
-    available: true,
-    contactId: "ct-1",
-    channelId: "ch-1",
-    labels: {},
-    context: null,
-    events: [],
-    ...over,
-  };
 }
 
 afterEach(() => {
@@ -121,58 +106,7 @@ describe("groupSiteEvents", () => {
   });
 });
 
-describe("WebchatSitePanelView — cartão Agora", () => {
-  it("grade rótulo → valor com valor cortado e title; ver tudo depois de 6 chaves", () => {
-    const state = Object.fromEntries(
-      Array.from({ length: WEBCHAT_PANEL_STATE_KEYS + 2 }, (_, i) => [`campo_${i}`, `valor ${i}`]),
-    );
-    state.campo_0 = "um valor de texto bem longo que não cabe na coluna";
-    render(
-      <WebchatSitePanelView
-        data={panel({ labels: { campo_1: "Rótulo um" }, context: { state, updatedAt: iso(120_000) } })}
-        now={NOW}
-      />,
-    );
-    expect(screen.getByText("· atualizado há 2 min")).toBeTruthy();
-    const grid = screen.getByLabelText("Estado atual no site");
-    expect(grid.tagName).toBe("DL");
-    expect(within(grid).getByText("Campo 0")).toBeTruthy();
-    expect(within(grid).getByText("Rótulo um")).toBeTruthy();
-    const long = within(grid).getByText("um valor de texto bem longo que não cabe na coluna");
-    expect(long.getAttribute("title")).toBe("um valor de texto bem longo que não cabe na coluna");
-    expect(long.className).toContain("truncate");
-    expect(within(grid).getAllByRole("term")).toHaveLength(WEBCHAT_PANEL_STATE_KEYS);
-    expect(within(grid).queryByText("Campo 7")).toBeNull();
-
-    const more = screen.getByRole("button", { name: "ver tudo (+2)" });
-    expect(more.getAttribute("aria-expanded")).toBe("false");
-    act(() => more.click());
-    expect(within(grid).getAllByRole("term")).toHaveLength(WEBCHAT_PANEL_STATE_KEYS + 2);
-    expect(within(grid).getByText("Campo 7")).toBeTruthy();
-    act(() => screen.getByRole("button", { name: "ver menos" }).click());
-    expect(within(grid).getAllByRole("term")).toHaveLength(WEBCHAT_PANEL_STATE_KEYS);
-  });
-
-  it("sem estado: não há cartão nem 'atualizado', só a linha do tempo", () => {
-    render(<WebchatSitePanelView data={panel({ events: [ev("botao_clicado", null, 1)] })} now={NOW} />);
-    expect(screen.queryByLabelText("Estado atual no site")).toBeNull();
-    expect(screen.queryByText(/atualizado/)).toBeNull();
-    expect(screen.getByText("Botao clicado")).toBeTruthy();
-  });
-
-  it("até 6 chaves: sem botão ver tudo", () => {
-    render(
-      <WebchatSitePanelView
-        data={panel({ context: { state: { etapa: 1, secao: "Inicio" }, updatedAt: iso(0) } })}
-        now={NOW}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: /ver tudo/ })).toBeNull();
-    expect(screen.getByText("· atualizado agora")).toBeTruthy();
-  });
-});
-
-describe("WebchatSitePanelView — linha do tempo", () => {
+describe("SiteTimeline (linha do tempo completa)", () => {
   it("agrupa com ×N, destaca importante e mostra principal + demais dados", () => {
     const events = [
       ev("pediu_ajuda", { assunto: "Cadastro", origem: "rodape" }, 1, true),
@@ -180,7 +114,7 @@ describe("WebchatSitePanelView — linha do tempo", () => {
       ev("secao_aberta", { titulo: "Ajuda", caminho: "/ajuda" }, 3),
       ev("secao_aberta", { titulo: "Ajuda", caminho: "/ajuda" }, 4),
     ];
-    render(<WebchatSitePanelView data={panel({ events })} now={NOW} />);
+    render(<SiteTimeline events={events} labels={{}} now={NOW} />);
     const list = screen.getByRole("list", { name: "Últimos eventos no site" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(2);
@@ -206,7 +140,7 @@ describe("WebchatSitePanelView — linha do tempo", () => {
 
   it("mostra 5 linhas e 'ver mais' até as 10 recebidas", () => {
     const events = Array.from({ length: 10 }, (_, i) => ev(`evento_${i}`, null, i + 1));
-    render(<WebchatSitePanelView data={panel({ events })} now={NOW} />);
+    render(<SiteTimeline events={events} labels={{}} now={NOW} />);
     const list = screen.getByRole("list", { name: "Últimos eventos no site" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(WEBCHAT_PANEL_TIMELINE_ROWS);
     const more = screen.getByRole("button", { name: "ver mais (+5)" });
@@ -218,7 +152,7 @@ describe("WebchatSitePanelView — linha do tempo", () => {
 
   it("até 5 linhas depois de agrupar: sem 'ver mais'", () => {
     const events = Array.from({ length: 8 }, (_, i) => ev("secao_aberta", { titulo: "Ajuda" }, i + 1));
-    render(<WebchatSitePanelView data={panel({ events })} now={NOW} />);
+    render(<SiteTimeline events={events} labels={{}} now={NOW} />);
     expect(screen.getByText("×8")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /ver mais/ })).toBeNull();
   });
