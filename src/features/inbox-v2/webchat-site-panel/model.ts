@@ -5,13 +5,17 @@
  * o GET) — backend: docs/decisoes/webchat-widget.md §9.3.
  *
  * Nada fixo de cliente: chaves e valores são do site; o rótulo vem da config
- * do canal (sem rótulo, mostra a chave).
+ * do canal (sem rótulo, a chave legível).
  */
 import { apiUrl } from "@/lib/api";
 import type { WebchatSiteValue } from "@/lib/realtime-contract";
 
 /** Quantos eventos o painel mostra (o backend manda até 10). */
 export const WEBCHAT_PANEL_EVENTS = 10;
+/** Chaves do estado atual visíveis antes do "ver tudo". */
+export const WEBCHAT_PANEL_STATE_KEYS = 6;
+/** Linhas da linha do tempo (já agrupadas) visíveis antes do "ver mais". */
+export const WEBCHAT_PANEL_TIMELINE_ROWS = 5;
 
 export type WebchatPanelEvent = {
   id: string;
@@ -46,10 +50,33 @@ export async function getWebchatSitePanel(conversationId: string): Promise<Webch
   return data as WebchatSitePanelData;
 }
 
-/** Rótulo da chave pela config do canal; sem rótulo, a própria chave. */
+/**
+ * Chave/nome do site legível: `_`/`-` viram espaço, camelCase ganha espaço,
+ * primeira letra maiúscula (`secao_atual` → "Secao atual", `pageView` →
+ * "Page view"). Siglas ficam como estão (`pageURL` → "Page URL"). Mesma
+ * regra da nota do backend (`humanizeWebchatKey`).
+ */
+export function humanizeSiteKey(key: string): string {
+  const spaced = key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!spaced) return key;
+  const text = spaced
+    .split(" ")
+    .map((w, i) => (i > 0 && /^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w))
+    .join(" ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Rótulo da chave (ou do nome do evento) pela config do canal; sem rótulo,
+ * a chave legível.
+ */
 export function siteKeyLabel(key: string, labels: Record<string, string>): string {
-  const label = labels[key];
-  return typeof label === "string" && label.trim() ? label : key;
+  const label = Object.prototype.hasOwnProperty.call(labels, key) ? labels[key] : undefined;
+  return typeof label === "string" && label.trim() ? label.trim() : humanizeSiteKey(key);
 }
 
 /** Valor como texto de uma linha. */

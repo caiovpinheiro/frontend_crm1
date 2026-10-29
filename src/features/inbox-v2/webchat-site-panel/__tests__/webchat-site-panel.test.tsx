@@ -60,9 +60,9 @@ afterEach(() => {
 });
 
 describe("model", () => {
-  it("rótulo da config ou a chave; booleano em texto; tempo relativo", () => {
+  it("rótulo da config ou a chave legível; booleano em texto; tempo relativo", () => {
     expect(siteKeyLabel("etapa", { etapa: "Etapa atual" })).toBe("Etapa atual");
-    expect(siteKeyLabel("secao", {})).toBe("secao");
+    expect(siteKeyLabel("secao", {})).toBe("Secao");
     expect(formatSiteValue(true)).toBe("sim");
     expect(formatSiteValue(3)).toBe("3");
     expect(formatSiteRelativeTime(iso(10_000), NOW)).toBe("agora");
@@ -84,18 +84,18 @@ describe("model", () => {
 });
 
 describe("WebchatSitePanelView", () => {
-  it("estado com rótulo (ou chave) e valores; eventos com tempo relativo e marca de importante", () => {
+  it("estado com rótulo (ou chave legível) e valores; eventos com tempo relativo e marca de importante", () => {
     render(<WebchatSitePanelView data={panel()} now={NOW} />);
     expect(screen.getByText("No site agora")).toBeTruthy();
-    expect(screen.getByText("há 3 min")).toBeTruthy();
-    expect(screen.getByText("Etapa atual")).toBeTruthy();
-    expect(screen.getByText("progresso")).toBeTruthy();
+        expect(screen.getByText("Etapa atual")).toBeTruthy();
+    expect(screen.getByText("Progresso")).toBeTruthy();
+    expect(screen.getByText("· atualizado há 3 min")).toBeTruthy();
     expect(screen.getByText("40")).toBeTruthy();
     expect(screen.getByText("não")).toBeTruthy();
     const list = screen.getByRole("list", { name: "Últimos eventos no site" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(2);
-    expect(within(items[0]!).getByText("passo_concluido")).toBeTruthy();
+    expect(within(items[0]!).getByText("Passo concluido")).toBeTruthy();
     expect(within(items[0]!).getByText("importante")).toBeTruthy();
     expect(within(items[0]!).getByText("agora")).toBeTruthy();
     expect(within(items[0]!).getByText("Etapa atual: 2")).toBeTruthy();
@@ -172,9 +172,9 @@ describe("WebchatSitePanel (GET + SSE)", () => {
         latestOccurredAt: iso(0),
       });
     });
-    await waitFor(() => expect(screen.getByText("pediu_ajuda")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Pediu ajuda")).toBeTruthy());
     expect(screen.getByText("5")).toBeTruthy();
-    expect(screen.getByText("secao")).toBeTruthy();
+    expect(screen.getByText("Secao")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
