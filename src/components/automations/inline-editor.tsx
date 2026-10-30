@@ -72,7 +72,11 @@ import {
   UpdateFieldValueControl,
   type UpdateFieldDateMode,
 } from "./update-field-value"
-import { ActiveChannelMultiSelect } from "./step-channel-picker"
+import {
+  ActiveChannelMultiSelect,
+  channelLabelFromOptions,
+  useConnectedStepChannels,
+} from "./step-channel-picker"
 import { TagStepInput } from "./tag-step-input"
 import { readStepAllowedChannelIds, readStepChannelScope } from "@/lib/automation-workflow"
 
@@ -815,19 +819,42 @@ function ChannelPickerField({
   const allowed = readStepAllowedChannelIds(config)
   const scope = readStepChannelScope(config)
   const values = allowed ?? []
+  // `channelId` legado com "Selecionar tudo": o backend ainda envia por ele
+  // em gatilho que não é inbound. Canal excluído ou desconectado não aparece
+  // na lista, então o passo parecia "todos" e usava um número morto.
+  const { options, isLoading } = useConnectedStepChannels(stepType)
+  const legacyChannelId = scope === "all" ? str(config.channelId).trim() : ""
+  const legacyLabel = legacyChannelId
+    ? channelLabelFromOptions(options, legacyChannelId)
+    : null
 
   return (
-    <div className="cfg-select-wrap nodrag nopan" onPointerDown={stopFlowPointer}>
-      <ActiveChannelMultiSelect
-        id="step-channels"
-        kinds={stepType === "send_email" ? "email" : "whatsapp"}
-        scope={scope}
-        values={values}
-        mockIfEmpty={mockIfEmpty}
-        emptyHint="Marque ao menos um canal. Sem seleção, este passo não envia."
-        onChange={onChange}
-      />
-    </div>
+    <>
+      <div className="cfg-select-wrap nodrag nopan" onPointerDown={stopFlowPointer}>
+        <ActiveChannelMultiSelect
+          id="step-channels"
+          kinds={stepType === "send_email" ? "email" : "whatsapp"}
+          scope={scope}
+          values={values}
+          mockIfEmpty={mockIfEmpty}
+          emptyHint="Marque ao menos um canal. Sem seleção, este passo não envia."
+          onChange={onChange}
+        />
+      </div>
+      {legacyChannelId && !isLoading && !mockIfEmpty ? (
+        legacyLabel ? (
+          <p className="cfg-hint">
+            Este passo tem o canal {legacyLabel} fixado de uma versão anterior. Marque os canais de
+            novo e salve para remover.
+          </p>
+        ) : (
+          <p className="cfg-warning">
+            Este passo aponta para um canal removido ou desconectado (…{legacyChannelId.slice(-6)}).
+            Marque os canais de novo e salve.
+          </p>
+        )
+      ) : null}
+    </>
   )
 }
 
