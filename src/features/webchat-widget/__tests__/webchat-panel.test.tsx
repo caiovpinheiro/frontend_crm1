@@ -42,6 +42,18 @@ describe("WebchatPanel (acessibilidade e estados)", () => {
     expect(document.activeElement).not.toBe(dialog);
   });
 
+  it("imagem que não carrega cai na inicial do título", () => {
+    const { container } = renderPanel({
+      open: true,
+      config: normalizePublicConfig({ theme: { title: "Loja", avatarUrl: "/x.png" } }, KEY),
+    });
+    const img = container.querySelector("img[src='/x.png']");
+    expect(img).toBeTruthy();
+    fireEvent.error(img!);
+    expect(container.querySelector("img[src='/x.png']")).toBeNull();
+    expect(screen.getByText("L")).toBeTruthy();
+  });
+
   it("Esc fecha o painel embutido", () => {
     const onClose = vi.fn();
     renderPanel({ open: true, onClose });

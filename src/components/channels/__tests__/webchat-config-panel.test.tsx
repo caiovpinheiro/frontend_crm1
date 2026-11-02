@@ -101,9 +101,84 @@ describe("WebchatConfigPanel", () => {
   async function savedTheme(onSaved: ReturnType<typeof vi.fn>) {
     fireEvent.click(screen.getByText("Salvar"));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    const [, init] = fetchMock.mock.calls.find(([u]) => String(u).includes("/api/channels/ch-wc"))!;
+    const [, init] = fetchMock.mock.calls.find(
+      ([u, i]) => String(u).includes("/api/channels/ch-wc") && i?.method === "PUT",
+    )!;
     return JSON.parse(init.body as string).config.theme;
   }
+
+  describe("imagem do avatar", () => {
+    const own = {
+      ...channel,
+      config: {
+        ...(channel.config as Record<string, unknown>),
+        theme: { title: "X", position: "right", primary: null, avatarUrl: "https://cdn.test/a.png" },
+      },
+    } as ApiChannel;
+
+    function replyUpload(status: number, body: unknown) {
+      fetchMock.mockImplementation(async (url: unknown) =>
+        new Response(JSON.stringify(String(url).includes("webchat-logo") ? body : { channel }), {
+          status: String(url).includes("webchat-logo") ? status : 200,
+        }),
+      );
+    }
+
+    function pick(file: File) {
+      fireEvent.change(screen.getByLabelText("Imagem do avatar"), { target: { files: [file] } });
+    }
+
+    it("envia, mostra a prévia e grava o caminho ao salvar", async () => {
+      const path = "/api/storage/org_1/branding/webchat_logo_1.png";
+      replyUpload(201, { url: path });
+      const onSaved = renderPanel(own);
+      pick(new File(["x"], "logo.png", { type: "image/png" }));
+      await waitFor(() =>
+        expect(screen.getByAltText("Prévia do avatar").getAttribute("src")).toBe(path),
+      );
+      const [uploadUrl, init] = fetchMock.mock.calls.find(([u]) => String(u).includes("webchat-logo"))!;
+      expect(String(uploadUrl)).toContain("/api/channels/ch-wc/webchat-logo");
+      expect(init.method).toBe("POST");
+      // O caminho interno não aparece no campo de link.
+      expect((screen.getByLabelText("Avatar (URL https da imagem)") as HTMLInputElement).value).toBe("");
+      expect((await savedTheme(onSaved)).avatarUrl).toBe(path);
+    });
+
+    it("recusa tipo e tamanho inválidos sem chamar a API", () => {
+      renderPanel(own);
+      const before = fetchMock.mock.calls.length;
+      pick(new File(["<svg/>"], "logo.svg", { type: "image/svg+xml" }));
+      expect(screen.getByRole("alert").textContent).toMatch(/JPG, PNG, WEBP ou GIF/);
+      pick(new File([new Uint8Array(2 * 1024 * 1024 + 1)], "grande.png", { type: "image/png" }));
+      expect(screen.getByRole("alert").textContent).toMatch(/até 2 MB/);
+      expect(fetchMock.mock.calls.length).toBe(before);
+    });
+
+    it("mostra o erro do servidor e mantém a imagem anterior", async () => {
+      replyUpload(415, { message: "Envie uma imagem JPG, PNG, WEBP ou GIF." });
+      renderPanel(own);
+      pick(new File(["x"], "logo.png", { type: "image/png" }));
+      await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/JPG, PNG/));
+      expect(screen.getByAltText("Prévia do avatar").getAttribute("src")).toBe("https://cdn.test/a.png");
+    });
+
+    it("link https manual continua funcionando", async () => {
+      const onSaved = renderPanel(own);
+      fireEvent.change(screen.getByLabelText("Avatar (URL https da imagem)"), {
+        target: { value: "https://cdn.test/b.png" },
+      });
+      expect((await savedTheme(onSaved)).avatarUrl).toBe("https://cdn.test/b.png");
+    });
+
+    it("religar a herança descarta a imagem enviada", async () => {
+      replyUpload(201, { url: "/api/storage/org_1/branding/webchat_logo_1.png" });
+      const onSaved = renderPanel(own);
+      pick(new File(["x"], "logo.png", { type: "image/png" }));
+      await screen.findByText("Trocar imagem");
+      fireEvent.click(screen.getByRole("switch", { name: "Usar logo da organização" }));
+      expect((await savedTheme(onSaved)).avatarUrl).toBeNull();
+    });
+  });
 
   it("mostra a cor da organização e, ao personalizar, grava a cor própria", async () => {
     const onSaved = renderPanel({

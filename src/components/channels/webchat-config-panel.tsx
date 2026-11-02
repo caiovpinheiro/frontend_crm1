@@ -58,6 +58,7 @@ import type { ApiChannel } from "./types";
 import { parseChannelConfigRecord } from "./types";
 import { WebchatAttendanceSection } from "./webchat/attendance-section";
 import { WebchatContextSection } from "./webchat/context-section";
+import { WebchatLogoUpload } from "./webchat/logo-upload";
 import { WebchatIdentitySection } from "./webchat/identity-section";
 import { WebchatS2SSection } from "./webchat/s2s-section";
 import {
@@ -546,18 +547,11 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
                 />
               </label>
               {!inheritAvatar ? (
-                <>
-                  <Input
-                    id="wc-avatar"
-                    aria-label="Avatar (URL https da imagem)"
-                    value={cfg.theme.avatarUrl ?? ""}
-                    placeholder="https://…/logo.png"
-                    onChange={(e) => patchTheme({ avatarUrl: e.target.value })}
-                  />
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Vazio volta a usar o logo da organização.
-                  </p>
-                </>
+                <WebchatLogoUpload
+                  channelId={channel.id}
+                  value={cfg.theme.avatarUrl}
+                  onChange={(avatarUrl) => patchTheme({ avatarUrl })}
+                />
               ) : null}
             </div>
           </div>

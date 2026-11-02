@@ -46,6 +46,10 @@ pertence ao backend, não a um workaround no cliente.
 - Contratos pontuais documentados em `docs/` (ex.: `docs/inbox-api-contract.md`) são
   referência de leitura; em caso de dúvida, o comportamento do backend prevalece.
 
+## Webchat: logo do canal
+
+Decisão de 2026-11-02. O painel do canal envia a imagem por `POST /api/channels/:id/webchat-logo` e grava o caminho em `theme.avatarUrl` ao salvar; link `https` e voltar a herdar continuam. O widget não monta URL de storage: usa o `theme.avatarUrl` de `GET /api/public/webchat/config` e, se a imagem falhar, mostra a inicial do título. Regras em `docs/decisoes/webchat-widget.md` §9.14 do `backend_crm1`.
+
 ## UI / design system
 
 - As regras visuais canônicas vivem em `.cursor/rules/crm-ui-canonical.mdc` e
