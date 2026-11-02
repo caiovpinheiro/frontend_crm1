@@ -317,6 +317,8 @@ export function WebchatPanel({
   const dialogRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const avatar = config.theme.avatarUrl;
+  // Imagem que não carrega cai na inicial do título, sem ícone quebrado.
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
   const title = config.theme.title;
   const modal = variant !== "preview";
 
@@ -549,9 +551,15 @@ export function WebchatPanel({
     >
       <header className={styles.header}>
         <span className={styles.avatar} aria-hidden="true">
-          {avatar ? (
+          {avatar && brokenAvatar !== avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img className={styles.avatar} src={avatar} alt="" referrerPolicy="no-referrer" />
+            <img
+              className={styles.avatar}
+              src={avatar}
+              alt=""
+              referrerPolicy="no-referrer"
+              onError={() => setBrokenAvatar(avatar)}
+            />
           ) : (
             title.slice(0, 1).toUpperCase()
           )}

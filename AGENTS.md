@@ -49,6 +49,9 @@ pertence ao backend, não a um workaround no cliente.
 ## Inbox: aviso de contato no chat
 
 Decisão de 2026-11-02. `ActiveWebchatNotice`, dentro do `Composer`, mostra o ticket webchat ativo do contato fora das conversas de webchat. Consulta `GET /api/conversations/:id/active-webchat` só para a conversa aberta, nunca na lista, a cada 30 s com a aba visível. O critério de "ativo" é do backend (`docs/decisoes/webchat-widget.md` §9.13 do `backend_crm1`). Dentro do inbox, o botão troca a conversa pelo `onOpenActiveWebchat`, porque `router.push` para a mesma página não muda a conversa ativa; fora dele, navega para `/inbox?c={número}`.
+## Webchat: logo do canal
+
+Decisão de 2026-11-02. O painel do canal envia a imagem por `POST /api/channels/:id/webchat-logo` e grava o caminho em `theme.avatarUrl` ao salvar; link `https` e voltar a herdar continuam. O widget não monta URL de storage: usa o `theme.avatarUrl` de `GET /api/public/webchat/config` e, se a imagem falhar, mostra a inicial do título. Regras em `docs/decisoes/webchat-widget.md` §9.14 do `backend_crm1`.
 
 ## UI / design system
 
