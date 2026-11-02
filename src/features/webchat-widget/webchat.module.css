@@ -15,6 +15,7 @@
   --wc-muted: #6b7280;
   --wc-danger: #b42318;
   --wc-radius: 16px;
+  --wc-accent-text: var(--wc-primary);
   position: fixed;
   inset: 0;
   font-family:
@@ -96,6 +97,27 @@
   max-height: 560px;
   border-radius: var(--wc-radius);
   box-shadow: 0 12px 40px rgb(16 24 40 / 0.16);
+}
+
+/* Prévia dentro do próprio CRM (wizard), sem iframe. */
+.previewInline {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.preview .panel[data-model] {
+  max-height: 640px;
+}
+
+.preview .panel[data-model="assisted"] {
+  max-height: 760px;
+}
+
+.preview .panel[data-model][data-expanded="true"] {
+  max-width: none;
+  max-height: none;
 }
 
 .previewBubble {
@@ -517,4 +539,381 @@
   padding: 24px;
   text-align: center;
   color: var(--wc-muted);
+}
+
+/*
+ * Modelos (compacto, com apoio, guiado): cabeçalho branco e conversa sobre
+ * branco. Sem `data-model` o widget segue exatamente como antes.
+ */
+.panel[data-model] .header {
+  background: var(--wc-bg);
+  color: var(--wc-text);
+  border-bottom: 1px solid var(--wc-border);
+  gap: 8px;
+}
+
+.panel[data-model] .avatar {
+  width: 40px;
+  height: 40px;
+  background: var(--wc-surface);
+  color: var(--wc-accent-text);
+}
+
+.panel[data-model] .status {
+  opacity: 1;
+  color: var(--wc-muted);
+}
+
+.panel[data-model] .iconButton {
+  width: 32px;
+  height: 32px;
+  color: var(--wc-muted);
+}
+
+.panel[data-model] .iconButton:hover {
+  background: var(--wc-surface);
+  color: var(--wc-text);
+}
+
+.panel[data-model] .iconButton:focus-visible,
+.panel[data-model] .sendButton:focus-visible,
+.panel[data-model] .textarea:focus-visible,
+.panel[data-model] .linkButton:focus-visible,
+.pill:focus-visible,
+.outlineLink:focus-visible,
+.tutorialLink:focus-visible,
+.topicRow:focus-visible,
+.writeButton:focus-visible {
+  outline: 2px solid var(--wc-text);
+  outline-offset: 2px;
+}
+
+.panel[data-model] .body {
+  background: var(--wc-bg);
+  gap: 8px;
+}
+
+.panel[data-model] .rowOut .bubble {
+  background: var(--wc-surface);
+  border-color: transparent;
+}
+
+.panel[data-model] .composer {
+  align-items: center;
+  border-top-color: var(--wc-border);
+  padding: 10px 12px;
+}
+
+.panel[data-model] .textarea {
+  min-width: 0;
+  border: 1px solid var(--wc-border);
+  border-radius: 20px;
+  padding: 8px 14px;
+}
+
+.panel[data-model] .textarea:focus-visible {
+  outline-offset: -1px;
+}
+
+.panel[data-model] .sendButton {
+  width: 40px;
+  height: 40px;
+}
+
+.daySeparator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-muted);
+}
+
+.daySeparator::before,
+.daySeparator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--wc-border);
+}
+
+.contextBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff6dd;
+  color: var(--wc-text);
+  flex-shrink: 0;
+}
+
+.contextIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.contextText {
+  min-width: 0;
+}
+
+.contextTitle,
+.contextSubtitle,
+.contextPlace {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.contextTitle {
+  font-weight: 700;
+}
+
+.contextSubtitle {
+  font-size: 12.5px;
+}
+
+.contextPlace {
+  min-width: 0;
+}
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flow:focus {
+  outline: none;
+}
+
+.flowHint {
+  margin: 4px 4px 0;
+  font-size: 12.5px;
+  color: var(--wc-muted);
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.pill {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--wc-text);
+  border-radius: 18px;
+  background: var(--wc-bg);
+  color: var(--wc-text);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.pill:hover {
+  background: var(--wc-surface);
+}
+
+.outlineLink {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--wc-accent-text);
+  border-radius: 10px;
+  color: var(--wc-accent-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.outlineLink:hover {
+  background: var(--wc-surface);
+}
+
+.outlineLink svg {
+  flex-shrink: 0;
+}
+
+.tutorialCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--wc-border);
+  border-radius: 12px;
+  background: var(--wc-bg);
+}
+
+.tutorialPlay {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--wc-primary);
+  color: var(--wc-on-primary);
+  flex-shrink: 0;
+}
+
+.tutorialText {
+  min-width: 0;
+}
+
+.tutorialTitle {
+  margin: 0 0 2px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.tutorialLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wc-accent-text);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+.start {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 16px 12px;
+  background: var(--wc-bg);
+}
+
+.startTitle {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.startSubtitle {
+  margin: -6px 0 0;
+  color: var(--wc-muted);
+  overflow-wrap: anywhere;
+}
+
+.topicList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topicRow {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--wc-border);
+  border-radius: 12px;
+  background: var(--wc-bg);
+  color: var(--wc-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.topicRow:hover {
+  background: var(--wc-surface);
+}
+
+.topicRow > svg {
+  flex-shrink: 0;
+  color: var(--wc-muted);
+}
+
+.topicLabel {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.topicIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #374151;
+}
+
+.topicIcon[data-icon="lock"] {
+  color: #1d4ed8;
+}
+
+.topicIcon[data-icon="card"] {
+  color: #c2410c;
+}
+
+.topicIcon[data-icon="file"] {
+  color: #0f766e;
+}
+
+.topicIcon[data-icon="help"] {
+  color: #7c3aed;
+}
+
+.topicIcon[data-icon="book"] {
+  color: #b45309;
+}
+
+.topicIcon[data-icon="calendar"] {
+  color: #be123c;
+}
+
+.topicIcon[data-icon="phone"] {
+  color: #15803d;
+}
+
+.writeButton {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--wc-primary);
+  color: var(--wc-on-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .panel[data-model] .iconButton {
+    width: 40px;
+    height: 40px;
+  }
+
+  .pill,
+  .outlineLink {
+    min-height: 44px;
+  }
 }

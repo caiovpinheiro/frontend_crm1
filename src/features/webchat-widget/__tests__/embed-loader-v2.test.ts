@@ -257,3 +257,36 @@ describe("embed.js v2 — compatibilidade v1", () => {
     expect(sent(post)[1]).toEqual({ ns: NS, type: "open" });
   });
 });
+
+describe("embed.js — tamanho do painel", () => {
+  const ready = { ns: NS, type: "ready", theme: { primary: "#2563eb", position: "right", title: "T" } };
+
+  it("ack diz se é celular e `layout` muda o iframe; tamanho desconhecido volta ao padrão", () => {
+    const { api, frame, post } = runLoader();
+    fromFrame(frame, { ns: NS, type: "hello", protocol: 2 });
+    expect(sent(post).find((m) => m.type === "ack")?.mobile).toBe(false);
+    fromFrame(frame, ready);
+    api.open();
+    const padrao = frame.style.getPropertyValue("height");
+    expect(padrao).toContain("640px");
+
+    fromFrame(frame, { ns: NS, type: "layout", size: "tall" });
+    expect(frame.style.getPropertyValue("height")).toContain("760px");
+    expect(frame.style.getPropertyValue("width")).toBe("380px");
+
+    fromFrame(frame, { ns: NS, type: "layout", size: "expanded" });
+    expect(frame.style.getPropertyValue("width")).toContain("600px");
+
+    fromFrame(frame, { ns: NS, type: "layout", size: "gigante" });
+    expect(frame.style.getPropertyValue("height")).toBe(padrao);
+  });
+
+  it("`layout` de outra origem é ignorado", () => {
+    const { api, frame } = runLoader();
+    fromFrame(frame, { ns: NS, type: "hello", protocol: 2 });
+    fromFrame(frame, ready);
+    api.open();
+    fromFrame(frame, { ns: NS, type: "layout", size: "tall" }, "https://evil.test");
+    expect(frame.style.getPropertyValue("height")).toContain("640px");
+  });
+});

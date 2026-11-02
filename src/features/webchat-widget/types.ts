@@ -7,6 +7,8 @@
  */
 import { normalizeOriginList } from "@/lib/webchat-origin";
 
+import { effectiveAppearance, type WebchatAppearance } from "./appearance";
+
 export type WebchatIdentification = "none" | "name" | "name_email" | "name_phone";
 export type WebchatPosition = "right" | "left";
 export type WebchatWeekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -44,6 +46,8 @@ export type WebchatPublicConfig = {
   offlineMessage: string;
   online: boolean;
   theme: WebchatTheme;
+  /** Modelo e botões. `null` = sem configuração: widget como sempre foi. */
+  appearance: WebchatAppearance | null;
 };
 
 /** Mensagem como o widget recebe. `direction` na perspectiva do CRM. */
@@ -182,6 +186,7 @@ export function normalizePublicConfig(raw: unknown, publicKey: string): WebchatP
     offlineMessage: str(r.offlineMessage, DEFAULT_OFFLINE_MESSAGE, 500),
     online: r.online !== false,
     theme: normalizeTheme(r.theme),
+    appearance: effectiveAppearance(r.appearance),
   };
 }
 

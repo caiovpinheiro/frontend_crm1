@@ -22,7 +22,7 @@
   var base;
   try { base = new URL(s.src, w.location.href).origin; } catch (e) { return; }
   var NS = "bwipo:webchat", Z = "2147483000";
-  var st = { open: false, ready: false, pos: "right", color: "#2563eb", unread: 0, title: "" };
+  var st = { open: false, ready: false, pos: "right", color: "#2563eb", unread: 0, title: "", size: "default" };
   // v2: limites só de forma (a regra que vale é a do servidor).
   var MAX_QUEUE = 100, BATCH = 20, BATCH_MS = 5000, MAX_IDENTIFY = 8192, MAX_MESSAGE = 4000, MAX_REF = 128;
   var CAPS = { prefill: true, identify: true, track: true, context: true };
@@ -86,7 +86,10 @@
       frame.style.setProperty(side, "0", "important");
     } else {
       frame.style.removeProperty("top");
-      css(frame, { bottom: "88px", width: "380px", height: "min(640px, calc(100vh - 108px))", "border-radius": "16px" });
+      var dim = st.size === "expanded"
+        ? { width: "min(600px, calc(100vw - 40px))", height: "calc(100vh - 108px)" }
+        : { width: "380px", height: "min(" + (st.size === "tall" ? "760px" : "640px") + ", calc(100vh - 108px))" };
+      css(frame, { bottom: "88px", width: dim.width, height: dim.height, "border-radius": "16px" });
       frame.style.setProperty(side, "20px", "important");
     }
     css(frame, { display: st.ready && st.open ? "block" : "none" });
@@ -94,6 +97,7 @@
 
   function post(msg) { try { frame.contentWindow.postMessage(msg, base); } catch (e) {} }
   function send(type) { post({ ns: NS, type: type }); }
+  function sendViewport() { post({ ns: NS, type: "viewport", mobile: !!(mq && mq.matches) }); }
   function focusEl(el) { try { el.focus({ preventScroll: true }); } catch (e) { try { el.focus(); } catch (e2) {} } }
   function fire(name, detail) {
     try { w.dispatchEvent(new CustomEvent(name, { detail: detail })); } catch (e) {}
@@ -212,7 +216,7 @@
     var m = e.data;
     if (!m || m.ns !== NS) return;
     if (m.type === "hello") {
-      post({ ns: NS, type: "ack", page: { page: w.location.href, referrer: d.referrer, title: d.title } });
+      post({ ns: NS, type: "ack", page: { page: w.location.href, referrer: d.referrer, title: d.title }, mobile: !!(mq && mq.matches) });
       link.acked = true;
       link.proto = typeof m.protocol === "number" ? m.protocol : 0;
       drain();
@@ -235,6 +239,9 @@
       var wasOpen = st.open;
       st.open = false; layout();
       if (wasOpen) focusEl(btn);
+    } else if (m.type === "layout") {
+      st.size = m.size === "tall" || m.size === "expanded" ? m.size : "default";
+      layout();
     } else if (m.type === "identity") {
       fire("bwipo:webchat:identity", { verified: m.verified === true });
     }
@@ -247,7 +254,7 @@
     if (d.activeElement !== btn && d.activeElement !== frame) return;
     setOpen(false);
   });
-  if (mq && mq.addEventListener) mq.addEventListener("change", layout);
+  if (mq && mq.addEventListener) mq.addEventListener("change", function () { layout(); sendViewport(); });
   w.addEventListener("pagehide", onPageHide);
   d.addEventListener("visibilitychange", function () { if (d.visibilityState === "hidden") onPageHide(); });
 

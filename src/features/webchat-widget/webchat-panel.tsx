@@ -7,6 +7,7 @@
  * agente é renderizado como texto React (sem HTML cru).
  */
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -16,6 +17,14 @@ import {
   type ReactNode,
 } from "react";
 
+import {
+  closingLabels,
+  dayLabel,
+  resolveContextBanner,
+  type SiteContext,
+  type WebchatAction,
+  type WebchatTopic,
+} from "./appearance";
 import type { WebchatIdentity } from "./api";
 import { compareTimestamps, type UiMessage } from "./use-webchat-chat";
 import {
@@ -24,6 +33,16 @@ import {
   type WebchatIdentification,
   type WebchatPublicConfig,
 } from "./types";
+import {
+  ClosingButtons,
+  ContextBanner,
+  ConversationTopics,
+  ExpandIcon,
+  FollowUpBlock,
+  GuidedStart,
+  MinimizeIcon,
+  ShrinkIcon,
+} from "./webchat-flow";
 import styles from "./webchat.module.css";
 
 export type PanelVariant = "embedded" | "hosted" | "preview";
@@ -39,13 +58,19 @@ export const RECONNECTING_TEXT = "Sem conexão, tentando de novo…";
 
 /** Texto escuro sobre cores claras (amarelo, verde-limão…). */
 export function contrastFor(hex: string): "light" | "dark" {
+  return luminance(hex) > 0.45 ? "dark" : "light";
+}
+
+function luminance(hex: string): number {
   const h = safeHexColor(hex).slice(1);
   const full = h.length === 3 ? h.replace(/./g, (c) => c + c) : h;
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
   const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  const L = 0.2126 * lin(r ?? 0) + 0.7152 * lin(g ?? 0) + 0.0722 * lin(b ?? 0);
-  return L > 0.45 ? "dark" : "light";
+  return 0.2126 * lin(r ?? 0) + 0.7152 * lin(g ?? 0) + 0.0722 * lin(b ?? 0);
 }
+
+/** A cor do cliente só vira texto sobre branco se passar de 4,5:1. */
+const ACCENT_TEXT_MAX_LUMINANCE = 0.183;
 
 export function themeStyle(config: WebchatPublicConfig): {
   style: CSSProperties;
@@ -53,7 +78,11 @@ export function themeStyle(config: WebchatPublicConfig): {
 } {
   const primary = safeHexColor(config.theme.primary);
   return {
-    style: { ["--wc-primary" as string]: primary } as CSSProperties,
+    style: {
+      ["--wc-primary" as string]: primary,
+      ["--wc-accent-text" as string]:
+        luminance(primary) <= ACCENT_TEXT_MAX_LUMINANCE ? primary : "#16181d",
+    } as CSSProperties,
     contrast: contrastFor(primary),
   };
 }
@@ -266,6 +295,15 @@ function IdentityForm({
   );
 }
 
+/** Tópico escolhido: pergunta local, ancorada depois de `afterCount` mensagens. */
+type FlowState = { topicId: string; afterCount: number; answered: boolean };
+
+const DaySeparator = ({ label }: { label: string }) => (
+  <div className={styles.daySeparator}>
+    <span>{label}</span>
+  </div>
+);
+
 export type WebchatPanelProps = {
   config: WebchatPublicConfig;
   variant: PanelVariant;
@@ -284,6 +322,11 @@ export type WebchatPanelProps = {
    * campo SEM enviar; o visitante edita. `seq` muda a cada pedido.
    */
   prefill?: { text: string; seq: number } | null;
+  /** Contexto vivo do site (`setContext`): alimenta a faixa de contexto. */
+  siteContext?: SiteContext;
+  /** O loader/prévia sabe mudar o tamanho do painel. */
+  canExpand?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   onClose?: () => void;
   onSend: (text: string) => Promise<boolean> | void;
   onRetry: (id: string) => void;
@@ -304,6 +347,9 @@ export function WebchatPanel({
   open = true,
   connectionError = false,
   prefill = null,
+  siteContext,
+  canExpand = false,
+  onExpandedChange,
   onClose,
   onSend,
   onRetry,
@@ -319,6 +365,12 @@ export function WebchatPanel({
   const avatar = config.theme.avatarUrl;
   const title = config.theme.title;
   const modal = variant !== "preview";
+  const appearance = config.appearance ?? null;
+  const [flow, setFlow] = useState<FlowState | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const flowRef = useRef<HTMLDivElement>(null);
+  /** Quem recebe o foco depois que o botão clicado sai da tela. */
+  const pendingFocus = useRef<"flow" | "composer" | null>(null);
 
   // Abriu → foco no diálogo (o loader já focou o iframe). A prévia do CRM
   // não rouba o foco do formulário de configuração.
@@ -343,7 +395,62 @@ export function WebchatPanel({
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, agentTyping, view]);
+  }, [messages.length, agentTyping, view, flow]);
+
+  useEffect(() => {
+    const target = pendingFocus.current;
+    if (!target) return;
+    pendingFocus.current = null;
+    if (target === "flow" && flowRef.current) {
+      flowRef.current.focus({ preventScroll: true });
+      return;
+    }
+    // Sem pergunta para focar: em toque, abrir o teclado sozinho atrapalha.
+    const coarse = window.matchMedia?.("(pointer: coarse)").matches;
+    if (target === "composer" && !coarse) textareaRef.current?.focus({ preventScroll: true });
+    else dialogRef.current?.focus({ preventScroll: true });
+  });
+
+  const setExpandedState = (next: boolean) => {
+    setExpanded(next);
+    onExpandedChange?.(next);
+  };
+
+  /** Fechar volta o fluxo local ao início; minimizar mantém tudo como está. */
+  const closeAndReset = () => {
+    setFlow(null);
+    setExpandedState(false);
+    onClose?.();
+  };
+
+  const runAction = (action: WebchatAction) => {
+    if (action.type === "send_text") void onSend(action.text);
+    else if (action.type === "write") textareaRef.current?.focus({ preventScroll: true });
+    // `open_url`: o próprio link abre em nova aba.
+  };
+
+  const chooseTopic = (topic: WebchatTopic) => {
+    const sends = topic.action.type === "send_text";
+    if (topic.followUp) {
+      setFlow({
+        topicId: topic.id,
+        afterCount: messages.length + (sends ? 1 : 0),
+        answered: false,
+      });
+      if (topic.action.type !== "write") pendingFocus.current = "flow";
+    } else if (sends) {
+      pendingFocus.current = "composer";
+    }
+    runAction(topic.action);
+  };
+
+  const chooseOption = (action: WebchatAction) => {
+    if (action.type === "send_text") {
+      setFlow((f) => (f ? { ...f, answered: true } : f));
+      pendingFocus.current = "composer";
+    }
+    runAction(action);
+  };
 
   // Prefill do site: preenche o campo (não envia) a cada pedido novo
   // (`seq`) e leva o foco ao fim do texto.
@@ -402,6 +509,27 @@ export function WebchatPanel({
     );
   };
 
+  const banner = resolveContextBanner(appearance, siteContext);
+  const visitorTexts = messages.filter((m) => m.direction === "in").map((m) => m.content);
+  const closing = closingLabels(appearance, visitorTexts);
+  const showGuidedStart = appearance?.model === "guided" && messages.length === 0 && !flow;
+  const followUp = flow
+    ? appearance?.start.topics.find((t) => t.id === flow.topicId)?.followUp
+    : undefined;
+  // O texto que o tópico enviou pode ainda não ter chegado à lista.
+  const flowIndex = flow && followUp ? Math.min(flow.afterCount, messages.length) : -1;
+  const followUpNode =
+    flow && followUp && appearance ? (
+      <FollowUpBlock
+        followUp={followUp}
+        answered={flow.answered}
+        model={appearance.model}
+        regionRef={flowRef}
+        onChoose={(option) => chooseOption(option.action)}
+      />
+    ) : null;
+  const expandable = Boolean(appearance?.allowExpand && canExpand && variant !== "hosted");
+
   let content: ReactNode;
   if (view === "loading") {
     content = <div className={styles.center}>Carregando…</div>;
@@ -459,44 +587,81 @@ export function WebchatPanel({
         ) : !config.online ? (
           <div className={styles.banner}>{config.offlineMessage}</div>
         ) : null}
-        <div
-          ref={bodyRef}
-          className={styles.body}
-          role="log"
-          aria-live="polite"
-          aria-label="Mensagens"
-        >
-          <div className={`${styles.row} ${styles.rowOut}`}>
-            <div className={styles.bubble}>{config.greeting}</div>
-          </div>
-          {messages.map((m, i) => {
-            const prev = messages[i - 1];
-            const showSender =
-              m.direction === "out" &&
-              m.senderName &&
-              !hasSignaturePrefix(m.content) &&
-              (prev?.direction !== "out" || prev.senderName !== m.senderName);
-            return (
-              <div
-                key={m.id}
-                className={`${styles.row} ${m.direction === "in" ? styles.rowIn : styles.rowOut}`}
-              >
-                {showSender ? <span className={styles.sender}>{m.senderName}</span> : null}
-                <div className={styles.bubble} data-local={m.local ?? undefined}>
-                  {renderMessageText(m.content)}
-                </div>
-                {m.direction === "in" ? receipt(m) : null}
+        {showGuidedStart && appearance ? (
+          <GuidedStart
+            appearance={appearance}
+            greeting={config.greeting}
+            context={banner}
+            onChoose={chooseTopic}
+            onWrite={() => textareaRef.current?.focus({ preventScroll: true })}
+          />
+        ) : (
+          <>
+            {banner ? <ContextBanner title={banner.title} subtitle={banner.subtitle} /> : null}
+            <div
+              ref={bodyRef}
+              className={styles.body}
+              role="log"
+              aria-live="polite"
+              aria-label="Mensagens"
+            >
+              {appearance ? (
+                <DaySeparator label={dayLabel(messages[0]?.createdAt ?? new Date().toISOString())} />
+              ) : null}
+              <div className={`${styles.row} ${styles.rowOut}`}>
+                <div className={styles.bubble}>{config.greeting}</div>
               </div>
-            );
-          })}
-          {agentTyping ? (
-            <div className={styles.typing} aria-hidden="true">
-              <span />
-              <span />
-              <span />
+              {flowIndex === 0 ? followUpNode : null}
+              {messages.map((m, i) => {
+                const prev = messages[i - 1];
+                const showSender =
+                  m.direction === "out" &&
+                  m.senderName &&
+                  !hasSignaturePrefix(m.content) &&
+                  (prev?.direction !== "out" || prev.senderName !== m.senderName);
+                const day = appearance && prev ? dayLabel(m.createdAt) : "";
+                return (
+                  <Fragment key={m.id}>
+                    {day && day !== dayLabel(prev?.createdAt ?? "") ? (
+                      <DaySeparator label={day} />
+                    ) : null}
+                    <div
+                      className={`${styles.row} ${m.direction === "in" ? styles.rowIn : styles.rowOut}`}
+                    >
+                      {showSender ? <span className={styles.sender}>{m.senderName}</span> : null}
+                      <div className={styles.bubble} data-local={m.local ?? undefined}>
+                        {renderMessageText(m.content)}
+                      </div>
+                      {m.direction === "in" ? receipt(m) : null}
+                    </div>
+                    {flowIndex === i + 1 ? followUpNode : null}
+                  </Fragment>
+                );
+              })}
+              {appearance && appearance.model !== "guided" ? (
+                <ConversationTopics
+                  appearance={appearance}
+                  engaged={flow !== null || visitorTexts.length > 0}
+                  onChoose={chooseTopic}
+                />
+              ) : null}
+              {closing ? (
+                <ClosingButtons
+                  resolved={closing.resolved}
+                  needHelp={closing.needHelp}
+                  onSend={(text) => void onSend(text)}
+                />
+              ) : null}
+              {agentTyping ? (
+                <div className={styles.typing} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </>
+        )}
         <form
           className={styles.composer}
           onSubmit={(e) => {
@@ -541,6 +706,8 @@ export function WebchatPanel({
     <div
       ref={dialogRef}
       className={styles.panel}
+      data-model={appearance?.model}
+      data-expanded={expandable && expanded ? "true" : undefined}
       role="dialog"
       aria-label={title}
       aria-modal={modal ? true : undefined}
@@ -574,11 +741,32 @@ export function WebchatPanel({
             <UserIcon />
           </button>
         ) : null}
-        {variant !== "hosted" && onClose ? (
+        {expandable ? (
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={() => setExpandedState(!expanded)}
+            aria-label={expanded ? "Reduzir chat" : "Expandir chat"}
+            title={expanded ? "Reduzir" : "Expandir"}
+          >
+            {expanded ? <ShrinkIcon /> : <ExpandIcon />}
+          </button>
+        ) : appearance && variant !== "hosted" && onClose ? (
           <button
             type="button"
             className={styles.iconButton}
             onClick={onClose}
+            aria-label="Minimizar chat"
+            title="Minimizar"
+          >
+            <MinimizeIcon />
+          </button>
+        ) : null}
+        {variant !== "hosted" && onClose ? (
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={appearance ? closeAndReset : onClose}
             aria-label="Fechar chat"
             title="Fechar"
           >
