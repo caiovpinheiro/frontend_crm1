@@ -334,6 +334,7 @@ export function toConversationCard(
     // `urgent` permanece para filtros/tabs (ex.: coluna "urgentes").
     unreadCount: row.unreadCount ?? 0,
     urgent: !!(row.unreadCount && row.unreadCount > 0),
+    priority: Boolean(row.priorityAt) && !row.hasHumanReply && row.status === "OPEN",
     active: options?.active,
     inactive: row.status !== "OPEN",
     // ── Novos campos visuais ──────────────────────────────────────

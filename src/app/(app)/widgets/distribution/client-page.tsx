@@ -60,6 +60,7 @@ import {
 } from "@/components/crm/period-calendar-button";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { PageDemoBanner } from "@/components/crm/page-demo-banner";
+import { BadgeGlass } from "@/components/crm/badge-glass";
 import { Chip } from "@/components/crm/chip";
 import { EmptyState } from "@/components/crm/empty-state";
 import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
@@ -2099,8 +2100,13 @@ function PendingQueueCards({
                       size={AVATAR_SIZE.md}
                     />
                     <div className="min-w-0 flex-1 leading-tight">
-                      <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
-                        {item.contact}
+                      <p className="flex items-center gap-1.5 font-display text-[14px] font-bold text-[var(--text-primary)]">
+                        <span className="truncate">{item.contact}</span>
+                        {item.priority ? (
+                          <BadgeGlass variant="lead" className="shrink-0 !px-1.5 !py-0 !text-[10px]">
+                            Prioridade
+                          </BadgeGlass>
+                        ) : null}
                       </p>
                       <div className="truncate font-body text-[12px] tabular-nums text-[var(--text-muted)]">
                         {item.phone || "—"}

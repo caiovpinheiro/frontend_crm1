@@ -27,9 +27,23 @@ export type InboxListSortOptions = {
 };
 
 /**
+ * Prioritária ainda válida. Confere também o estado do card: a resposta do
+ * consultor marca `hasHumanReply` na hora, antes de o backend confirmar.
+ */
+export function isPriorityInboxRow(row: ConversationListRow): boolean {
+  return Boolean(row.priorityAt) && !row.hasHumanReply && row.status === "OPEN";
+}
+
+/** Só a ordem padrão tem prioritárias no topo (é o que o backend faz). */
+function ordersPriorityFirst(by: string, order: string): boolean {
+  return order === "desc" && (by === "lastInboundAt" || by === "lastMessageAt");
+}
+
+/**
  * Ordena pela última mensagem (`lastMessageAt`, fallback `lastInboundAt`)
  * — nunca `updatedAt` nem a criação do lead. `unreadCount` desempata pela
- * atividade.
+ * atividade. Na ordem padrão, as prioritárias vêm antes, da mais antiga para a
+ * mais nova.
  */
 export function sortInboxListRows(
   rows: readonly ConversationListRow[],
@@ -40,7 +54,17 @@ export function sortInboxListRows(
   const ts = (r: ConversationListRow) =>
     messageActivityTimestamp(r.lastMessageAt, r.lastInboundAt);
   const tier = (r: ConversationListRow) => opts.tiers?.get(r.id) ?? 0;
+  const priorityFirst = ordersPriorityFirst(by, order);
   return [...rows].sort((a, b) => {
+    if (priorityFirst) {
+      const pa = isPriorityInboxRow(a);
+      const pb = isPriorityInboxRow(b);
+      if (pa !== pb) return pa ? -1 : 1;
+      if (pa && pb) {
+        const d = Date.parse(a.priorityAt ?? "") - Date.parse(b.priorityAt ?? "");
+        if (d !== 0 && !Number.isNaN(d)) return d;
+      }
+    }
     const byTier = tier(a) - tier(b);
     if (byTier !== 0) return byTier;
     if (by === "unreadCount") {

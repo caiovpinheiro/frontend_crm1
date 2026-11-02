@@ -56,6 +56,7 @@ import { normalizeOrigin } from "@/lib/webchat-origin";
 import { ChannelPipelineSelect } from "./channel-pipeline-select";
 import type { ApiChannel } from "./types";
 import { parseChannelConfigRecord } from "./types";
+import { WebchatAttendanceSection } from "./webchat/attendance-section";
 import { WebchatContextSection } from "./webchat/context-section";
 import { WebchatIdentitySection } from "./webchat/identity-section";
 import { WebchatS2SSection } from "./webchat/s2s-section";
@@ -696,6 +697,8 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
 
         <Separator />
         <WebchatIdentitySection {...v2Props} />
+        <Separator />
+        <WebchatAttendanceSection {...v2Props} />
         <Separator />
         <WebchatContextSection {...v2Props} />
         <Separator />

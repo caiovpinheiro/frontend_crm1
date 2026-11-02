@@ -2,9 +2,9 @@
 
 /**
  * Seção "Identificação pelo site" (frente A) do painel Webchat: chave de
- * identidade (assina o `userHash`), campo do contato que guarda o
- * `externalId` do site e mapeamento atributo → campo personalizado.
- * Contrato: `backend_crm1/docs/decisoes/webchat-widget.md` §9.4/§9.7.
+ * identidade (assina o `userHash`), campo do contato ou do negócio que guarda
+ * o `externalId` do site e mapeamento atributo → campo personalizado.
+ * Contrato: `backend_crm1/docs/decisoes/webchat-widget.md` §9.4/§9.7/§9.12.
  */
 import { IconPlus as Plus, IconX as X } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +18,9 @@ import { WebchatSecretField } from "./secret-field";
 import { fetchCustomFieldOptions } from "./options";
 import { WEBCHAT_ATTRIBUTE_RE, type WebchatV2SectionProps } from "./v2-config";
 
+/** Valor do campo de negócio no seletor; o de contato segue sendo o id puro. */
+const DEAL_FIELD_PREFIX = "deal:";
+
 export function WebchatIdentitySection({
   channelId,
   value,
@@ -30,9 +33,24 @@ export function WebchatIdentitySection({
     queryFn: () => fetchCustomFieldOptions("contact"),
     staleTime: 60_000,
   });
+  const { data: dealFields = [] } = useQuery({
+    queryKey: ["webchat-v2-options", "custom-fields", "deal"],
+    queryFn: () => fetchCustomFieldOptions("deal"),
+    staleTime: 60_000,
+  });
   const identity = value.identity;
   const setIdentity = (p: Partial<typeof identity>) => onChange({ ...value, identity: { ...identity, ...p } });
-  const matchValue = identity.matchField.type === "customField" ? identity.matchField.customFieldId : "";
+  const matchField = identity.matchField;
+  const matchValue =
+    matchField.type === "customField"
+      ? matchField.customFieldId
+      : matchField.type === "dealCustomField"
+        ? `${DEAL_FIELD_PREFIX}${matchField.customFieldId}`
+        : "";
+  const dealFieldMissing =
+    matchField.type === "dealCustomField" &&
+    dealFields.length > 0 &&
+    !dealFields.some((f) => f.id === matchField.customFieldId);
   const attributeCount = new Map<string, number>();
   for (const row of identity.attributeMap) {
     if (row.attribute) attributeCount.set(row.attribute, (attributeCount.get(row.attribute) ?? 0) + 1);
@@ -69,27 +87,80 @@ export function WebchatIdentitySection({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="wc-match-field" className="text-xs">
-          Onde fica o identificador do site no contato
+          Onde fica o identificador do site
         </Label>
         <SelectNative
           id="wc-match-field"
           value={matchValue}
-          onChange={(e) =>
+          aria-describedby="wc-match-field-help"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v.startsWith(DEAL_FIELD_PREFIX)) {
+              setIdentity({
+                matchField: {
+                  type: "dealCustomField",
+                  customFieldId: v.slice(DEAL_FIELD_PREFIX.length),
+                  normalize: matchField.type === "dealCustomField" ? matchField.normalize : "none",
+                },
+              });
+              return;
+            }
             setIdentity({
-              matchField: e.target.value
-                ? { type: "customField", customFieldId: e.target.value }
-                : { type: "externalId" },
-            })
-          }
+              matchField: v ? { type: "customField", customFieldId: v } : { type: "externalId" },
+            });
+          }}
         >
           <option value="">ID externo do contato</option>
-          {fields.map((f) => (
-            <option key={f.id} value={f.id}>
-              Campo: {f.label}
-            </option>
-          ))}
+          {fields.length > 0 ? (
+            <optgroup label="Campos do contato">
+              {fields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  Campo: {f.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {dealFields.length > 0 ? (
+            <optgroup label="Campos do negócio">
+              {dealFields.map((f) => (
+                <option key={f.id} value={`${DEAL_FIELD_PREFIX}${f.id}`}>
+                  Negócio: {f.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {dealFieldMissing ? <option value={matchValue}>Campo de negócio removido</option> : null}
         </SelectNative>
+        {matchField.type === "dealCustomField" ? (
+          <p id="wc-match-field-help" className="text-xs text-[var(--text-muted)]">
+            Quem chega identificado entra no contato do negócio que tem esse valor, sem criar outro.
+            Se esse contato já estiver ligado a outro valor, como dois identificadores no mesmo
+            telefone, o visitante fica em um contato próprio e uma nota interna avisa a equipe.
+          </p>
+        ) : null}
       </div>
+      {matchField.type === "dealCustomField" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="wc-match-normalize" className="text-xs">
+            Como comparar o valor
+          </Label>
+          <SelectNative
+            id="wc-match-normalize"
+            value={matchField.normalize}
+            onChange={(e) =>
+              setIdentity({
+                matchField: {
+                  ...matchField,
+                  normalize: e.target.value === "digits" ? "digits" : "none",
+                },
+              })
+            }
+          >
+            <option value="none">Exatamente como está escrito</option>
+            <option value="digits">Só os números (ignora pontos e traços)</option>
+          </SelectNative>
+        </div>
+      ) : null}
       <div className="space-y-1.5">
         <Label className="text-xs">Atributos do site → campos do contato</Label>
         {identity.attributeMap.map((row, i) => (

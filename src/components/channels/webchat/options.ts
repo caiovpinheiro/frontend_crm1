@@ -42,6 +42,21 @@ export async function fetchCustomFieldOptions(entity: "contact" | "deal"): Promi
   ]);
 }
 
+/** Pessoas da org (`/api/users` já não traz agente de IA). */
+export async function fetchUserOptions(): Promise<WebchatOption[]> {
+  return toOptions(list(await getJson("/api/users"), ["users", "items"]), ["name", "email"]);
+}
+
+/** Agentes de IA ativos. O id do destino é o usuário do agente. */
+export async function fetchAiAgentOptions(): Promise<WebchatOption[]> {
+  const rows = list(await getJson("/api/ai-agents-v2"), ["agents", "items"]);
+  return rows.flatMap((r) => {
+    const id = typeof r.userId === "string" ? r.userId : null;
+    if (!id || r.active === false) return [];
+    return [{ id, label: typeof r.name === "string" && r.name ? r.name : "Agente de IA" }];
+  });
+}
+
 export async function fetchTagOptions(): Promise<WebchatOption[]> {
   return toOptions(list(await getJson("/api/tags"), ["tags", "items"]), ["name"]);
 }

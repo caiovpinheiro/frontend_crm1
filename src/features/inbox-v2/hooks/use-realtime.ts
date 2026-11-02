@@ -200,6 +200,7 @@ function patchInboxConversationCard(
       ? {
           hasHumanReply: data.card.hasHumanReply ?? conv.hasHumanReply,
           hasAgentReply: data.card.hasAgentReply ?? conv.hasAgentReply,
+          priorityAt: data.card.priorityAt !== undefined ? data.card.priorityAt : conv.priorityAt,
           hasActiveAutomation:
             data.card.hasActiveAutomation ?? conv.hasActiveAutomation,
         }

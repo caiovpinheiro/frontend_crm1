@@ -92,6 +92,11 @@ export interface ConversationListRow {
   hasHumanReply?: boolean | null;
   /** Reply de agente/automação (`Conversation.hasAgentReply`). */
   hasAgentReply?: boolean | null;
+  /**
+   * Conversa prioritária (`Conversation.priorityAt`). O backend só manda
+   * enquanto vale: termina na primeira resposta humana ou ao encerrar.
+   */
+  priorityAt?: string | null;
   /** Fila Automação: contexto vivo ou atendimento só do robô. */
   hasActiveAutomation?: boolean | null;
   /**
