@@ -379,3 +379,79 @@ describe("applyMessagesDelta", () => {
     expect(twice.cursor).toBe("m1.base");
   });
 });
+
+describe("new_message de outro ticket do mesmo contato", () => {
+  const whatsapp = {
+    id: "c1",
+    number: 1,
+    channel: "whatsapp",
+    status: "OPEN",
+    contact: { id: "ct1", name: "Contato" },
+  };
+
+  async function openWhatsapp() {
+    const mounted = mount("c1");
+    mounted.qc.setQueryData(["inbox-conversation", "c1"], whatsapp as never);
+    await flush();
+    return mounted;
+  }
+
+  const note = (conversationId: string, content: string) => ({
+    organizationId: "org",
+    conversationId,
+    contactId: "ct1",
+    direction: "out",
+    messageType: "note",
+    content,
+    senderName: "Webchat",
+    timestamp: new Date().toISOString(),
+  });
+
+  it("nota do ticket de outro canal não aparece no chat aberto, nem antes nem depois do GET", async () => {
+    const { qc } = await openWhatsapp();
+    emit("new_message", note("web", "NOTA-DO-OUTRO-CANAL"));
+    expect(thread(qc, "c1").some((m) => m.content === "NOTA-DO-OUTRO-CANAL")).toBe(false);
+
+    const before = calls("c1").length;
+    await flush(3_000);
+    expect(calls("c1").length).toBeGreaterThan(before);
+    expect(thread(qc, "c1").some((m) => m.content === "NOTA-DO-OUTRO-CANAL")).toBe(false);
+  });
+
+  it("recebida sem card de outro ticket não reabre a janela do chat aberto", async () => {
+    const { qc } = await openWhatsapp();
+    const session = qc.getQueryData<MessagesResponse>(messagesKey("c1"))?.session;
+    emit("new_message", {
+      conversationId: "web",
+      contactId: "ct1",
+      direction: "in",
+      messageType: "text",
+      timestamp: new Date().toISOString(),
+      cardOmitted: "budget",
+    });
+    expect(qc.getQueryData<MessagesResponse>(messagesKey("c1"))?.session).toEqual(session);
+    expect(thread(qc, "c1").some((m) => m.id.startsWith("sse:"))).toBe(false);
+  });
+
+  it("ticket irmão do mesmo canal, ainda sem card: o GET traz a mensagem", async () => {
+    const { qc } = await openWhatsapp();
+    addRow("c1", { direction: "out", content: "NOTA-DO-IRMAO", createdAt: new Date().toISOString() });
+    emit("new_message", note("irmao", "NOTA-DO-IRMAO"));
+    await flush(3_000);
+    expect(thread(qc, "c1").filter((m) => m.content === "NOTA-DO-IRMAO")).toHaveLength(1);
+    expect(thread(qc, "c1").some((m) => m.id.startsWith("sse:"))).toBe(false);
+  });
+
+  it("ticket irmão do mesmo canal, já conhecido: a bolha entra na hora", async () => {
+    const { qc } = await openWhatsapp();
+    qc.setQueryData(["inbox-conversation", "irmao"], { ...whatsapp, id: "irmao", number: 2 } as never);
+    emit("new_message", note("irmao", "NOTA-IMEDIATA"));
+    expect(thread(qc, "c1").some((m) => m.content === "NOTA-IMEDIATA")).toBe(true);
+  });
+
+  it("nota do próprio ticket continua entrando na hora", async () => {
+    const { qc } = await openWhatsapp();
+    emit("new_message", note("c1", "NOTA-DESTE-TICKET"));
+    expect(thread(qc, "c1").some((m) => m.content === "NOTA-DESTE-TICKET")).toBe(true);
+  });
+});

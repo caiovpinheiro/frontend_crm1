@@ -561,7 +561,8 @@ function eventTouchesOpenConversation(
    * então sem isso a mensagem que cai num ticket irmão do mesmo contato não
    * tem como ser reconhecida e o chat aberto para de atualizar. Vale apenas
    * para refazer o thread já aberto (que passou pelo controle de acesso) —
-   * não use em caminhos que buscam a conversa do evento.
+   * não use em caminhos que buscam a conversa do evento, nem para pintar bolha:
+   * o evento pode ser de outro canal do contato, que o GET deste thread não traz.
    */
   allowContactOnlyMatch = false,
 ): boolean {
@@ -1363,7 +1364,7 @@ export function useInboxRealtime(options: {
             const followedNewTicket = Boolean(
               openId && followInboundToNewTicket(qc, openId, data),
             );
-            const touchesOpen =
+            const provenSameThread =
               !followedNewTicket &&
               openId &&
               eventTouchesOpenConversation(
@@ -1372,14 +1373,27 @@ export function useInboxRealtime(options: {
                 openId,
                 data.card,
                 data.contactId,
-                true,
               );
+            const touchesOpen =
+              provenSameThread ||
+              (!followedNewTicket &&
+                openId &&
+                eventTouchesOpenConversation(
+                  qc,
+                  data.conversationId,
+                  openId,
+                  data.card,
+                  data.contactId,
+                  true,
+                ));
             if (touchesOpen) {
-              // `hidden` chega sem texto/mídia: a bolha sai só do GET.
+              // `hidden` chega sem texto/mídia: a bolha sai só do GET. Casou só
+              // pelo contato: também só o GET, que traz o que é deste thread.
+              // Nota não tem `card` e ficaria pintada na conversa de outro canal.
               let appended: ReturnType<typeof appendSseMessageToOpenChat> = {
                 kind: "none",
               };
-              if (data.cardOmitted !== "hidden") {
+              if (provenSameThread && data.cardOmitted !== "hidden") {
                 try {
                   appended = appendSseMessageToOpenChat(qc, openId, data);
                 } catch (e) {
