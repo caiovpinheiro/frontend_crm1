@@ -649,7 +649,11 @@ export function WebchatPanel({
                 <ClosingButtons
                   resolved={closing.resolved}
                   needHelp={closing.needHelp}
-                  onSend={(text) => void onSend(text)}
+                  onSend={(text) => {
+                    // Os botões somem depois de usados: o foco não pode sumir junto.
+                    pendingFocus.current = "composer";
+                    void onSend(text);
+                  }}
                 />
               ) : null}
               {agentTyping ? (

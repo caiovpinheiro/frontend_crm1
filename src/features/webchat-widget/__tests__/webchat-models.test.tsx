@@ -215,6 +215,8 @@ describe("modelo com apoio", () => {
     expect(onSendSpy).toHaveBeenLastCalledWith("Fechei");
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Preciso" })).toBeNull();
+    // O botão saiu da tela: o foco vai para o campo, não se perde no body.
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Mensagem" }));
   });
 
   it("expandir só com loader capaz; sem ele volta o minimizar", () => {
