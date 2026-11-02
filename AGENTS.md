@@ -46,6 +46,10 @@ pertence ao backend, não a um workaround no cliente.
 - Contratos pontuais documentados em `docs/` (ex.: `docs/inbox-api-contract.md`) são
   referência de leitura; em caso de dúvida, o comportamento do backend prevalece.
 
+## Inbox: aviso de contato no chat
+
+Decisão de 2026-11-02. `ActiveWebchatNotice`, dentro do `Composer`, mostra o ticket webchat ativo do contato fora das conversas de webchat. Consulta `GET /api/conversations/:id/active-webchat` só para a conversa aberta, nunca na lista, a cada 30 s com a aba visível. O critério de "ativo" é do backend (`docs/decisoes/webchat-widget.md` §9.13 do `backend_crm1`). Dentro do inbox, o botão troca a conversa pelo `onOpenActiveWebchat`, porque `router.push` para a mesma página não muda a conversa ativa; fora dele, navega para `/inbox?c={número}`.
+
 ## UI / design system
 
 - As regras visuais canônicas vivem em `.cursor/rules/crm-ui-canonical.mdc` e

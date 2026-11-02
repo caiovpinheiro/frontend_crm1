@@ -7,6 +7,7 @@ export * from "./types";
 export * from "./conversations";
 export * from "./messages";
 export * from "./scheduled";
+export * from "./active-webchat";
 export * from "./misc";
 export * from "./timeline";
 export * from "./send-internal-template-sequence";
