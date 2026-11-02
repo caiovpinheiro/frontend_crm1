@@ -82,6 +82,55 @@ describe("v2-config (painel)", () => {
   });
 });
 
+describe("v2-config: campo de negócio e atendimento", () => {
+  it("lê o campo de negócio e o atendimento gravados, sem perder na volta", () => {
+    const config = {
+      v2: {
+        identity: { matchField: { type: "dealCustomField", customFieldId: "f1", normalize: "digits" } },
+        routing: {
+          priority: "high",
+          destination: { type: "user", id: "u1" },
+          keepCurrentOwner: false,
+          fallback: { type: "ai_agent", id: "a1" },
+        },
+        s2s: { rules: [{ priority: "high", destination: { type: "department", id: "d1" }, queuePriority: "high" }] },
+      },
+    };
+    const v2 = readWebchatV2Config(config);
+    expect(v2.identity.matchField).toEqual({ type: "dealCustomField", customFieldId: "f1", normalize: "digits" });
+    expect(v2.routing).toEqual(config.v2.routing);
+    const out = prepareWebchatV2ForSave(v2);
+    expect(out.routing).toEqual(config.v2.routing);
+    expect(out.s2s.rules).toEqual(config.v2.s2s.rules);
+  });
+
+  it("padrão: fila normal, distribuição, mantém o responsável", () => {
+    expect(readWebchatV2Config(null).routing).toEqual({
+      priority: "standard",
+      destination: { type: "distribution" },
+      keepCurrentOwner: true,
+      fallback: { type: "distribution" },
+    });
+  });
+
+  it("destino sem escolha não vai quebrado para o backend", () => {
+    const v2 = defaultWebchatV2Config();
+    v2.routing.destination = { type: "user" };
+    v2.routing.fallback = { type: "department" };
+    v2.s2s.rules = [{ priority: "alta", destination: { type: "ai_agent" } }, { priority: "b", queuePriority: "high" }];
+    const out = prepareWebchatV2ForSave(v2);
+    expect(out.routing.destination).toEqual({ type: "distribution" });
+    expect(out.routing.fallback).toEqual({ type: "distribution" });
+    expect(out.s2s.rules).toEqual([{ priority: "b", queuePriority: "high" }]);
+  });
+
+  it("valor ruim volta ao padrão", () => {
+    const v2 = readWebchatV2Config({ v2: { routing: { priority: "x", destination: { type: "user" } } } });
+    expect(v2.routing.priority).toBe("standard");
+    expect(v2.routing.destination).toEqual({ type: "distribution" });
+  });
+});
+
 describe("WebchatSecretField", () => {
   const fetchMock = vi.fn();
   beforeEach(() => {

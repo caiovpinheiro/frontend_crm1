@@ -37,6 +37,7 @@ import { AwaitingReplyFooter } from "@/components/crm/awaiting-reply-footer"
 import { useInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings"
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments"
 import { DepartmentChip } from "@/features/conversations-settings/department-icons"
+import { BadgeGlass } from "./badge-glass"
 import { Chip } from "./chip"
 import { CheckboxGlass } from "./checkbox-glass"
 
@@ -75,6 +76,8 @@ export interface Conversation {
   active?: boolean
   inactive?: boolean
   urgent?: boolean
+  /** Atendida antes das demais, até a primeira resposta de uma pessoa. */
+  priority?: boolean
   /** Mensagens não lidas — badge numérico no card. */
   unreadCount?: number
 
@@ -413,6 +416,11 @@ export const ConversationCard = memo(function ConversationCard({
       {/* Linha 3: assignee + departamento. Sessão/Encerrada vão no rodapé. */}
       <div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 @max-[220px]:hidden">
         <span className="flex min-w-0 flex-1 items-center gap-1">
+          {conversation.priority ? (
+            <BadgeGlass variant="lead" className="shrink-0 !px-1.5 !py-0 !text-[10px]">
+              Prioridade
+            </BadgeGlass>
+          ) : null}
           {assigneeSlot ??
             (conversation.assignee ? (
               <Chip variant="brand" className="max-w-full truncate whitespace-nowrap !px-1.5 !py-0 !text-[10px]">

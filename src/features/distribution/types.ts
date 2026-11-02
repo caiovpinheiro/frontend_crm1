@@ -108,6 +108,8 @@ export interface PendingDistributionDto {
   channel: string;
   departmentId?: string | null;
   departmentName?: string | null;
+  /** Prioritária: atendida antes das demais. A lista já vem com ela na frente. */
+  priority?: boolean;
   distributionType: string | null;
   triggerSource: string;
   attempts: number;

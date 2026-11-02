@@ -18,7 +18,12 @@ import { SelectNative } from "@/components/ui/select";
 
 import { fetchCustomFieldOptions, fetchDepartmentOptions, fetchTagOptions } from "./options";
 import { WebchatSecretField } from "./secret-field";
-import type { WebchatRoutingRule, WebchatV2SectionProps } from "./v2-config";
+import { WebchatRoutingTargetField, useWebchatRoutingOptions } from "./attendance-section";
+import {
+  isIncompleteRoutingTarget,
+  type WebchatRoutingRule,
+  type WebchatV2SectionProps,
+} from "./v2-config";
 
 export type WebchatS2SSectionProps = WebchatV2SectionProps & {
   /** Origem pública (`https://bwipo.com`) para mostrar o endereço de entrada. */
@@ -48,7 +53,13 @@ export function callbackUrlProblem(raw: string | null): string | null {
 /** Regra que o salvamento descartaria (sem critério ou sem ação). */
 export function isIncompleteRule(rule: WebchatRoutingRule): boolean {
   const hasCriterion = Boolean(rule.category?.trim() || rule.priority?.trim());
-  const hasAction = Boolean(rule.tagId || rule.departmentId || rule.pinNote);
+  const hasAction = Boolean(
+    rule.tagId ||
+      rule.departmentId ||
+      rule.pinNote ||
+      rule.queuePriority ||
+      (rule.destination && !isIncompleteRoutingTarget(rule.destination)),
+  );
   return !hasCriterion || !hasAction;
 }
 
@@ -75,6 +86,7 @@ export function WebchatS2SSection({
     queryFn: () => fetchCustomFieldOptions("deal"),
     ...opts,
   });
+  const routingOptions = useWebchatRoutingOptions();
   const s2s = value.s2s;
   const setS2S = (p: Partial<typeof s2s>) => onChange({ ...value, s2s: { ...s2s, ...p } });
   const setRule = (i: number, p: Partial<WebchatRoutingRule>) => {
@@ -180,7 +192,9 @@ export function WebchatS2SSection({
         <p className="text-xs text-[var(--text-muted)]">
           Valores livres que o site manda em <code className={code}>category</code> e{" "}
           <code className={code}>priority</code> (sem diferença de maiúsculas). A regra vale quando
-          todos os critérios preenchidos batem; várias regras podem valer juntas.
+          todos os critérios preenchidos batem; várias regras podem valer juntas. Para onde vai: vale
+          a primeira regra que escolher um destino, no lugar do definido no canal. Nada tira a
+          conversa de quem já respondeu.
         </p>
         {s2s.rules.map((rule, i) => (
           <div key={i} className="grid gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] p-2 sm:grid-cols-2">
@@ -230,6 +244,24 @@ export function WebchatS2SSection({
               />
               Fixar a nota no topo da conversa
             </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={rule.queuePriority === "high"}
+                onChange={(e) => setRule(i, { queuePriority: e.target.checked ? "high" : undefined })}
+              />
+              Atender com prioridade
+            </label>
+            <div className="sm:col-span-2">
+              <WebchatRoutingTargetField
+                idPrefix={`wc-rule-${i}-destination`}
+                label="Para onde vai"
+                emptyLabel="Como definido no canal"
+                value={rule.destination}
+                options={routingOptions}
+                onChange={(destination) => setRule(i, { destination })}
+              />
+            </div>
             <div className="flex justify-end">
               <Button
                 type="button"

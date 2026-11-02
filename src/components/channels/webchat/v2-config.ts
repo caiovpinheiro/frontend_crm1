@@ -19,9 +19,24 @@ export const WEBCHAT_V2_LIMITS = {
   eventsRetentionDays: { min: 1, def: 30, max: 365 },
 } as const;
 
+export type WebchatMatchNormalize = "none" | "digits";
+
 export type WebchatMatchField =
   | { type: "externalId" }
-  | { type: "customField"; customFieldId: string };
+  | { type: "customField"; customFieldId: string }
+  | { type: "dealCustomField"; customFieldId: string; normalize: WebchatMatchNormalize };
+
+export type WebchatRoutingTargetType = "distribution" | "user" | "department" | "ai_agent";
+
+/** Sem `id` só a distribuição; no painel o id fica vazio até escolher. */
+export type WebchatRoutingTarget = { type: WebchatRoutingTargetType; id?: string };
+
+export type WebchatRouting = {
+  priority: "standard" | "high";
+  destination: WebchatRoutingTarget;
+  keepCurrentOwner: boolean;
+  fallback: WebchatRoutingTarget;
+};
 
 export type WebchatAttributeMapping = { attribute: string; customFieldId: string };
 
@@ -31,6 +46,8 @@ export type WebchatRoutingRule = {
   tagId?: string;
   departmentId?: string;
   pinNote?: boolean;
+  destination?: WebchatRoutingTarget;
+  queuePriority?: "high";
 };
 
 export type WebchatV2Config = {
@@ -49,6 +66,7 @@ export type WebchatV2Config = {
   };
   s2s: { queueTagId: string | null; callbackUrl: string | null; rules: WebchatRoutingRule[] };
   refDealCustomFieldId: string | null;
+  routing: WebchatRouting;
 };
 
 export type WebchatSecretKind = "identity" | "s2s";
@@ -78,7 +96,22 @@ export function defaultWebchatV2Config(): WebchatV2Config {
     },
     s2s: { queueTagId: null, callbackUrl: null, rules: [] },
     refDealCustomFieldId: null,
+    routing: {
+      priority: "standard",
+      destination: { type: "distribution" },
+      keepCurrentOwner: true,
+      fallback: { type: "distribution" },
+    },
   };
+}
+
+function readRoutingTarget(v: unknown): WebchatRoutingTarget | null {
+  if (!isObj(v)) return null;
+  if (v.type === "distribution") return { type: "distribution" };
+  if ((v.type === "user" || v.type === "department" || v.type === "ai_agent") && str(v.id)) {
+    return { type: v.type, id: str(v.id)! };
+  }
+  return null;
 }
 
 type Obj = Record<string, unknown>;
@@ -104,9 +137,17 @@ export function readWebchatV2Config(config: unknown): WebchatV2Config {
 
   const mf = isObj(identity.matchField) ? identity.matchField : {};
   const matchField: WebchatMatchField =
-    mf.type === "customField" && str(mf.customFieldId)
-      ? { type: "customField", customFieldId: str(mf.customFieldId)! }
-      : { type: "externalId" };
+    mf.type === "dealCustomField" && str(mf.customFieldId)
+      ? {
+          type: "dealCustomField",
+          customFieldId: str(mf.customFieldId)!,
+          normalize: mf.normalize === "digits" ? "digits" : "none",
+        }
+      : mf.type === "customField" && str(mf.customFieldId)
+        ? { type: "customField", customFieldId: str(mf.customFieldId)! }
+        : { type: "externalId" };
+
+  const routingRaw = isObj(raw.routing) ? raw.routing : {};
 
   const attributeMap = Array.isArray(identity.attributeMap)
     ? identity.attributeMap.flatMap((r) =>
@@ -130,6 +171,9 @@ export function readWebchatV2Config(config: unknown): WebchatV2Config {
         if (str(r.tagId)) rule.tagId = str(r.tagId)!;
         if (str(r.departmentId)) rule.departmentId = str(r.departmentId)!;
         if (r.pinNote === true) rule.pinNote = true;
+        const destination = readRoutingTarget(r.destination);
+        if (destination) rule.destination = destination;
+        if (r.queuePriority === "high") rule.queuePriority = "high";
         return [rule];
       })
     : [];
@@ -156,7 +200,23 @@ export function readWebchatV2Config(config: unknown): WebchatV2Config {
       rules,
     },
     refDealCustomFieldId: str(raw.refDealCustomFieldId),
+    routing: {
+      priority: routingRaw.priority === "high" ? "high" : "standard",
+      destination: readRoutingTarget(routingRaw.destination) ?? d.routing.destination,
+      keepCurrentOwner: routingRaw.keepCurrentOwner !== false,
+      fallback: readRoutingTarget(routingRaw.fallback) ?? d.routing.fallback,
+    },
   };
+}
+
+/** Destino ainda sem a pessoa, o departamento ou o agente escolhido? */
+export function isIncompleteRoutingTarget(target: WebchatRoutingTarget | undefined): boolean {
+  return Boolean(target && target.type !== "distribution" && !target.id);
+}
+
+/** O que vai no `PUT`: destino sem id o backend recusaria. */
+function completeRoutingTarget(target: WebchatRoutingTarget): WebchatRoutingTarget {
+  return isIncompleteRoutingTarget(target) ? { type: "distribution" } : target;
 }
 
 /** Status dos segredos que vem no canal (`webchatSecrets`) — tolerante. */
@@ -227,9 +287,22 @@ export function prepareWebchatV2ForSave(v2: WebchatV2Config): WebchatV2Config {
     s2s: {
       ...v2.s2s,
       callbackUrl: v2.s2s.callbackUrl?.trim() || null,
-      rules: v2.s2s.rules.filter(
-        (r) => (r.category?.trim() || r.priority?.trim()) && (r.tagId || r.departmentId || r.pinNote),
-      ),
+      rules: v2.s2s.rules
+        .map((r): WebchatRoutingRule => {
+          if (!isIncompleteRoutingTarget(r.destination)) return r;
+          const { destination: _dropped, ...rest } = r;
+          return rest;
+        })
+        .filter(
+          (r) =>
+            (r.category?.trim() || r.priority?.trim()) &&
+            (r.tagId || r.departmentId || r.pinNote || r.destination || r.queuePriority),
+        ),
+    },
+    routing: {
+      ...v2.routing,
+      destination: completeRoutingTarget(v2.routing.destination),
+      fallback: completeRoutingTarget(v2.routing.fallback),
     },
   };
 }

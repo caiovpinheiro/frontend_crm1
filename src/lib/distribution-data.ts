@@ -8,6 +8,8 @@ export type QueueItem = {
   enteredAt: string
   enteredLabel: string
   reason: string
+  /** Prioritária: fica na frente em qualquer ordenação. */
+  priority?: boolean
 }
 
 export type QueueSortKey = "contact" | "department" | "waitingMin" | "enteredAt"
@@ -21,6 +23,7 @@ export type PendingQueueSource = {
   triggerSource?: string | null
   attempts?: number
   createdAt: string
+  priority?: boolean
 }
 
 /** Mesma paleta de Settings → Departamentos, sem cinzas (chips nunca mudos). */
@@ -88,11 +91,14 @@ function queueReason(triggerSource?: string | null, attempts = 0): string {
     .filter(Boolean)
   const fromAi = parts.some((p) => p === "AI_AGENT" || p === "AI")
   const fromAutomation = parts.some((p) => p === "AUTOMATION")
+  const fromWebchat = parts.some((p) => p === "WEBCHAT_ROUTING")
   const base = fromAi
     ? "Agente IA"
     : fromAutomation
       ? "Automação"
-      : "Sem responsável elegível"
+      : fromWebchat
+        ? "Atendimento do webchat"
+        : "Sem responsável elegível"
   return attempts > 1 ? `${base} · ${attempts}x` : base
 }
 
@@ -117,6 +123,7 @@ export function pendingToQueueItem(
     enteredAt,
     enteredLabel: formatEnteredLabel(enteredAt),
     reason: queueReason(p.triggerSource, p.attempts),
+    priority: p.priority === true,
   }
 }
 
@@ -127,6 +134,7 @@ export function sortQueueItems(
 ): QueueItem[] {
   const sign = dir === "asc" ? 1 : -1
   return [...items].sort((a, b) => {
+    if (Boolean(a.priority) !== Boolean(b.priority)) return a.priority ? -1 : 1
     if (key === "waitingMin") return (a.waitingMin - b.waitingMin) * sign
     if (key === "enteredAt") return a.enteredAt.localeCompare(b.enteredAt) * sign
     return a[key].localeCompare(b[key], "pt-BR") * sign
