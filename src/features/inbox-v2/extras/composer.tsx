@@ -44,6 +44,7 @@ import {
 import { ComposerMenu } from "./composer-menu";
 import { QuickReplyPopover } from "./quick-reply-popover";
 import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
+import { ActiveWebchatNotice } from "./active-webchat-notice";
 import { ScheduledMessagesBanner } from "./scheduled-messages-banner";
 import {
   TemplateComposePanel,
@@ -126,6 +127,7 @@ export function Composer({
   sessionExpired,
   enableCallPermission,
   whatsappFeatures = true,
+  onOpenActiveWebchat,
   attachmentsEnabled = true,
 }: ComposerProps) {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
@@ -686,6 +688,12 @@ export function Composer({
       {confirmDialogNode}
       {/* Agendamentos pendentes da conversa — acima do input, em todo host */}
       <ScheduledMessagesBanner conversationId={conversationId} />
+      {/* Contato no chat do site: evita responder pelo canal errado. */}
+      <ActiveWebchatNotice
+        conversationId={conversationId}
+        enabled={whatsappFeatures}
+        onOpen={onOpenActiveWebchat}
+      />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
         <TemplateComposePanel

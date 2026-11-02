@@ -99,6 +99,8 @@ export interface ComposerProps {
    * agendamento). `false` em conversas Webchat. Default `true`.
    */
   whatsappFeatures?: boolean;
+  /** Abre o ticket webchat do aviso sem recarregar (inbox). Sem isto, navega. */
+  onOpenActiveWebchat?: (conversationId: string) => void;
   /**
    * Anexo, foto e áudio. `false` em conversas Webchat (anexos são fase 5):
    * some do menu, sem microfone, e colar/arrastar arquivo é recusado.

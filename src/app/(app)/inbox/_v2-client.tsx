@@ -920,6 +920,7 @@ export default function InboxV2ClientPage({
             signatureEditable={convFeatures.agentSignatureEditable}
             availableChannels={whatsappChannels}
             whatsappFeatures={!isWebchat}
+            onOpenActiveWebchat={handleSelect}
             attachmentsEnabled={!isWebchat}
             selectedChannelId={selectedChannelId}
             conversationChannelId={conversationChannelId}
