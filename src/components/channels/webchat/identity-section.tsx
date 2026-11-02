@@ -157,7 +157,7 @@ export function WebchatIdentitySection({
             }
           >
             <option value="none">Exatamente como está escrito</option>
-            <option value="digits">Só os números (ignora pontos, traços e letras)</option>
+            <option value="digits">Só os números (ignora pontos e traços)</option>
           </SelectNative>
         </div>
       ) : null}
