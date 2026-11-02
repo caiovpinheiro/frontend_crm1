@@ -6,6 +6,7 @@
  * backend valida de verdade (PUT devolve 400 `{ message }`); aqui só lemos
  * com tolerância e limitamos os números às faixas.
  */
+import { normalizeAppearance, type WebchatAppearance } from "@/features/webchat-widget/appearance";
 import { apiUrl } from "@/lib/api";
 
 export const WEBCHAT_CONTEXT_KEY_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$/;
@@ -67,6 +68,8 @@ export type WebchatV2Config = {
   s2s: { queueTagId: string | null; callbackUrl: string | null; rules: WebchatRoutingRule[] };
   refDealCustomFieldId: string | null;
   routing: WebchatRouting;
+  /** Modelo e botões do widget; ausente = canal ainda sem modelo. */
+  appearance?: WebchatAppearance;
 };
 
 export type WebchatSecretKind = "identity" | "s2s";
@@ -178,6 +181,8 @@ export function readWebchatV2Config(config: unknown): WebchatV2Config {
       })
     : [];
 
+  const appearance = normalizeAppearance(raw.appearance);
+
   return {
     identity: { matchField, attributeMap },
     context: {
@@ -206,6 +211,7 @@ export function readWebchatV2Config(config: unknown): WebchatV2Config {
       keepCurrentOwner: routingRaw.keepCurrentOwner !== false,
       fallback: readRoutingTarget(routingRaw.fallback) ?? d.routing.fallback,
     },
+    ...(appearance ? { appearance } : {}),
   };
 }
 

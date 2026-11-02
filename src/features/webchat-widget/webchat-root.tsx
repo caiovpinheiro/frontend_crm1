@@ -15,7 +15,7 @@
  *    conversa de exemplo, sem API de sessão; o CRM manda a config ainda
  *    não salva via `postMessage`.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   backoffDelay,
@@ -42,15 +42,16 @@ import {
   type LoaderBridge,
 } from "./site-bridge";
 import { SiteSync } from "./site-sync";
+import { frameSizeFor, mergeSiteContext, type SiteContext } from "./appearance";
 import { normalizePublicConfig, type WebchatPublicConfig } from "./types";
-import { useWebchatChat, type UiMessage } from "./use-webchat-chat";
+import { useWebchatChat } from "./use-webchat-chat";
 import {
-  ChatIcon,
   WebchatPanel,
   themeStyle,
   webchatStyles as styles,
   type PanelView,
 } from "./webchat-panel";
+import { WebchatPreview } from "./webchat-preview";
 import { logger } from "@/lib/logger";
 import { isOriginAllowed, normalizeOrigin, referrerMatchesHost } from "@/lib/webchat-origin";
 
@@ -113,6 +114,11 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
   /** `open({ ref })` do site: vai junto da próxima mensagem do visitante. */
   const pendingRefRef = useRef<string | null>(null);
   const bridgeRef = useRef<LoaderBridge | null>(null);
+  /** O que o site mandou por `setContext`: alimenta a faixa de contexto. */
+  const [siteContext, setSiteContext] = useState<SiteContext>({});
+  /** Só um loader que sabe redimensionar informa (`ack`/`viewport`). */
+  const [loaderMobile, setLoaderMobile] = useState<boolean | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(
     () => () => {
@@ -219,6 +225,11 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     const onMessage = (e: MessageEvent) => {
       if (e.source !== window.parent || e.origin !== host) return;
       if (!isWebchatMessage(e.data)) return;
+      if (e.data.type === "ack" || e.data.type === "viewport") {
+        const mobile = (e.data as { mobile?: unknown }).mobile;
+        if (typeof mobile === "boolean") setLoaderMobile(mobile);
+        return;
+      }
       const open = parseOpenMessage(e.data);
       if (open) {
         setPanelOpen(true);
@@ -256,7 +267,10 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     });
     const unsubscribe = bridge.subscribe((msg) => {
       if (msg.type === "identify") void sync.identify(msg.identity);
-      else if (msg.type === "context") sync.setContext(msg.context);
+      else if (msg.type === "context") {
+        sync.setContext(msg.context);
+        setSiteContext((current) => mergeSiteContext(current, msg.context));
+      }
       else if (msg.type === "track") sync.track(msg.events);
       else void sync.flush();
     });
@@ -300,6 +314,13 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     if (!embedded || !host || gate !== "ok") return;
     postToParent({ ns: WEBCHAT_NS, type: "unread", count: panelOpen ? 0 : unread }, host);
   }, [embedded, host, gate, unread, panelOpen]);
+
+  // Modelo mais alto e botão de expandir: o tamanho do iframe é do loader.
+  const frameSize = frameSizeFor(config?.appearance ?? null, expanded);
+  useEffect(() => {
+    if (!embedded || !host || gate !== "ok") return;
+    postToParent({ ns: WEBCHAT_NS, type: "layout", size: frameSize }, host);
+  }, [embedded, host, gate, frameSize]);
 
   const close = useCallback(() => {
     setPanelOpen(false);
@@ -348,6 +369,9 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
         open={panelOpen}
         connectionError={chat.connectionError}
         prefill={prefill}
+        siteContext={siteContext}
+        canExpand={embedded && loaderMobile === false}
+        onExpandedChange={setExpanded}
         onClose={embedded ? close : undefined}
         onSend={sendWithRef}
         onRetry={chat.retry}
@@ -363,23 +387,6 @@ function LiveRoot({ publicKey, host: hostParam }: { publicKey: string; host: str
     </div>
   );
 }
-
-const SAMPLE_MESSAGES: UiMessage[] = [
-  {
-    id: "p1",
-    direction: "in",
-    content: "Oi! Vocês atendem aos sábados?",
-    createdAt: "2026-01-01T12:00:00.000Z",
-    status: "read",
-  },
-  {
-    id: "p2",
-    direction: "out",
-    content: "Olá! Atendemos sim, das 9h às 13h. Posso ajudar com mais alguma coisa?",
-    createdAt: "2026-01-01T12:01:00.000Z",
-    senderName: "Equipe",
-  },
-];
 
 function PreviewRoot({ publicKey }: { publicKey: string }) {
   const [config, setConfig] = useState<WebchatPublicConfig>(() =>
@@ -412,43 +419,5 @@ function PreviewRoot({ publicKey }: { publicKey: string }) {
     };
   }, [publicKey]);
 
-  const previewConfig = useMemo(
-    () => ({ ...config, online: view !== "offline" }),
-    [config, view],
-  );
-  const { style, contrast } = themeStyle(previewConfig);
-  const panelView =
-    view === "offline"
-      ? "offline"
-      : view === "prechat" && previewConfig.identification !== "none"
-        ? "prechat"
-        : "chat";
-  const noop = async () => {};
-
-  return (
-    <div
-      className={`${styles.root} ${styles.preview}`}
-      style={style}
-      data-contrast={contrast}
-      data-position={previewConfig.theme.position}
-    >
-      <WebchatPanel
-        config={previewConfig}
-        variant="preview"
-        view={panelView}
-        messages={SAMPLE_MESSAGES}
-        agentTyping={false}
-        agentReadAt={null}
-        onClose={() => {}}
-        onSend={() => {}}
-        onRetry={() => {}}
-        onTyping={() => {}}
-        onIdentify={noop}
-        onOfflineSubmit={noop}
-      />
-      <span className={styles.previewBubble} aria-hidden="true">
-        <ChatIcon />
-      </span>
-    </div>
-  );
+  return <WebchatPreview config={config} view={view} />;
 }

@@ -3,8 +3,8 @@
  * do cliente) e o iframe (`/webchat/{publicKey}`). Mantenha em sincronia com
  * o loader — ele é JS puro e não importa este arquivo.
  *
- *  iframe → loader: `hello` (handshake) · `ready` (tema) · `unread` · `close`
- *  loader → iframe: `ack` (confirma origem + dados da página) · `open` · `close`
+ *  iframe → loader: `hello` (handshake) · `ready` (tema) · `unread` · `close` · `layout` (tamanho)
+ *  loader → iframe: `ack` (confirma origem + dados da página) · `open` · `close` · `viewport`
  *  CRM → iframe (preview, mesma origem): `preview-config`
  *
  * Toda mensagem carrega `ns: "bwipo:webchat"`; o receptor sempre confere
@@ -13,6 +13,7 @@
  * v2 (identify, context, track, flush, open com prefill/ref): tipos abaixo,
  * contrato em `backend_crm1/docs/decisoes/webchat-widget.md` §9.
  */
+import type { WebchatFrameSize } from "./appearance";
 import type { WebchatPublicConfig } from "./types";
 
 export const WEBCHAT_NS = "bwipo:webchat";
@@ -20,9 +21,11 @@ export const WEBCHAT_NS = "bwipo:webchat";
 export type PageInfo = { page?: string; referrer?: string; title?: string };
 
 export type LoaderToFrame =
-  | { ns: typeof WEBCHAT_NS; type: "ack"; page?: PageInfo }
+  /** `mobile` só vem de loader que sabe redimensionar; o antigo não manda e não há botão de expandir. */
+  | { ns: typeof WEBCHAT_NS; type: "ack"; page?: PageInfo; mobile?: boolean }
   | { ns: typeof WEBCHAT_NS; type: "open" }
-  | { ns: typeof WEBCHAT_NS; type: "close" };
+  | { ns: typeof WEBCHAT_NS; type: "close" }
+  | { ns: typeof WEBCHAT_NS; type: "viewport"; mobile: boolean };
 
 export type FrameToLoader =
   | { ns: typeof WEBCHAT_NS; type: "hello" }
@@ -33,7 +36,8 @@ export type FrameToLoader =
       unread: number;
     }
   | { ns: typeof WEBCHAT_NS; type: "unread"; count: number }
-  | { ns: typeof WEBCHAT_NS; type: "close" };
+  | { ns: typeof WEBCHAT_NS; type: "close" }
+  | { ns: typeof WEBCHAT_NS; type: "layout"; size: WebchatFrameSize };
 
 // ── Webchat v2 (só tipos) ────────────────────────────────────────────────
 // Contrato: `backend_crm1/docs/decisoes/webchat-widget.md` §9 (fonte única).

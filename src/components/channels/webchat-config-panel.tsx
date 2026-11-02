@@ -45,6 +45,7 @@ import {
   type WebchatBusinessHours,
   type WebchatChannelConfig,
   type WebchatIdentification,
+  type WebchatPublicConfig,
   type WebchatWeekday,
 } from "@/features/webchat-widget/types";
 import { apiUrl } from "@/lib/api";
@@ -56,6 +57,7 @@ import { normalizeOrigin } from "@/lib/webchat-origin";
 import { ChannelPipelineSelect } from "./channel-pipeline-select";
 import type { ApiChannel } from "./types";
 import { parseChannelConfigRecord } from "./types";
+import { WebchatAppearanceSection } from "./webchat/appearance-section";
 import { WebchatAttendanceSection } from "./webchat/attendance-section";
 import { WebchatContextSection } from "./webchat/context-section";
 import { WebchatLogoUpload } from "./webchat/logo-upload";
@@ -255,11 +257,12 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
           greeting: cfg.greeting,
           offlineMessage: cfg.offlineMessage,
           theme: effectiveTheme,
+          appearance: v2.appearance,
         },
       },
       window.location.origin,
     );
-  }, [cfg, effectiveTheme, previewView]);
+  }, [cfg, effectiveTheme, previewView, v2.appearance]);
 
   useEffect(() => {
     postPreview();
@@ -319,6 +322,17 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
   });
 
   const origin = webchatPublicOrigin();
+  /** Prévia do wizard: tema e saudação do formulário, mesmo ainda não salvos. */
+  const appearancePreviewBase: WebchatPublicConfig = {
+    publicKey: publicKey ?? "",
+    allowedOrigins: cfg.allowedOrigins,
+    identification: cfg.identification,
+    greeting: cfg.greeting,
+    offlineMessage: cfg.offlineMessage,
+    online: true,
+    theme: effectiveTheme,
+    appearance: null,
+  };
   const v2Props = {
     channelId: channel.id,
     publicKey,
@@ -438,6 +452,16 @@ export function WebchatConfigPanel({ channel, onSaved }: WebchatConfigPanelProps
             </ul>
           ) : null}
         </section>
+
+        <Separator />
+
+        <WebchatAppearanceSection
+          channel={channel}
+          appearance={v2.appearance}
+          previewBase={appearancePreviewBase}
+          contextKeys={Object.keys(v2.context.labels)}
+          onSaved={(appearance) => setV2((current) => ({ ...current, appearance }))}
+        />
 
         <Separator />
 
