@@ -56,6 +56,13 @@ export type ConditionRule = {
   field: string;
   op: ConditionOp;
   value: unknown;
+  /**
+   * Só em `conversation.channel`: conexão específica (Channel.id) daquele
+   * tipo, quando a org tem mais de um número. Ausente = qualquer número.
+   */
+  channelId?: string;
+  /** Nome da conexão no momento da escolha (resumo do node). */
+  channelLabel?: string;
 };
 
 export type ConditionBranch = {
@@ -147,11 +154,18 @@ export function normalizeRule(raw: unknown): ConditionRule | null {
   const r = asRecord(raw);
   const field = canonicalizeField(String(r.field ?? r.path ?? r.left ?? "").trim());
   if (!field) return null;
-  return {
+  const rule: ConditionRule = {
     field,
     op: normalizeOp(r.op ?? r.operator),
     value: scalarRuleValue(r.value ?? r.right),
   };
+  if (field === "conversation.channel" && typeof r.channelId === "string" && r.channelId.trim()) {
+    rule.channelId = r.channelId.trim();
+    if (typeof r.channelLabel === "string" && r.channelLabel.trim()) {
+      rule.channelLabel = r.channelLabel.trim();
+    }
+  }
+  return rule;
 }
 
 function normalizeBranch(raw: unknown): ConditionBranch | null {
@@ -377,7 +391,11 @@ function describeRule(rule: ConditionRule, lookup?: Record<string, string>): str
   if (rule.op === "empty" || rule.op === "not_empty" || rule.op === "in_business_hours" || rule.op === "not_in_business_hours") {
     return `${field} ${op}`;
   }
-  return resolved ? `${field} ${op} ${resolved.slice(0, 28)}` : `${field} ${op}`;
+  const number =
+    rule.field === "conversation.channel" && rule.channelId
+      ? ` · ${rule.channelLabel ?? "número escolhido"}`
+      : "";
+  return resolved ? `${field} ${op} ${resolved.slice(0, 28)}${number}` : `${field} ${op}`;
 }
 
 /**

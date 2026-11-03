@@ -36,6 +36,7 @@ import {
 } from "@/lib/automation-condition"
 import { useContactSources } from "@/hooks/use-contact-sources"
 import { FlowVariableInput } from "./flow-variable-picker"
+import { useWhatsappChannels } from "@/features/inbox-v2/hooks/use-channels"
 import type { NodeConfig } from "@/lib/flow-data"
 
 const NO_VALUE_OPS = new Set(["empty", "not_empty", "exists", "not_exists"])
@@ -365,7 +366,16 @@ function ConditionRuleRow({
             onValueChange={(v) => {
               if (v === SITE_CONTEXT_PREFIX) onChange({ field: v, op: "exists", value: "" }, false)
               else if (v === SITE_EVENT_PREFIX) onChange({ field: v, op: "occurred_within", value: "60" }, false)
-              else onChange({ field: v === CUSTOM_FIELD_SENTINEL ? "variables." : v, value: "" }, false)
+              else
+                onChange(
+                  {
+                    field: v === CUSTOM_FIELD_SENTINEL ? "variables." : v,
+                    value: "",
+                    channelId: undefined,
+                    channelLabel: undefined,
+                  },
+                  false,
+                )
             }}
           />
           {siteKind && (
@@ -435,12 +445,27 @@ function ConditionRuleRow({
               />
             )
           ) : !hideValue && (
-            <ConditionValue
-              field={rule.field}
-              op={rule.op}
-              value={String(rule.value ?? "")}
-              onChange={(v, collapse) => onChange({ value: v }, collapse)}
-            />
+            <>
+              <ConditionValue
+                field={rule.field}
+                op={rule.op}
+                value={String(rule.value ?? "")}
+                onChange={(v, collapse) =>
+                  rule.field === "conversation.channel"
+                    ? // Trocar o tipo zera o número e deixa a regra aberta para escolhê-lo.
+                      onChange({ value: v, channelId: undefined, channelLabel: undefined }, false)
+                    : onChange({ value: v }, collapse)
+                }
+              />
+              {rule.field === "conversation.channel" && (rule.op === "eq" || rule.op === "ne") && (
+                <ChannelNumberPicker
+                  kind={String(rule.value ?? "")}
+                  channelId={rule.channelId}
+                  channelLabel={rule.channelLabel}
+                  onChange={(channelId, channelLabel) => onChange({ channelId, channelLabel }, true)}
+                />
+              )}
+            </>
           )}
         </div>
         {onRemove && (
@@ -454,6 +479,79 @@ function ConditionRuleRow({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+/** `conversation.channel` (minúsculo) → `Channel.type` da conexão. */
+const CHANNEL_KIND_TO_TYPE: Record<string, string> = {
+  whatsapp: "WHATSAPP",
+  instagram: "INSTAGRAM",
+  messenger: "FACEBOOK",
+}
+
+const ANY_CHANNEL_NUMBER = "__any__"
+
+/**
+ * Número da regra "Canal": aparece quando a org tem mais de uma conexão
+ * conectada daquele tipo (ex.: dois WhatsApps). "Qualquer número" = só o tipo.
+ */
+function ChannelNumberPicker({
+  kind,
+  channelId,
+  channelLabel,
+  onChange,
+}: {
+  kind: string
+  channelId?: string
+  channelLabel?: string
+  onChange: (channelId: string | undefined, channelLabel: string | undefined) => void
+}) {
+  const type = CHANNEL_KIND_TO_TYPE[kind.trim().toLowerCase()]
+  const { data: channels } = useWhatsappChannels(!!type)
+  const sameType = useMemo(
+    () => (channels ?? []).filter((c) => c.type === type),
+    [channels, type],
+  )
+  // Uma conexão só: não há o que escolher (a não ser que já haja um número salvo).
+  if (!type || (sameType.length < 2 && !channelId)) return null
+
+  const options = [
+    { value: ANY_CHANNEL_NUMBER, label: "Qualquer número" },
+    ...sameType.map((c) => ({
+      value: c.id,
+      label: c.name,
+      description: c.phoneNumber ?? undefined,
+      searchText: `${c.name} ${c.phoneNumber ?? ""}`,
+    })),
+  ]
+  if (channelId && !sameType.some((c) => c.id === channelId)) {
+    options.push({
+      value: channelId,
+      label: channelLabel ?? "Número salvo (desconectado)",
+      description: undefined,
+      searchText: channelLabel ?? "",
+    })
+  }
+
+  return (
+    <div className="space-y-1">
+      <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Número
+      </span>
+      <DropdownGlass
+        triggerClassName="w-full"
+        value={channelId ?? ANY_CHANNEL_NUMBER}
+        options={options}
+        onValueChange={(v) => {
+          if (v === ANY_CHANNEL_NUMBER) {
+            onChange(undefined, undefined)
+            return
+          }
+          const ch = sameType.find((c) => c.id === v)
+          onChange(v, ch ? [ch.name, ch.phoneNumber].filter(Boolean).join(" · ") : channelLabel)
+        }}
+      />
     </div>
   )
 }
