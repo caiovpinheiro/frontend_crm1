@@ -25,6 +25,7 @@ import {
   ContactSection,
   ConversationSection,
   DealCustomFieldsSection,
+  IntentionalDuplicateSection,
   LossReasonsSection,
   OwnersSection,
   QuickFiltersList,
@@ -76,6 +77,7 @@ function middleTabCount(id: MiddleTab, f: AdvancedDealFilters): number {
       (f.utmSources?.length || f.withoutUtmSource ? 1 : 0) +
       (f.statuses?.length ? 1 : 0) +
       (f.lostReasons?.length ? 1 : 0) +
+      (f.intentionalDuplicate ? 1 : 0) +
       (f.valueFrom != null || f.valueTo != null ? 1 : 0)
     );
   }
@@ -648,6 +650,7 @@ export function FilterModalThreeCol({
           <SearchSection {...section} />
           <StatusSection {...section} />
           <LossReasonsSection {...section} />
+          <IntentionalDuplicateSection {...section} />
           <StagesSection {...section} />
           <SourcesSection {...section} />
           <UtmSourcesSection {...section} />
@@ -762,6 +765,7 @@ export function FilterModalThreeCol({
           <UtmSourcesSection {...section} />
                     <StatusSection {...section} />
                     <LossReasonsSection {...section} />
+                    <IntentionalDuplicateSection {...section} />
                   </div>
                   <ValueSection {...section} />
                 </>

@@ -106,6 +106,15 @@ export function dealFilterChips(
     });
   }
 
+  if (filters.intentionalDuplicate) {
+    chips.push({
+      id: "intentional-duplicate",
+      title: "Duplicata intencional",
+      count: 1,
+      onRemove: () => onPatch({ intentionalDuplicate: undefined }),
+    });
+  }
+
   if (filters.withoutSource) {
     chips.push({
       id: "source",

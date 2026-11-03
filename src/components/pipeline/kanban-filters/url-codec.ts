@@ -62,6 +62,7 @@ export const DEAL_FILTER_URL_KEYS = [
   "utmsource",
   "noutmsource",
   "lost",
+  "dup",
   "created",
   "closed",
   "updated",
@@ -166,6 +167,7 @@ export function dealFiltersToUrlParams(
     utmsource: encodeCsv(utmSources),
     noutmsource: f.withoutUtmSource ? "1" : null,
     lost: encodeCsv(f.lostReasons),
+    dup: f.intentionalDuplicate ? "1" : null,
     created: encodeDateRange(f.createdAt),
     closed: encodeDateRange(f.closedAt),
     updated: encodeDateRange(f.updatedAt),
@@ -263,6 +265,7 @@ export function dealFiltersFromUrlParams(
   const hasEmail = decodeBool(params.get("email"));
   if (hasEmail !== undefined) out.contactHasEmail = hasEmail;
   if (decodeBool(params.get("nocontact")) === true) out.withoutContact = true;
+  if (decodeBool(params.get("dup")) === true) out.intentionalDuplicate = true;
 
   const conv = decodeEnum(params.get("conv"), ["open", "closed"] as const);
   if (conv) out.conversationStatus = conv;
