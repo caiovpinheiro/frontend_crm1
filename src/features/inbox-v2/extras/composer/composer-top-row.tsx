@@ -16,6 +16,7 @@ type ComposerTopRowProps = Pick<
   | "availableChannels"
   | "selectedChannelId"
   | "conversationChannelId"
+  | "customerChannelId"
   | "onSelectChannel"
   | "viewersSlot"
   | "conversationNumber"
@@ -50,6 +51,7 @@ export function ComposerTopRow({
   availableChannels,
   selectedChannelId,
   conversationChannelId,
+  customerChannelId,
   onSelectChannel,
   busy,
   signatureAllowed,
@@ -118,6 +120,7 @@ export function ComposerTopRow({
           channels={availableChannels}
           selectedChannelId={selectedChannelId ?? null}
           conversationChannelId={conversationChannelId ?? null}
+          customerChannelId={customerChannelId}
           onSelect={onSelectChannel}
           disabled={busy}
         />

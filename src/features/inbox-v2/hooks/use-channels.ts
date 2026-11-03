@@ -219,12 +219,72 @@ export function findLastPublicMessageChannelId(
   return null;
 }
 
+/**
+ * Última mensagem DO CLIENTE (inbound pública) com `channelId`: o número em
+ * que o cliente escreveu por último. Nota interna e evento não contam.
+ */
+export function findLastInboundMessage(
+  messages:
+    | Array<{
+        id?: string | null;
+        direction?: string | null;
+        channelId?: string | null;
+        isPrivate?: boolean;
+        private?: boolean;
+        messageType?: string | number;
+      }>
+    | undefined,
+): { id: string | null; channelId: string } | null {
+  if (!messages?.length) return null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.direction !== "in") continue;
+    if (m.isPrivate || m.private) continue;
+    const t = String(m.messageType ?? "").toLowerCase();
+    if (t === "note" || t === "event" || t.startsWith("event:")) continue;
+    if (m.channelId) return { id: m.id ?? null, channelId: m.channelId };
+  }
+  return null;
+}
+
+/**
+ * Escolha manual guardada por conversa. `afterInboundId` = última mensagem do
+ * cliente quando o consultor escolheu: chegou outra depois, a escolha caduca e
+ * o seletor volta para o canal do cliente. Valor antigo (só o id) é aceito.
+ */
+type PersistedChannelChoice = { channelId: string; afterInboundId: string | null };
+
+function readPersistedChoice(raw: string | null): PersistedChannelChoice | null {
+  if (!raw) return null;
+  if (raw.startsWith("{")) {
+    try {
+      const o = JSON.parse(raw) as Partial<PersistedChannelChoice>;
+      if (typeof o.channelId === "string" && o.channelId) {
+        return {
+          channelId: o.channelId,
+          afterInboundId: typeof o.afterInboundId === "string" ? o.afterInboundId : null,
+        };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  return { channelId: raw, afterInboundId: null };
+}
+
 export function useSelectedOutboundChannel(args: {
   conversationId: string | null;
   conversationChannelId: string | null | undefined;
   availableChannels: OutboundChannelOption[] | undefined;
   /** Canal da última msg pública — preferido quando o da conversa está morto. */
   lastMessageChannelId?: string | null;
+  /**
+   * Última mensagem do cliente (`findLastInboundMessage`). Quando o cliente
+   * escreve por um canal, o seletor passa a enviar por ele — a escolha manual
+   * só vale até a próxima mensagem do cliente.
+   */
+  lastInbound?: { id: string | null; channelId: string } | null;
 }): {
   selectedChannelId: string | null;
   setSelectedChannelId: (id: string) => void;
@@ -234,7 +294,10 @@ export function useSelectedOutboundChannel(args: {
     conversationChannelId,
     availableChannels,
     lastMessageChannelId,
+    lastInbound,
   } = args;
+  const lastInboundId = lastInbound?.id ?? null;
+  const lastInboundChannelId = lastInbound?.channelId ?? null;
 
   const storageKey = useMemo(
     () =>
@@ -265,7 +328,15 @@ export function useSelectedOutboundChannel(args: {
     let next: string | null = null;
     if (storageKey) {
       try {
-        const persisted = window.localStorage.getItem(storageKey);
+        const choice = readPersistedChoice(window.localStorage.getItem(storageKey));
+        // Cliente escreveu depois da escolha (ou escolha sem marca): vale o
+        // canal do cliente.
+        const stale =
+          !!choice &&
+          !!lastInboundChannelId &&
+          validIds.has(lastInboundChannelId) &&
+          (choice.afterInboundId == null || choice.afterInboundId !== lastInboundId);
+        const persisted = choice && !stale ? choice.channelId : null;
         if (persisted && validIds.has(persisted)) {
           const persistedType = availableChannels.find((c) => c.id === persisted)?.type;
           const convType = availableChannels.find(
@@ -278,6 +349,9 @@ export function useSelectedOutboundChannel(args: {
       } catch {
         /* ignore */
       }
+    }
+    if (!next && lastInboundChannelId && validIds.has(lastInboundChannelId)) {
+      next = lastInboundChannelId;
     }
     if (!next && lastMessageChannelId && validIds.has(lastMessageChannelId)) {
       next = lastMessageChannelId;
@@ -293,6 +367,8 @@ export function useSelectedOutboundChannel(args: {
     conversationId,
     conversationChannelId,
     lastMessageChannelId,
+    lastInboundId,
+    lastInboundChannelId,
     availableChannels,
     storageKey,
   ]);
@@ -302,13 +378,14 @@ export function useSelectedOutboundChannel(args: {
       setSelectedChannelIdState(id);
       if (storageKey) {
         try {
-          window.localStorage.setItem(storageKey, id);
+          const choice: PersistedChannelChoice = { channelId: id, afterInboundId: lastInboundId };
+          window.localStorage.setItem(storageKey, JSON.stringify(choice));
         } catch {
           /* ignore */
         }
       }
     },
-    [storageKey],
+    [storageKey, lastInboundId],
   );
 
   return { selectedChannelId, setSelectedChannelId };

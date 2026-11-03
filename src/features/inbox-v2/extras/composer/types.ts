@@ -55,6 +55,8 @@ export interface ComposerProps {
   conversationChannelId?: string | null;
   /** Canal da última mensagem pública — usado pra pré-selecionar no modal. */
   lastMessageChannelId?: string | null;
+  /** Canal da última mensagem do cliente — marcado no seletor "Enviar por". */
+  customerChannelId?: string | null;
   /** Callback quando o agente troca o canal de envio. */
   onSelectChannel?: (channelId: string) => void;
   /**

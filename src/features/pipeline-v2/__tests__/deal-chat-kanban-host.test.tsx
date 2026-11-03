@@ -71,6 +71,7 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
     useSelectedOutboundChannel: () => ({ selectedChannelId: "ch-1", setSelectedChannelId: vi.fn() }),
     useChannelSession: h.useChannelSession,
     findLastPublicMessageChannelId: () => "ch-1",
+    findLastInboundMessage: () => null,
     resolveWhatsappSessionScope: channels.resolveWhatsappSessionScope,
   };
 });

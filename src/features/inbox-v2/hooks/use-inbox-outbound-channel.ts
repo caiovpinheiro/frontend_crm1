@@ -8,6 +8,7 @@ import {
 } from "../adapters";
 import type { ConversationListRow, MessagesResponse } from "../api";
 import {
+  findLastInboundMessage,
   findLastPublicMessageChannelId,
   isWebchatChannel,
   outboundChannelsForConversation,
@@ -46,12 +47,19 @@ export function useInboxOutboundChannel(params: {
     () => findLastPublicMessageChannelId(messagesData?.messages),
     [messagesData?.messages],
   );
+  // Número em que o cliente escreveu por último: o seletor envia por ele.
+  const lastInbound = useMemo(
+    () => findLastInboundMessage(messagesData?.messages),
+    [messagesData?.messages],
+  );
+  const customerChannelId = lastInbound?.channelId ?? null;
   const { selectedChannelId, setSelectedChannelId } = useSelectedOutboundChannel(
     {
       conversationId: conversationApiId,
       conversationChannelId,
       availableChannels: whatsappChannels,
       lastMessageChannelId,
+      lastInbound,
     },
   );
   const selectedOutbound = whatsappChannels?.find((c) => c.id === selectedChannelId);
@@ -118,6 +126,7 @@ export function useInboxOutboundChannel(params: {
     whatsappChannels,
     conversationChannelId,
     lastMessageChannelId,
+    customerChannelId,
     selectedChannelId,
     setSelectedChannelId,
     effectiveProvider: sessionScope.effectiveProvider,

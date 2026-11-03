@@ -110,6 +110,7 @@ export function Composer({
   selectedChannelId,
   conversationChannelId,
   lastMessageChannelId,
+  customerChannelId,
   onSelectChannel,
   replyTo,
   onCancelReply,
@@ -697,6 +698,7 @@ export function Composer({
           selectedChannelId={selectedChannelId ?? null}
           conversationChannelId={conversationChannelId ?? null}
           lastMessageChannelId={lastMessageChannelId ?? null}
+          customerChannelId={customerChannelId ?? null}
           onSelectChannel={onSelectChannel}
         />
       ) : null}
@@ -755,6 +757,7 @@ export function Composer({
           availableChannels={availableChannels}
           selectedChannelId={selectedChannelId}
           conversationChannelId={conversationChannelId}
+          customerChannelId={customerChannelId}
           onSelectChannel={onSelectChannel}
           busy={busy}
           signatureAllowed={signatureAllowed}
