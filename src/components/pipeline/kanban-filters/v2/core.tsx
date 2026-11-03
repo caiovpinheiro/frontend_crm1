@@ -778,6 +778,25 @@ export function UtmSourcesSection({ draft, options, setDraftField, toggleArray }
   );
 }
 
+/** Só os negócios criados por "Duplicar" (`intentionalDuplicate`). */
+export function IntentionalDuplicateSection({ draft, setDraftField }: SectionProps) {
+  const active = draft.intentionalDuplicate === true;
+  return (
+    <FieldCard
+      label="Duplicata intencional"
+      active={active}
+      onClear={() => setDraftField("intentionalDuplicate", undefined)}
+    >
+      <ChipToggle
+        active={active}
+        onClick={() => setDraftField("intentionalDuplicate", active ? undefined : true)}
+      >
+        Só duplicatas intencionais
+      </ChipToggle>
+    </FieldCard>
+  );
+}
+
 export function LossReasonsSection({ draft, options, setDraftField, toggleArray }: SectionProps) {
   const reasons = options?.lossReasons ?? [];
   if (reasons.length === 0) return null;

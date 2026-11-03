@@ -90,6 +90,14 @@ describe("URL dos filtros do Pipeline", () => {
     expect(hasDealFilterUrlParams(toParams({ window: "closed" }))).toBe(true);
     expect(hasDealFilterUrlParams(toParams({ deal: "68626" }))).toBe(false);
   });
+
+  it("leva o filtro de duplicata intencional na URL", () => {
+    const params = toParams(dealFiltersToUrlParams({ intentionalDuplicate: true }));
+    expect(params.get("dup")).toBe("1");
+    expect(hasDealFilterUrlParams(params)).toBe(true);
+    expect(dealFiltersFromUrlParams(params)).toEqual({ intentionalDuplicate: true });
+    expect(dealFiltersFromUrlParams(toParams({ dup: "0" }))).toEqual({});
+  });
 });
 
 describe("URL dos filtros do Inbox", () => {

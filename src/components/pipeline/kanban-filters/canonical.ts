@@ -20,6 +20,7 @@ import type {
 const FALSE_IS_DEFAULT = new Set<keyof AdvancedDealFilters>([
   "withoutOwner",
   "withoutContact",
+  "intentionalDuplicate",
   "withoutSource",
   "withoutUtmSource",
   "withoutTags",

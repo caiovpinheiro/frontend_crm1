@@ -53,6 +53,11 @@ export type AdvancedDealFilters = {
   ownerIds?: (string | null)[];
   withoutOwner?: boolean;
   withoutContact?: boolean;
+  /**
+   * Só negócios criados por "Duplicar" (`Deal.intentionalDuplicate`). Outros
+   * repetidos (mesmo contato, unificação) ficam de fora.
+   */
+  intentionalDuplicate?: boolean;
   /** Origens do contato (Contact.source). Pode incluir `SOURCE_NONE`. */
   sources?: string[];
   /** true = só leads sem origem. */
@@ -166,6 +171,7 @@ export function countActiveFilters(f: AdvancedDealFilters | null | undefined): n
   if (f.statuses?.length) n++;
   if (f.ownerIds?.length || f.withoutOwner) n++;
   if (f.withoutContact) n++;
+  if (f.intentionalDuplicate) n++;
   if (f.sources?.length || f.withoutSource) n++;
   if (f.utmSources?.length || f.withoutUtmSource) n++;
   if (f.lostReasons?.length) n++;
