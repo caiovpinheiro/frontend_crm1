@@ -165,6 +165,7 @@ export function TemplateComposePanel({
   selectedChannelId,
   conversationChannelId,
   lastMessageChannelId,
+  customerChannelId,
   onSelectChannel,
 }: {
   conversationId: string;
@@ -184,6 +185,8 @@ export function TemplateComposePanel({
   conversationChannelId?: string | null;
   /** Canal da última mensagem pública — pré-seleção se ainda CONNECTED. */
   lastMessageChannelId?: string | null;
+  /** Canal da última mensagem do cliente — marcado no seletor. */
+  customerChannelId?: string | null;
   onSelectChannel?: (channelId: string) => void;
 }) {
   const qc = useQueryClient();
@@ -576,6 +579,7 @@ export function TemplateComposePanel({
             channels={waChannels ?? []}
             selectedChannelId={selectedChannelId ?? null}
             conversationChannelId={conversationChannelId ?? null}
+            customerChannelId={customerChannelId}
             onSelect={onSelectChannel!}
             disabled={sendMutation.isPending}
             className="mr-auto"

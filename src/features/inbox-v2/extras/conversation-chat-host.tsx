@@ -48,6 +48,7 @@ import {
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 import {
+  findLastInboundMessage,
   findLastPublicMessageChannelId,
   resolveWhatsappSessionScope,
   useAddNoteToLog,
@@ -316,11 +317,18 @@ export function ConversationChatHost({
     () => findLastPublicMessageChannelId(messagesData?.messages),
     [messagesData?.messages],
   );
+  // Número em que o cliente escreveu por último: o seletor envia por ele.
+  const lastInbound = useMemo(
+    () => findLastInboundMessage(messagesData?.messages),
+    [messagesData?.messages],
+  );
+  const customerChannelId = lastInbound?.channelId ?? null;
   const { selectedChannelId, setSelectedChannelId } = useSelectedOutboundChannel({
     conversationId,
     conversationChannelId,
     availableChannels: whatsappChannels,
     lastMessageChannelId,
+    lastInbound,
   });
   const selectedOutbound = whatsappChannels?.find((c) => c.id === selectedChannelId);
   // Janela de 24h só na Cloud API: Baileys é WhatsApp mas não tem sessão
@@ -749,6 +757,7 @@ export function ConversationChatHost({
             selectedChannelId={selectedChannelId}
             conversationChannelId={conversationChannelId}
             lastMessageChannelId={lastMessageChannelId}
+            customerChannelId={customerChannelId}
             onSelectChannel={setSelectedChannelId}
             replyTo={replyTo}
             onCancelReply={cancelReply}

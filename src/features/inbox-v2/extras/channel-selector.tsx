@@ -14,14 +14,17 @@ import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channe
  * apenas quando a org tem >1 canal CONNECTED — orgs com 1 canal só não
  * precisam do widget (comportamento legacy preservado).
  *
- * O canal "atual" da conversa (último inbound) é destacado com um chip
- * "atual" no item da lista. O canal selecionado para envio é controlado
- * pelo pai, que persiste em localStorage por conversa.
+ * O canal em que o cliente escreveu por último (`customerChannelId`) leva o
+ * chip "cliente" na lista. Sem mensagem do cliente no thread, o canal da
+ * conversa leva o chip "atual". O canal selecionado para envio é controlado
+ * pelo pai (`useSelectedOutboundChannel`), que troca sozinho para o canal do
+ * cliente quando chega mensagem nova dele.
  */
 export function ChannelSelector({
   channels,
   selectedChannelId,
   conversationChannelId,
+  customerChannelId,
   onSelect,
   disabled,
   className,
@@ -30,13 +33,17 @@ export function ChannelSelector({
   selectedChannelId: string | null;
   /** Canal "atual" da conversa (último inbound) — destacado como referência. */
   conversationChannelId: string | null;
+  /** Canal da última mensagem do cliente. Ausente = usa o da conversa. */
+  customerChannelId?: string | null;
   onSelect: (channelId: string) => void;
   disabled?: boolean;
   className?: string;
 }) {
+  const referenceId = customerChannelId ?? conversationChannelId;
+  const referenceLabel = customerChannelId ? "cliente" : "atual";
   const options = useMemo<DropdownOption[]>(() => {
     return channels.map((ch) => {
-      const isCurrent = ch.id === conversationChannelId;
+      const isCurrent = ch.id === referenceId;
       return {
         value: ch.id,
         label: (
@@ -44,7 +51,7 @@ export function ChannelSelector({
             <span className="whitespace-normal break-words">{ch.name}</span>
             {isCurrent ? (
               <span className="shrink-0 rounded-full bg-success/15 px-1.5 py-0.5 font-display text-[10px] font-semibold text-success ring-1 ring-inset ring-success/25">
-                atual
+                {referenceLabel}
               </span>
             ) : null}
           </span>
@@ -53,11 +60,17 @@ export function ChannelSelector({
         description: ch.phoneNumber ?? undefined,
       };
     });
-  }, [channels, conversationChannelId]);
+  }, [channels, referenceId, referenceLabel]);
 
   const selected = channels.find((c) => c.id === selectedChannelId) ?? null;
   const labelText = selected?.name ?? "Selecionar canal";
   const sublabelText = selected?.phoneNumber ?? null;
+  const customerChannel = customerChannelId
+    ? (channels.find((c) => c.id === customerChannelId) ?? null)
+    : null;
+  const customerHint = customerChannel
+    ? `Cliente escreveu por último em ${customerChannel.name}`
+    : null;
 
   return (
     <div className="inline-flex max-w-none shrink-0 overflow-visible">
@@ -68,7 +81,7 @@ export function ChannelSelector({
         disabled={disabled}
         matchTriggerWidth={false}
         wrapLabels
-        menuLabel="Enviar por"
+        menuLabel={customerHint ? `Enviar por · ${customerHint}` : "Enviar por"}
         align="end"
         side="top"
         className="min-w-[16rem] max-w-[min(100vw-1.5rem,22rem)]"
@@ -82,6 +95,7 @@ export function ChannelSelector({
               className,
             )}
             aria-label={`Canal de envio: ${labelText}${sublabelText ? ` ${sublabelText}` : ""}`}
+            title={customerHint ?? undefined}
           >
             <ChannelTypeIcon type={selected?.type} size={13} />
             <span className="whitespace-nowrap">
@@ -97,7 +111,7 @@ export function ChannelSelector({
               size={10}
               className={cn(
                 "shrink-0",
-                selectedChannelId && selectedChannelId === conversationChannelId
+                selectedChannelId && selectedChannelId === referenceId
                   ? "text-success"
                   : "text-[var(--brand-primary)]",
               )}

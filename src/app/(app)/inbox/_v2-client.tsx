@@ -430,6 +430,7 @@ export default function InboxV2ClientPage({
     whatsappChannels,
     conversationChannelId,
     lastMessageChannelId,
+    customerChannelId,
     selectedChannelId,
     setSelectedChannelId,
     effectiveProvider,
@@ -925,6 +926,7 @@ export default function InboxV2ClientPage({
             selectedChannelId={selectedChannelId}
             conversationChannelId={conversationChannelId}
             lastMessageChannelId={lastMessageChannelId}
+            customerChannelId={customerChannelId}
             onSelectChannel={setSelectedChannelId}
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
