@@ -59,6 +59,7 @@ import {
   type AutomationFlowSource,
 } from "@/lib/flow-automation-adapter"
 import { applyStatsToNodes } from "@/lib/flow-node-stats"
+import { STATS_PERIOD_OPTIONS, type StatsPeriod } from "@/lib/automation-stats-types"
 import {
   useAutomation,
   useAutomationStats,
@@ -124,6 +125,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const [showErrors, setShowErrors] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
   const [logsTarget, setLogsTarget] = useState<LogsTarget | null>(null)
+  const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>("all")
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [paneMenu, setPaneMenu] = useState<{ x: number; y: number } | null>(null)
@@ -155,7 +157,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
   )
 
   const automation = useAutomation(automationId)
-  const stats = useAutomationStats(automationId)
+  const stats = useAutomationStats(automationId, true, statsPeriod)
   const replaceAutomation = useReplaceAutomation()
   const toggleAutomation = useToggleAutomation()
   const updateAutomation = useUpdateAutomation()
@@ -926,6 +928,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
       </ReactFlow>
 
       <Legend />
+      <StatsPeriodPicker value={statsPeriod} onChange={setStatsPeriod} />
 
       {isEmpty && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
@@ -946,6 +949,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
         target={logsTarget}
         open={logsTarget !== null}
         onOpenChange={(o) => !o && setLogsTarget(null)}
+        period={statsPeriod}
       />
       <StepPickerModal
         open={pickerOpen}
@@ -1036,6 +1040,47 @@ function InnerEditor({ automationId }: { automationId: string }) {
       </div>
     </div>
     </LogsContext.Provider>
+  )
+}
+
+/**
+ * Período dos contadores de todos os cards (Sucessos/Alertas/Erros e o % por
+ * saída). "Hoje"/"Ontem" são dias de Brasília — o backend calcula o corte.
+ */
+function StatsPeriodPicker({
+  value,
+  onChange,
+}: {
+  value: StatsPeriod
+  onChange: (p: StatsPeriod) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Período dos números"
+      className="absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-border bg-[var(--color-bg-card)] p-0.5 text-[11px] shadow-sm"
+    >
+      <span className="px-1.5 text-muted-foreground">Números:</span>
+      {STATS_PERIOD_OPTIONS.map((o) => {
+        const on = o.value === value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(o.value)}
+            className={
+              on
+                ? "rounded px-2 py-0.5 font-semibold bg-foreground text-background"
+                : "rounded px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

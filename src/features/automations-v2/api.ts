@@ -12,7 +12,7 @@
  */
 
 import { apiUrl } from "@/lib/api";
-import type { AutomationStats } from "@/lib/automation-stats-types";
+import type { AutomationStats, StatsPeriod } from "@/lib/automation-stats-types";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { mockAutomationSummary, mockAutomationsPage } from "./mock-automations";
 
@@ -145,9 +145,13 @@ export function fetchAutomation(id: string): Promise<AutomationDetailDto> {
  * `FAILED`…; `STARTED` é eco e o card não soma); `steps` já vem
  * agregado por passo.
  */
-export function fetchAutomationStats(id: string): Promise<AutomationStats> {
+export function fetchAutomationStats(
+  id: string,
+  period: StatsPeriod = "all",
+): Promise<AutomationStats> {
+  const qs = period === "all" ? "" : `?period=${period}`;
   return getJson<AutomationStats>(
-    `/api/automations/${id}/stats`,
+    `/api/automations/${id}/stats${qs}`,
     "Erro ao carregar estatísticas da automação.",
   );
 }
@@ -205,12 +209,14 @@ export function fetchAutomationLogs(
     page?: number;
     perPage?: number;
     status?: readonly string[];
+    period?: StatsPeriod;
   } = {},
 ): Promise<AutomationLogsPage> {
   const sp = new URLSearchParams();
   sp.set("page", String(params.page ?? 1));
   sp.set("perPage", String(params.perPage ?? 50));
   if (params.stepId) sp.set("stepId", params.stepId);
+  if (params.period && params.period !== "all") sp.set("period", params.period);
   if (params.status?.length) {
     // `status` CSV: o que 381fcdb lê. `logStatus` repetido: não depende
     // de split por vírgula nem de um único get("status").

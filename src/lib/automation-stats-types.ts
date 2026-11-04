@@ -1,3 +1,17 @@
+/**
+ * Período dos contadores do canvas (`?period=`). Dias de Brasília, calculados
+ * no backend (`automation-stats-period`). `all` = sem filtro.
+ */
+export type StatsPeriod = "all" | "today" | "yesterday" | "7d" | "30d";
+
+export const STATS_PERIOD_OPTIONS: { value: StatsPeriod; label: string }[] = [
+  { value: "today", label: "Hoje" },
+  { value: "yesterday", label: "Ontem" },
+  { value: "7d", label: "7 dias" },
+  { value: "30d", label: "30 dias" },
+  { value: "all", label: "Tudo" },
+];
+
 export type StepStats = {
   stepType: string;
   success: number;
