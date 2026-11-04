@@ -106,8 +106,8 @@ describe("groupSiteEvents", () => {
   });
 });
 
-describe("SiteTimeline (linha do tempo completa)", () => {
-  it("agrupa com ×N, destaca importante e mostra principal + demais dados", () => {
+describe("SiteTimeline (histórico)", () => {
+  it("agrupa com ×N e destaca importante; uma linha por evento, o clique abre os dados", () => {
     const events = [
       ev("pediu_ajuda", { assunto: "Cadastro", origem: "rodape" }, 1, true),
       ev("secao_aberta", { titulo: "Ajuda", caminho: "/ajuda" }, 2),
@@ -121,36 +121,45 @@ describe("SiteTimeline (linha do tempo completa)", () => {
 
     const important = items[0]!;
     expect(within(important).getByText("Pediu ajuda")).toBeTruthy();
-    expect(within(important).getByText("importante")).toBeTruthy();
+    expect(within(important).getByText("Importante:")).toBeTruthy();
+    expect(within(important).queryByText("Cadastro")).toBeNull();
+    expect(within(important).queryByText("Origem: rodape")).toBeNull();
+    const open = within(important).getByRole("button");
+    expect(open.getAttribute("aria-expanded")).toBe("false");
+    act(() => open.click());
+    expect(open.getAttribute("aria-expanded")).toBe("true");
     expect(within(important).getByText("Cadastro")).toBeTruthy();
     expect(within(important).getByText("Origem: rodape")).toBeTruthy();
     expect(within(important).getByText("há 1 min")).toBeTruthy();
     expect(important.querySelector(".bg-warning-soft")).not.toBeNull();
-    expect(important.querySelector("svg")).not.toBeNull();
+    expect(important.querySelector(".bg-warning")).not.toBeNull();
 
     const grouped = items[1]!;
     expect(within(grouped).getByText("Secao aberta")).toBeTruthy();
     expect(within(grouped).getByText("×3")).toBeTruthy();
     expect(within(grouped).getByText(", 3 vezes")).toBeTruthy();
     expect(within(grouped).getByText("há 2 min")).toBeTruthy();
+    expect(within(grouped).queryByText("Ajuda")).toBeNull();
+    act(() => within(grouped).getByRole("button").click());
+    expect(within(grouped).getByText("Ajuda")).toBeTruthy();
     expect(within(grouped).getByText("Caminho: /ajuda")).toBeTruthy();
-    expect(within(grouped).queryByText("importante")).toBeNull();
+    expect(within(grouped).queryByText("Importante:")).toBeNull();
     expect(grouped.querySelector(".bg-warning-soft")).toBeNull();
   });
 
-  it("mostra 5 linhas e 'ver mais' até as 10 recebidas", () => {
+  it("mostra 3 linhas e 'ver mais' até as 10 recebidas", () => {
     const events = Array.from({ length: 10 }, (_, i) => ev(`evento_${i}`, null, i + 1));
     render(<SiteTimeline events={events} labels={{}} now={NOW} />);
     const list = screen.getByRole("list", { name: "Últimos eventos no site" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(WEBCHAT_PANEL_TIMELINE_ROWS);
-    const more = screen.getByRole("button", { name: "ver mais (+5)" });
+    const more = screen.getByRole("button", { name: "ver mais (+7)" });
     act(() => more.click());
     expect(within(list).getAllByRole("listitem")).toHaveLength(10);
     expect(within(list).getByText("Evento 9")).toBeTruthy();
     expect(screen.getByRole("button", { name: "ver menos" }).getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("até 5 linhas depois de agrupar: sem 'ver mais'", () => {
+  it("até 3 linhas depois de agrupar: sem 'ver mais'", () => {
     const events = Array.from({ length: 8 }, (_, i) => ev("secao_aberta", { titulo: "Ajuda" }, i + 1));
     render(<SiteTimeline events={events} labels={{}} now={NOW} />);
     expect(screen.getByText("×8")).toBeTruthy();

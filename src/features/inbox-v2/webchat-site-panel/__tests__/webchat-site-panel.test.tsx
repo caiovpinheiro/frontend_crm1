@@ -84,23 +84,25 @@ describe("model", () => {
 });
 
 describe("WebchatSitePanelView", () => {
-  it("resumo: destaque do importante, estado em chips, caminho e linha do tempo sob demanda", () => {
+  it("resumo: situação do importante, última localização; caminho e histórico em 'Ver o que fez no site'", () => {
     render(<WebchatSitePanelView data={panel()} now={NOW} />);
     expect(screen.getByText("No site agora")).toBeTruthy();
     expect(screen.getByText("· agora")).toBeTruthy();
-    expect(screen.getByText(/Passo concluido · Etapa atual: 2/)).toBeTruthy();
+    const highlight = screen.getByText("Evento importante:").parentElement!;
+    expect(highlight.textContent).toBe("Evento importante: Passo concluido");
+    expect(within(highlight.parentElement!).getByText("Etapa atual 2")).toBeTruthy();
     const chips = screen.getByRole("list", { name: "Estado atual no site" });
     expect(within(chips).getByText("Etapa atual: 2")).toBeTruthy();
     expect(within(chips).getByText("Progresso: 40")).toBeTruthy();
     expect(within(chips).getByText("Concluido: não")).toBeTruthy();
+    act(() => screen.getByRole("button", { name: "Ver o que fez no site (1)" }).click());
     const path = screen.getByRole("list", { name: "Caminho recente no site" });
     expect(within(path).getByText("Abriu pagina")).toBeTruthy();
-    expect(screen.queryByRole("list", { name: "Últimos eventos no site" })).toBeNull();
-    act(() => screen.getByRole("button", { name: /Ver linha do tempo completa/ }).click());
     const items = within(screen.getByRole("list", { name: "Últimos eventos no site" })).getAllByRole("listitem");
-    expect(items).toHaveLength(2);
-    expect(within(items[0]!).getByText("importante")).toBeTruthy();
-    expect(within(items[1]!).getByText("há 2 h")).toBeTruthy();
+    // O importante já está no destaque: o histórico fica com o restante.
+    expect(items).toHaveLength(1);
+    expect(within(items[0]!).getByText("Abriu pagina")).toBeTruthy();
+    expect(within(items[0]!).getByText("há 2 h")).toBeTruthy();
   });
 
   it("não aparece fora do webchat nem sem nada enviado pelo site", () => {
@@ -136,7 +138,9 @@ describe("WebchatSitePanel (GET + SSE)", () => {
 
   it("sinal do mesmo contato/canal refaz o GET (sem usar valores do SSE); outro contato é ignorado", async () => {
     wrap(<WebchatSitePanel conversationId="conv-1" />);
-    await waitFor(() => expect(screen.getByText("Etapa atual: 2")).toBeTruthy());
+    await waitFor(() =>
+      expect(within(screen.getByRole("list", { name: "Estado atual no site" })).getByText("Etapa atual: 2")).toBeTruthy(),
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/api/conversations/conv-1/webchat-context");
 
@@ -172,9 +176,11 @@ describe("WebchatSitePanel (GET + SSE)", () => {
         latestOccurredAt: iso(0),
       });
     });
-    await waitFor(() => expect(screen.getByText("Pediu ajuda")).toBeTruthy());
-    expect(screen.getByText("Etapa atual: 5")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Etapa atual: 5")).toBeTruthy());
     expect(screen.getByText("b")).toBeTruthy();
+    // Com localização, a atividade fica recolhida: abre para ver o evento novo.
+    act(() => screen.getByRole("button", { name: "Ver o que fez no site (1)" }).click());
+    expect(screen.getAllByText("Pediu ajuda").length).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

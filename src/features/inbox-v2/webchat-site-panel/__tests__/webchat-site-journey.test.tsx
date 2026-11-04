@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 /**
- * Painel "No site agora" — resumo da jornada: destaque do último evento
- * importante (com "N× hoje"), estado em chips recolhidos, caminho recente
- * (ordem, agrupamento, "+N anteriores") e a linha do tempo completa sob
- * demanda. Dados neutros.
+ * Painel "No site agora" — resumo da jornada: situação (chaves reservadas
+ * e último evento importante, com "N× hoje"), estado em chips recolhidos,
+ * caminho (ordem, agrupamento, "+N anteriores") e histórico sob demanda.
+ * Dados neutros.
  */
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import {
   siteHighlight,
   sitePath,
   siteStateChips,
+  siteStatus,
   WEBCHAT_PANEL_PATH_STEPS,
   WEBCHAT_PANEL_STATE_CHIPS,
 } from "@/features/inbox-v2/webchat-site-panel/journey";
@@ -50,10 +51,22 @@ describe("siteHighlight", () => {
     expect(siteHighlight(events, { pediu_ajuda: "Pedido de ajuda" }, NOW)).toEqual({
       id: events[1]!.id,
       title: "Pedido de ajuda",
-      primary: "Cadastro",
+      badge: "Cadastro",
+      message: null,
       others: "Origem: rodape",
       occurredAt: events[1]!.occurredAt,
       todayCount: 2,
+    });
+  });
+
+  it("selo numérico com rótulo; texto longo vira a mensagem e sai dos demais dados", () => {
+    const events = [
+      ev("pediu_ajuda", { nivel: 6, origem: "travei", mensagem: "Oi! Travei no Módulo 6 da Aula Inaugural." }, 1, true),
+    ];
+    expect(siteHighlight(events, { nivel: "Nível" }, NOW)).toMatchObject({
+      badge: "Nível 6",
+      message: "Oi! Travei no Módulo 6 da Aula Inaugural.",
+      others: "Origem: travei",
     });
   });
 
@@ -112,24 +125,66 @@ describe("sitePath", () => {
   });
 });
 
+describe("siteStatus", () => {
+  it("lê selo, frase e progresso; número em texto vale; fora do intervalo, limita", () => {
+    expect(
+      siteStatus({ situacao: " Estudando ", resumo: "No módulo 4", progresso_atual: "4", progresso_total: 7 }),
+    ).toEqual({ status: "Estudando", summary: "No módulo 4", progress: { current: 4, total: 7, label: null } });
+    expect(siteStatus({ progresso_atual: 9, progresso_total: 7 }).progress).toEqual({ current: 7, total: 7, label: null });
+  });
+
+  it("sem total válido, sem progresso; vazio, tudo null", () => {
+    expect(siteStatus({ progresso_atual: 3 }).progress).toBeNull();
+    expect(siteStatus({ progresso_atual: 3, progresso_total: 0 }).progress).toBeNull();
+    expect(siteStatus({ progresso_atual: "três", progresso_total: 7 }).progress).toBeNull();
+    expect(siteStatus({})).toEqual({ status: null, summary: null, progress: null });
+  });
+
+  it("chaves reservadas não viram chips", () => {
+    const chips = siteStateChips({ situacao: "Estudando", resumo: "x", progresso_atual: 1, tela: "Início" }, {});
+    expect(chips.map((c) => c.key)).toEqual(["tela"]);
+  });
+});
+
 describe("WebchatSitePanelView — resumo da jornada", () => {
-  it("destaque aparece com N× hoje; sem importante, não aparece", () => {
+  it("situação sem chaves reservadas: título do importante + selo, mensagem entre aspas; o clique abre os demais dados", () => {
     const events = [
-      ev("pediu_ajuda", { assunto: "Cadastro", origem: "rodape" }, 1, true),
-      ev("pediu_ajuda", { assunto: "Senha" }, 30, true),
+      ev(
+        "pediu_ajuda",
+        { nivel: 6, origem: "rodape", mensagem: "Oi! Travei no Módulo 6 da Aula Inaugural." },
+        1,
+        true,
+      ),
+      ev("pediu_ajuda", { nivel: 2 }, 30, true),
     ];
     const { rerender } = render(<WebchatSitePanelView data={panel({ events })} now={NOW} />);
-    expect(screen.getByText("Evento importante:")).toBeTruthy();
-    expect(screen.getByText(/Pediu ajuda · Cadastro/)).toBeTruthy();
-    expect(screen.getByText("Origem: rodape · há 1 min · 2× hoje")).toBeTruthy();
+    const title = screen.getByText("Evento importante:").parentElement!;
+    expect(title.textContent).toBe("Evento importante: Pediu ajuda");
+    expect(within(title.parentElement!).getByText("Nivel 6")).toBeTruthy();
+    // Mensagem visível já fechado (duas linhas); demais dados só no clique.
+    const quote = screen.getByRole("button", { name: /Oi! Travei no Módulo 6/ });
+    expect(quote.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/Origem: rodape/)).toBeNull();
+    act(() => quote.click());
+    expect(quote.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Origem: rodape · 2× hoje")).toBeTruthy();
+    act(() => quote.click());
+    expect(screen.queryByText(/Origem: rodape/)).toBeNull();
+    // Histórico recolhido em "Ver o que fez no site", sem repetir o destaque.
+    expect(screen.queryByRole("list", { name: "Últimos eventos no site" })).toBeNull();
+    act(() => screen.getByRole("button", { name: "Ver o que fez no site (1)" }).click());
+    const history = within(screen.getByRole("list", { name: "Últimos eventos no site" }));
+    expect(history.getAllByRole("listitem")).toHaveLength(1);
+    expect(history.getByText("há 30 min")).toBeTruthy();
 
     rerender(<WebchatSitePanelView data={panel({ events: [ev("secao_aberta", null, 1)] })} now={NOW} />);
     expect(screen.queryByText("Evento importante:")).toBeNull();
   });
 
-  it("um importante só hoje: sem N× hoje", () => {
-    render(<WebchatSitePanelView data={panel({ events: [ev("pediu_ajuda", null, 1, true)] })} now={NOW} />);
-    expect(screen.getByText("há 1 min")).toBeTruthy();
+  it("um importante só hoje: sem N× hoje; sem mensagem nem dados extras, nada a abrir", () => {
+    render(<WebchatSitePanelView data={panel({ events: [ev("pediu_ajuda", { assunto: "Senha" }, 1, true)] })} now={NOW} />);
+    expect(screen.getByText("Evento importante:")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Ver detalhes/ })).toBeNull();
     expect(screen.queryByText(/× hoje/)).toBeNull();
   });
 
@@ -152,7 +207,7 @@ describe("WebchatSitePanelView — resumo da jornada", () => {
     expect(within(list).getAllByRole("listitem")).toHaveLength(WEBCHAT_PANEL_STATE_CHIPS);
   });
 
-  it("caminho: últimos 4 passos, + N anteriores à esquerda, ×N e intervalo", () => {
+  it("caminho (intervalo no tooltip): últimos 4 passos, + N anteriores à esquerda e ×N", () => {
     const events = [
       ev("secao_aberta", { titulo: "Passo F" }, 1),
       ev("secao_aberta", { titulo: "Passo E" }, 2),
@@ -163,7 +218,9 @@ describe("WebchatSitePanelView — resumo da jornada", () => {
       ev("secao_aberta", { titulo: "Passo A" }, 7),
     ];
     render(<WebchatSitePanelView data={panel({ events })} now={NOW} />);
-    expect(screen.getByText("· últimos 7 min")).toBeTruthy();
+    // Só atividade (sem situação nem localização): "Ver o que fez no site" já abre.
+    expect(screen.getByRole("button", { name: "Ocultar o que fez no site" })).toBeTruthy();
+    expect(screen.getByText("Caminho").getAttribute("title")).toBe("últimos 7 min");
     const list = screen.getByRole("list", { name: "Caminho recente no site" });
     const texts = () => within(list).getAllByRole("listitem").map((li) => li.textContent?.replace("›", ""));
     expect(texts()).toHaveLength(WEBCHAT_PANEL_PATH_STEPS);
@@ -175,28 +232,57 @@ describe("WebchatSitePanelView — resumo da jornada", () => {
     expect(screen.getByRole("button", { name: "menos" }).getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("linha do tempo completa recolhida por padrão; o botão abre e fecha", () => {
+  it("histórico aparece direto, sem botão para abrir", () => {
     render(<WebchatSitePanelView data={panel({ events: [ev("secao_aberta", { titulo: "Ajuda" }, 1)] })} now={NOW} />);
-    expect(screen.queryByRole("list", { name: "Últimos eventos no site" })).toBeNull();
-    const toggle = screen.getByRole("button", { name: /Ver linha do tempo completa/ });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    act(() => toggle.click());
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Histórico")).toBeTruthy();
     expect(screen.getByRole("list", { name: "Últimos eventos no site" })).toBeTruthy();
-    act(() => screen.getByRole("button", { name: /Ocultar linha do tempo/ }).click());
-    expect(screen.queryByRole("list", { name: "Últimos eventos no site" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /linha do tempo/ })).toBeNull();
+  });
+
+  it("chaves reservadas: selo, frase no lugar do título, barra de progresso; fora dos chips", () => {
+    const state = {
+      situacao: "Precisa de ajuda",
+      resumo: "Travou no Módulo 6 da Aula Inaugural",
+      progresso_atual: "6",
+      progresso_total: 7,
+      progresso_rotulo: "Aula Inaugural",
+      tela: "Aula Inaugural",
+    };
+    const events = [ev("pedido_ajuda", { nivel: 6, mensagem: "Oi! Travei no Módulo 6, pode me ajudar?" }, 1, true)];
+    render(<WebchatSitePanelView data={panel({ context: { state, updatedAt: ago(1) }, events })} now={NOW} />);
+    expect(screen.getByText("Precisa de ajuda")).toBeTruthy();
+    const title = screen.getByText("Evento importante:").parentElement!;
+    expect(title.textContent).toBe("Evento importante: Travou no Módulo 6 da Aula Inaugural");
+    expect(screen.queryByText("Pedido ajuda")).toBeNull();
+    expect(screen.getByRole("button", { name: /Oi! Travei no Módulo 6, pode me ajudar/ })).toBeTruthy();
+    const bar = screen.getByRole("progressbar", { name: "Aula Inaugural" });
+    expect(bar.getAttribute("aria-valuenow")).toBe("6");
+    expect(bar.getAttribute("aria-valuemax")).toBe("7");
+    expect(screen.getByText("6 de 7")).toBeTruthy();
+    const chips = within(screen.getByRole("list", { name: "Estado atual no site" }));
+    expect(chips.getAllByRole("listitem")).toHaveLength(1);
+    expect(chips.getByText("Aula Inaugural")).toBeTruthy();
+  });
+
+  it("só situação (sem evento importante): cartão neutro com selo e frase", () => {
+    const state = { situacao: "Estudando", resumo: "Está no Módulo 4 da Aula Inaugural" };
+    render(<WebchatSitePanelView data={panel({ context: { state, updatedAt: ago(1) } })} now={NOW} />);
+    expect(screen.getByText("Estudando")).toBeTruthy();
+    expect(screen.getByText("Está no Módulo 4 da Aula Inaugural")).toBeTruthy();
+    expect(screen.queryByText("Evento importante:")).toBeNull();
+    expect(screen.queryByRole("list", { name: "Estado atual no site" })).toBeNull();
   });
 
   it("blocos sem dados somem; nada do site, sem painel", () => {
     const { container, rerender } = render(
       <WebchatSitePanelView data={panel({ events: [ev("pediu_ajuda", null, 1, true)] })} now={NOW} />,
     );
-    expect(screen.queryByText("Onde está")).toBeNull();
-    expect(screen.queryByText("Caminho")).toBeNull();
+    expect(screen.queryByText("Última localização")).toBeNull();
+    expect(screen.queryByText("Caminho recente")).toBeNull();
     rerender(<WebchatSitePanelView data={panel({ context: { state: { secao: "Inicio" }, updatedAt: ago(1) } })} now={NOW} />);
-    expect(screen.getByText("Onde está")).toBeTruthy();
-    expect(screen.queryByText("Caminho")).toBeNull();
-    expect(screen.queryByRole("button", { name: /linha do tempo/ })).toBeNull();
+    expect(screen.getByText("Última localização")).toBeTruthy();
+    expect(screen.queryByText("Caminho recente")).toBeNull();
+    expect(screen.queryByText("Histórico")).toBeNull();
     rerender(<WebchatSitePanelView data={panel({ context: { state: {}, updatedAt: ago(1) } })} now={NOW} />);
     expect(container.innerHTML).toBe("");
   });

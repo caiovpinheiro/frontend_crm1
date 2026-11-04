@@ -7,7 +7,13 @@
 import type { WebchatSiteValue } from "@/lib/realtime-contract";
 
 import { formatSiteValue, siteKeyLabel, type WebchatPanelEvent } from "./model";
-import { describeSiteEvent, isTextualSiteValue, otherDetailsText, primaryDetailText } from "./timeline";
+import {
+  describeSiteEvent,
+  isTextualSiteValue,
+  otherDetailsText,
+  primaryDetailText,
+  type SiteEventDetail,
+} from "./timeline";
 
 /** Chips do estado visíveis antes do "+N" (uma linha). */
 export const WEBCHAT_PANEL_STATE_CHIPS = 3;
@@ -19,7 +25,10 @@ export const WEBCHAT_PANEL_PATH_STEPS = 4;
 export type SiteHighlight = {
   id: string;
   title: string;
-  primary: string | null;
+  /** Selo ao lado do título: o detalhe principal ("Nível 6", "Cadastro"). */
+  badge: string | null;
+  /** Texto longo do evento (ex.: a mensagem do visitante), sem rótulo. */
+  message: string | null;
   /** Demais dados em uma linha ("Rótulo: valor · …"), ou "". */
   others: string;
   /** ISO */
@@ -36,6 +45,14 @@ function sameLocalDay(a: number, b: number): boolean {
   );
 }
 
+/** Texto a partir deste tamanho vira a linha de mensagem do destaque. */
+const HIGHLIGHT_MESSAGE_CHARS = 24;
+
+/** Selo compacto: texto sozinho; número/booleano "Rótulo valor" ("Nível 6"). */
+function badgeDetailText(detail: SiteEventDetail): string {
+  return detail.textual ? detail.value : `${detail.label} ${detail.value}`;
+}
+
 /** Último evento importante (lista mais recente primeiro), ou `null`. */
 export function siteHighlight(
   events: WebchatPanelEvent[],
@@ -50,13 +67,77 @@ export function siteHighlight(
     const t = Date.parse(e.occurredAt);
     return !Number.isNaN(t) && sameLocalDay(t, now);
   }).length;
+  const message = view.others.find((d) => d.textual && d.value.length >= HIGHLIGHT_MESSAGE_CHARS) ?? null;
   return {
     id: latest.id,
     title: view.title,
-    primary: view.primary ? primaryDetailText(view.primary) : null,
-    others: otherDetailsText(view.others),
+    badge: view.primary ? badgeDetailText(view.primary) : null,
+    message: message?.value ?? null,
+    others: otherDetailsText(view.others.filter((d) => d !== message)),
     occurredAt: latest.occurredAt,
     todayCount,
+  };
+}
+
+// ── Situação (chaves reservadas do estado) ──────────────────────────────
+
+/**
+ * Chaves do `setContext` que o painel lê como situação do visitante, em vez
+ * de chips: selo, frase do topo e barra de progresso. Convenção pública do
+ * widget (a config "Contexto do site" do canal explica); o significado dos
+ * valores continua do site.
+ */
+export const SITE_STATUS_KEYS = {
+  status: "situacao",
+  summary: "resumo",
+  progressCurrent: "progresso_atual",
+  progressTotal: "progresso_total",
+  progressLabel: "progresso_rotulo",
+} as const;
+
+const SITE_STATUS_KEY_SET: ReadonlySet<string> = new Set(Object.values(SITE_STATUS_KEYS));
+
+export type SiteProgress = { current: number; total: number; label: string | null };
+
+export type SiteStatus = {
+  /** Selo curto ("Precisa de ajuda"). */
+  status: string | null;
+  /** Frase do topo ("Travou no Módulo 6 da Aula Inaugural"). */
+  summary: string | null;
+  progress: SiteProgress | null;
+};
+
+function textValue(v: WebchatSiteValue | undefined): string | null {
+  if (v === undefined) return null;
+  const text = formatSiteValue(v).trim();
+  return text || null;
+}
+
+/** Número ou texto numérico ("6"); outro valor = `null`. */
+function numberValue(v: WebchatSiteValue | undefined): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v.trim().replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+export function siteStatus(state: Record<string, WebchatSiteValue>): SiteStatus {
+  const current = numberValue(state[SITE_STATUS_KEYS.progressCurrent]);
+  const total = numberValue(state[SITE_STATUS_KEYS.progressTotal]);
+  const progress =
+    current !== null && total !== null && total > 0
+      ? {
+          current: Math.min(Math.max(current, 0), total),
+          total,
+          label: textValue(state[SITE_STATUS_KEYS.progressLabel]),
+        }
+      : null;
+  return {
+    status: textValue(state[SITE_STATUS_KEYS.status]),
+    summary: textValue(state[SITE_STATUS_KEYS.summary]),
+    progress,
   };
 }
 
@@ -77,6 +158,8 @@ export function siteStateChips(
   const seen = new Set<string>();
   const chips: SiteStateChip[] = [];
   for (const [key, raw] of Object.entries(state)) {
+    // Situação, frase e progresso têm lugar próprio (`siteStatus`).
+    if (SITE_STATUS_KEY_SET.has(key)) continue;
     const value = formatSiteValue(raw).trim();
     if (!value) continue;
     const textual = isTextualSiteValue(raw, value);

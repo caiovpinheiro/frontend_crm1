@@ -1,90 +1,82 @@
 "use client";
 
 /*
- * Linha do tempo do painel do site: eventos (`track`) numa linha vertical
- * com marcadores, título legível, detalhe principal, demais dados em texto
- * discreto e o tempo relativo à direita. Eventos iguais em sequência viram
- * uma linha "×N". Importante = destaque âmbar, ícone de alerta e selo
- * "importante". Mostra `WEBCHAT_PANEL_TIMELINE_ROWS` linhas + "ver mais".
+ * Histórico do painel do site: eventos (`track`) numa linha vertical com
+ * pontos, uma linha por evento (título e tempo relativo); o clique na linha
+ * abre os dados do evento.
+ * Eventos iguais em sequência viram uma linha "×N". Importante = ponto e
+ * fundo âmbar. Mostra `WEBCHAT_PANEL_TIMELINE_ROWS` linhas + "ver mais".
  */
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { IconClock } from "@tabler/icons-react";
 import { useId, useMemo, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { formatSiteRelativeTime, WEBCHAT_PANEL_TIMELINE_ROWS, type WebchatPanelEvent } from "./model";
 import { groupSiteEvents, otherDetailsText, primaryDetailText, type SiteTimelineRow } from "./timeline";
 
-function TimelineMarker({ important }: { important: boolean }) {
-  if (important) {
-    return (
-      <IconAlertTriangle
-        size={12}
-        stroke={2.25}
-        aria-hidden
-        className="absolute left-0 top-0.5 text-warning"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className="absolute left-[2px] top-1 size-2 rounded-full bg-muted-foreground/50 ring-2 ring-card"
-    />
-  );
-}
-
 function TimelineItem({ row, now, last }: { row: SiteTimelineRow; now: number; last: boolean }) {
-  const others = otherDetailsText(row.others);
+  const detailId = useId();
+  const [open, setOpen] = useState(false);
   const primary = row.primary ? primaryDetailText(row.primary) : null;
-  return (
-    <li className={cn("relative pl-5", !last && "pb-2")}>
-      {!last ? (
-        <span aria-hidden className="absolute -bottom-1 left-[5.5px] top-3 w-px bg-muted-foreground/25" />
-      ) : null}
-      <TimelineMarker important={row.important} />
-      <div
-        className={cn(
-          "min-w-0 rounded-md",
-          row.important && "-mx-1 border-l-2 border-warning bg-warning-soft px-1.5 py-0.5",
-        )}
-      >
-        {/* Aside estreito: selos e horário quebram para a linha de baixo
-            antes de cortar o título. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4">
-          <span className="max-w-full truncate font-semibold text-foreground" title={row.title}>
-            {row.title}
-          </span>
-          {row.count > 1 ? (
+  const others = otherDetailsText(row.others);
+  const expandable = Boolean(primary || others);
+  const line = (
+    <>
+      {row.important ? <span className="sr-only">Importante:</span> : null}
+      <span className="min-w-0 truncate font-semibold text-foreground">{row.title}</span>
+      {row.count > 1 ? (
             <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
               <span aria-hidden>×{row.count}</span>
               <span className="sr-only">, {row.count} vezes</span>
             </span>
           ) : null}
-          {row.important ? (
-            <Badge variant="warning" className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold">
-              importante
-            </Badge>
-          ) : null}
-          <time
-            dateTime={row.occurredAt}
-            title={new Date(row.occurredAt).toLocaleString("pt-BR")}
-            className="ml-auto shrink-0 pl-1 text-[10px] tabular-nums text-muted-foreground"
+      <time
+        dateTime={row.occurredAt}
+        title={new Date(row.occurredAt).toLocaleString("pt-BR")}
+        className="ml-auto shrink-0 pl-1 text-[10px] tabular-nums text-muted-foreground"
+      >
+        {formatSiteRelativeTime(row.occurredAt, now)}
+      </time>
+    </>
+  );
+  const rowClass = "flex w-full min-w-0 items-center gap-1.5 px-2 py-1 text-left text-xs leading-4";
+  return (
+    <li className={cn("relative pl-5", !last && "pb-1")}>
+      {!last ? (
+        <span aria-hidden className="absolute -bottom-0.5 left-[4.5px] top-3.5 w-px bg-border" />
+      ) : null}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute left-0 top-[9px] size-2.5 rounded-full ring-2 ring-card",
+          row.important ? "bg-warning" : "bg-muted-foreground/40",
+        )}
+      />
+      {/* Fechado = uma linha; o clique abre os dados do evento. */}
+      <div className={cn("min-w-0 rounded-md", row.important && "bg-warning-soft")}>
+        {expandable ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={detailId}
+            onClick={() => setOpen((v) => !v)}
+            className={cn(
+              rowClass,
+              "rounded-md outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/30",
+            )}
           >
-            {formatSiteRelativeTime(row.occurredAt, now)}
-          </time>
-        </div>
-        {primary ? (
-          <p className="truncate text-xs leading-4 text-foreground/80" title={primary}>
-            {primary}
-          </p>
-        ) : null}
-        {others ? (
-          <p className="truncate text-[11px] leading-4 text-muted-foreground" title={others}>
-            {others}
-          </p>
+            {line}
+          </button>
+        ) : (
+          <div className={rowClass}>{line}</div>
+        )}
+        {expandable && open ? (
+          <div id={detailId} className="space-y-0.5 px-2 pb-1">
+            {primary ? <p className="break-words text-[11px] leading-4 text-foreground/80">{primary}</p> : null}
+            {others ? <p className="break-words text-[11px] leading-4 text-muted-foreground">{others}</p> : null}
+          </div>
         ) : null}
       </div>
     </li>
@@ -109,8 +101,9 @@ export function SiteTimeline({
 
   return (
     <div className="min-w-0">
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        Linha do tempo
+      <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+        <IconClock size={14} aria-hidden className="text-muted-foreground" />
+        Histórico
       </p>
       <ol id={listId} aria-label="Últimos eventos no site">
         {visible.map((row, i) => (
