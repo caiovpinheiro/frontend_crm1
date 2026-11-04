@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { DeptGlyph } from "@/features/conversations-settings/department-icons";
 import { cn } from "@/lib/utils";
 
 import {
@@ -168,7 +169,7 @@ function DepartmentCard({
             className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[15px]"
             style={{ backgroundColor: `${dept.color}22` }}
           >
-            {dept.icon}
+            <DeptGlyph icon={dept.icon} size={16} color={dept.color} />
           </span>
           <div className="min-w-0">
             <p className="truncate font-display text-[13.5px] font-bold text-foreground">
@@ -397,7 +398,8 @@ function RulesDialog({
                 value={form.departmentId}
                 options={departments.map((d) => ({
                   value: d.departmentId,
-                  label: `${d.icon} ${d.name}`,
+                  label: d.name,
+                  icon: <DeptGlyph icon={d.icon} size={16} color={d.color} />,
                   description: `${d.totalMembers} consultor${d.totalMembers === 1 ? "" : "es"}`,
                 }))}
                 onValueChange={(v) =>
