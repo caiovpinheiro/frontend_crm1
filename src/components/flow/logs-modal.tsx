@@ -35,6 +35,7 @@ import {
   type LogStatus,
 } from "@/lib/logs-data"
 import { useAutomationLogs, useAutomationStats } from "@/features/automations-v2/hooks"
+import type { StatsPeriod } from "@/lib/automation-stats-types"
 import {
   logRowMatchesTab,
   statsForNode,
@@ -67,11 +68,14 @@ export function LogsModal({
   target,
   open,
   onOpenChange,
+  period = "all",
 }: {
   automationId: string
   target: LogsTarget | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Mesmo período do canvas — contagem das abas e lista batem com o card. */
+  period?: StatsPeriod
 }) {
   const [tab, setTab] = useState<TabKey>(target?.initialTab ?? "success")
   const [queryText, setQueryText] = useState("")
@@ -101,8 +105,9 @@ export function LogsModal({
     target?.nodeId ?? null,
     open && target !== null,
     statuses,
+    period,
   )
-  const statsQuery = useAutomationStats(automationId, open && target !== null)
+  const statsQuery = useAutomationStats(automationId, open && target !== null, period)
   const cardStats = statsForNode(target?.nodeId ?? "", statsQuery.data)
   const counts = {
     entered: cardStats.sucessos + cardStats.alertas + cardStats.erros,

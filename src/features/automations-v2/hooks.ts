@@ -30,7 +30,7 @@ import {
   type AutomationWriteBody,
 } from "./api";
 
-import type { AutomationStats } from "@/lib/automation-stats-types";
+import type { AutomationStats, StatsPeriod } from "@/lib/automation-stats-types";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 
@@ -103,11 +103,18 @@ export function useAutomation(id: string | null) {
  * `refetchInterval` espelha o editor legado — o canvas fica aberto por
  * muito tempo e os números precisam acompanhar as execuções.
  */
-export function useAutomationStats(id: string | null, enabled?: boolean) {
+export function useAutomationStats(
+  id: string | null,
+  enabled?: boolean,
+  period: StatsPeriod = "all",
+) {
   const visible = useDocumentVisible();
   return useQuery<AutomationStats>({
-    queryKey: ["v2-automation-stats", id ?? "__none__"],
-    queryFn: () => fetchAutomationStats(id as string),
+    queryKey: ["v2-automation-stats", id ?? "__none__", period],
+    queryFn: () => fetchAutomationStats(id as string, period),
+    // Troca de período mantém os números antigos até chegar o novo, em vez
+    // de zerar todos os cards por um instante.
+    placeholderData: (prev) => prev,
     enabled: !!id && (enabled ?? true),
     refetchInterval: visible ? 30_000 : false,
     refetchIntervalInBackground: false,
@@ -126,6 +133,7 @@ export function useAutomationLogs(
   stepId: string | null,
   enabled: boolean,
   statuses?: readonly string[],
+  period: StatsPeriod = "all",
 ) {
   const statusKey = statuses?.length
     ? [...statuses].sort().join(",")
@@ -136,6 +144,7 @@ export function useAutomationLogs(
       id ?? "__none__",
       stepId ?? "__all__",
       statusKey,
+      period,
     ],
     queryFn: ({ pageParam }) =>
       fetchAutomationLogs(id as string, {
@@ -143,6 +152,7 @@ export function useAutomationLogs(
         page: pageParam as number,
         perPage: 50,
         status: statuses,
+        period,
       }),
     initialPageParam: 1,
     getNextPageParam: (last) => {
