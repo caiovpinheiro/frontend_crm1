@@ -8,6 +8,9 @@
  *   PUT  /api/distribution/leads/participants/[userId] -> { participant }
  *   GET /api/distribution/leads/stats?from&to&userId   -> LeadsStatsResponse
  *   GET /api/distribution/leads/history?...            -> LeadsHistoryResponse
+ *   GET/POST /api/distribution/leads/department-rules  -> { rules } / { rule }
+ *   PUT/DELETE /api/distribution/leads/department-rules/[id]
+ *   GET /api/distribution/leads/department-rules/summary -> LeadsDepartmentRulesSummary
  */
 
 export interface LeadsSlotDto {
@@ -96,7 +99,63 @@ export interface LeadsHistoryFilters {
   userId?: string;
 }
 
-/** Kill switch do modo leads (independente do smart). */
+/** Kill switch do modo leads (independente do smart) + regras por departamento. */
 export interface LeadsSettingsResponse {
   enabled: boolean;
+  /**
+   * Regras de horário por departamento. Ligado, só membros de departamento
+   * com regra ativa no momento entram no sorteio. Desligado = rodízio de
+   * sempre.
+   */
+  departmentRulesEnabled: boolean;
+}
+
+export interface UpdateLeadsSettingsInput {
+  enabled?: boolean;
+  departmentRulesEnabled?: boolean;
+}
+
+/** Regra de horário de um departamento (minutos do dia em America/Sao_Paulo). */
+export interface LeadsDepartmentRuleDto {
+  id: string;
+  departmentId: string;
+  departmentName: string;
+  /** 0..1439. `startMinute > endMinute` = cruza a meia-noite. */
+  startMinute: number;
+  endMinute: number;
+  /** 0 = domingo … 6 = sábado (dia do início). */
+  weekdays: number[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadsDepartmentRuleInput {
+  departmentId: string;
+  startMinute: number;
+  endMinute: number;
+  weekdays: number[];
+  enabled: boolean;
+}
+
+export interface LeadsDepartmentSummaryDto {
+  departmentId: string;
+  name: string;
+  color: string;
+  icon: string;
+  totalMembers: number;
+  activeMembers: number;
+  inactiveMembers: number;
+  eligibleMembers: number;
+  hasEnabledRule: boolean;
+  availableNow: boolean;
+  nextChangeAt: string | null;
+  nextChangeKind: "activates" | "deactivates" | null;
+  rules: LeadsDepartmentRuleDto[];
+}
+
+export interface LeadsDepartmentRulesSummary {
+  rulesEnabled: boolean;
+  serverNow: string;
+  departments: LeadsDepartmentSummaryDto[];
 }

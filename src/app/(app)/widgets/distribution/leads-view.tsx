@@ -57,6 +57,7 @@ import {
   useUpdateLeadsParticipant,
 } from "@/features/distribution/leads-hooks";
 import type { LeadsParticipantDto } from "@/features/distribution/leads-types";
+import { LeadsDepartmentRulesSection } from "@/features/distribution/leads-department-rules-section";
 import { DistributionModeToggle } from "@/features/distribution/settings-panel";
 import { useDistributionResponsibles } from "@/features/distribution/hooks";
 import { cn } from "@/lib/utils";
@@ -668,6 +669,8 @@ export function LeadsDistributionView({
       </section>
 
       {canManage && <DistributionModeToggle />}
+
+      {pane === "consultants" && <LeadsDepartmentRulesSection canManage={canManage} />}
 
       {pane === "consultants" ? (
         <div className={LIST_PAGE_PANE_CLASS}>

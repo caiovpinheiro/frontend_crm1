@@ -13,6 +13,7 @@ import type {
 /** Kill switch de exemplo — MUTÁVEL: o toggle da página grava aqui em mock. */
 export const MOCK_LEADS_SETTINGS: LeadsSettingsResponse = {
   enabled: true,
+  departmentRulesEnabled: false,
 };
 
 function ago(minutes: number): string {
