@@ -191,6 +191,8 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
   const d = data as FlowNodeData
   const { updateNodeData, getNode, addNodes, deleteElements, setEdges } = useReactFlow()
   const hasButtons = d.outputs.some((o) => o.kind === "response")
+  // Total que já saiu do passo — denominador do % de cada saída.
+  const routeTotal = d.outputs.reduce((n, o) => n + (d.routes?.[o.key] ?? 0), 0)
   const updateInternals = useUpdateNodeInternals()
   const logs = useLogs()
   const cardRef = useRef<HTMLDivElement>(null)
@@ -553,6 +555,24 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
           className="mt-3 flex flex-col border-t"
           style={{ borderColor: isMilestone ? "rgba(255,255,255,0.22)" : "#E2E8F0" }}
         >
+          {routeTotal > 0 && (
+            <div
+              className="flex items-center justify-between border-b px-3.5 py-1 text-[10px] font-medium uppercase tracking-wide"
+              style={{
+                borderColor: isMilestone ? "rgba(255,255,255,0.22)" : "#E2E8F0",
+                color: isMilestone ? "rgba(255,255,255,0.8)" : "var(--muted-foreground)",
+              }}
+              title="Contatos que já saíram deste passo, por saída"
+            >
+              <span>Saídas</span>
+              <span className="tabular-nums">
+                <span className="font-bold" style={{ color: isMilestone ? "#ffffff" : "var(--card-foreground)" }}>
+                  {routeTotal.toLocaleString("pt-BR")}
+                </span>{" "}
+                no total
+              </span>
+            </div>
+          )}
           {d.outputs.map((o, i) => {
             const responseCount = d.outputs.filter((x) => x.kind === "response").length
             const maxChoices = 10
@@ -561,6 +581,9 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
               responseCount < maxChoices &&
               ((o.kind === "response" && d.outputs[i + 1]?.kind !== "response") ||
                 (!hasButtons && i === 0))
+            const routeCount = d.routes?.[o.key] ?? 0
+            const routePct = routeTotal > 0 ? (routeCount / routeTotal) * 100 : 0
+            const routeColor = isMilestone ? "#ffffff" : ROUTE_META[o.kind].color
             return (
               <div key={o.key}>
                 <div
@@ -570,8 +593,35 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
                     backgroundColor: isMilestone ? "rgba(0,0,0,0.08)" : undefined,
                   }}
                 >
+                  {routeTotal > 0 && routeCount > 0 && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 left-0"
+                      style={{
+                        width: `${routePct}%`,
+                        backgroundColor: routeColor,
+                        opacity: isMilestone ? 0.18 : 0.1,
+                      }}
+                    />
+                  )}
                   <OutputIcon output={o} />
-                  <div className="flex min-w-0 flex-1 items-center justify-end gap-1 text-right text-[12px] leading-tight">
+                  {routeTotal > 0 && (
+                    <span
+                      className="relative shrink-0 whitespace-nowrap text-[10px] tabular-nums leading-none"
+                      title={`${routeCount.toLocaleString("pt-BR")} de ${routeTotal.toLocaleString("pt-BR")} contatos saíram por aqui`}
+                      style={{
+                        color: isMilestone
+                          ? "rgba(255,255,255,0.85)"
+                          : routeCount > 0
+                            ? "var(--card-foreground)"
+                            : "var(--muted-foreground)",
+                      }}
+                    >
+                      <span className="font-bold">{formatRoutePct(routePct)}</span>{" "}
+                      <span className="opacity-70">({routeCount.toLocaleString("pt-BR")})</span>
+                    </span>
+                  )}
+                  <div className="relative flex min-w-0 flex-1 items-center justify-end gap-1 text-right text-[12px] leading-tight">
                     {o.key === "else" ? (
                       <span
                         className="inline-block max-w-full break-words font-medium"
@@ -671,6 +721,14 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
       )}
     </div>
   )
+}
+
+/** 0 → "0%", <1 → "<1%", senão inteiro (uma casa abaixo de 10%). */
+function formatRoutePct(pct: number): string {
+  if (pct <= 0) return "0%"
+  if (pct < 1) return "<1%"
+  if (pct < 10 && Math.round(pct) !== pct) return `${pct.toFixed(1).replace(".", ",")}%`
+  return `${Math.round(pct)}%`
 }
 
 function Stat({
