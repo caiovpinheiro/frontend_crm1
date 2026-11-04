@@ -129,6 +129,8 @@ export interface FlowNodeData extends Record<string, unknown> {
   preview: string
   outputs: Output[]
   stats: { sucessos: number; alertas: number; erros: number }
+  /** Contatos que saíram por cada saída (chave = `Output.key`). */
+  routes?: Record<string, number>
   config?: NodeConfig
 }
 
