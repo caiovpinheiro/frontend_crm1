@@ -16,12 +16,16 @@ import {
 import type {
   BulkAddLeadsParticipantsInput,
   BulkAddLeadsParticipantsResponse,
+  LeadsDepartmentRuleDto,
+  LeadsDepartmentRuleInput,
+  LeadsDepartmentRulesSummary,
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
   LeadsSettingsResponse,
   LeadsStatsResponse,
   UpdateLeadsParticipantInput,
+  UpdateLeadsSettingsInput,
 } from "./leads-types";
 
 async function getJson<T>(path: string, errLabel: string): Promise<T> {
@@ -85,9 +89,9 @@ export function fetchLeadsSettings(): Promise<LeadsSettingsResponse> {
   );
 }
 
-export function updateLeadsSettings(input: {
-  enabled: boolean;
-}): Promise<LeadsSettingsResponse> {
+export function updateLeadsSettings(
+  input: UpdateLeadsSettingsInput,
+): Promise<LeadsSettingsResponse> {
   if (isPageMockMode()) {
     Object.assign(MOCK_LEADS_SETTINGS, input);
     return Promise.resolve({ ...MOCK_LEADS_SETTINGS });
@@ -97,6 +101,54 @@ export function updateLeadsSettings(input: {
     "PUT",
     input,
     "Erro ao salvar a configuração.",
+  );
+}
+
+// ── Regras de horário por departamento ─────────────────────────────────
+
+export function fetchLeadsDepartmentRulesSummary(): Promise<LeadsDepartmentRulesSummary> {
+  if (isPageMockMode()) {
+    return Promise.resolve({
+      rulesEnabled: MOCK_LEADS_SETTINGS.departmentRulesEnabled,
+      serverNow: new Date().toISOString(),
+      departments: [],
+    });
+  }
+  return getJson<LeadsDepartmentRulesSummary>(
+    "/api/distribution/leads/department-rules/summary",
+    "Erro ao carregar os departamentos.",
+  );
+}
+
+export function createLeadsDepartmentRule(
+  input: LeadsDepartmentRuleInput,
+): Promise<{ rule: LeadsDepartmentRuleDto }> {
+  return sendJson(
+    "/api/distribution/leads/department-rules",
+    "POST",
+    input,
+    "Erro ao criar a regra.",
+  );
+}
+
+export function updateLeadsDepartmentRule(
+  id: string,
+  input: Partial<LeadsDepartmentRuleInput>,
+): Promise<{ rule: LeadsDepartmentRuleDto }> {
+  return sendJson(
+    `/api/distribution/leads/department-rules/${id}`,
+    "PUT",
+    input,
+    "Erro ao salvar a regra.",
+  );
+}
+
+export function deleteLeadsDepartmentRule(id: string): Promise<{ ok: true }> {
+  return sendJson(
+    `/api/distribution/leads/department-rules/${id}`,
+    "DELETE",
+    undefined,
+    "Erro ao excluir a regra.",
   );
 }
 
