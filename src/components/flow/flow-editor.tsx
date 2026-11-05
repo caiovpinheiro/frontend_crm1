@@ -9,6 +9,7 @@ import {
   IconEye,
   IconEyeOff,
   IconMaximize,
+  IconMessageCheck,
   IconDeviceMobile,
   IconPlayerPlay,
   IconPlayerPause,
@@ -163,6 +164,9 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const updateAutomation = useUpdateAutomation()
   const detail = automation.data
   const active = detail?.active ?? false
+  // Valor otimista do toggle até o refetch do detalhe.
+  const [keepRunningOverride, setKeepRunningOverride] = useState<boolean | null>(null)
+  const keepRunningOnAgentReply = keepRunningOverride ?? detail?.keepRunningOnAgentReply ?? false
 
   // Estado real = fonte da verdade. As edições do usuário ficam aqui.
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<FlowNodeData>>([])
@@ -688,6 +692,26 @@ function InnerEditor({ automationId }: { automationId: string }) {
     }
   }, [nodes, edges, detail, name, replaceAutomation])
 
+  const toggleKeepRunningOnAgentReply = useCallback(async () => {
+    if (!detail || updateAutomation.isPending) return
+    const next = !keepRunningOnAgentReply
+    setKeepRunningOverride(next)
+    try {
+      await updateAutomation.mutateAsync({
+        id: detail.id,
+        body: { keepRunningOnAgentReply: next },
+      })
+      toast.success(
+        next
+          ? "A automação continua mesmo se o consultor responder."
+          : "Mensagem do consultor volta a encerrar a automação.",
+      )
+    } catch (e) {
+      setKeepRunningOverride(!next)
+      toast.error(e instanceof Error ? e.message : "Não foi possível salvar a opção")
+    }
+  }, [detail, keepRunningOnAgentReply, updateAutomation])
+
   const toggleActive = useCallback(async () => {
     if (!detail || toggleAutomation.isPending) return
     try {
@@ -795,6 +819,12 @@ function InnerEditor({ automationId }: { automationId: string }) {
                 icon: <IconPencil size={16} stroke={2.2} />,
                 label: "Renomear",
                 onClick: beginRename,
+              },
+              {
+                icon: <IconMessageCheck size={16} stroke={2.2} />,
+                label: "Continuar se o consultor responder",
+                onClick: () => void toggleKeepRunningOnAgentReply(),
+                active: keepRunningOnAgentReply,
               },
               {
                 icon: <IconSitemap size={16} stroke={2.2} />,
