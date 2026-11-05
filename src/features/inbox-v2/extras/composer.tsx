@@ -879,6 +879,7 @@ export function Composer({
         {!noteMode && attachmentsEnabled && (
           <AudioRecorderButton
             conversationId={conversationId}
+            channelId={selectedChannelId}
             className="h-9 w-9 shrink-0"
             onStateChange={setAudioRecState}
             disabled={inputDisabled}
