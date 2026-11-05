@@ -19,6 +19,7 @@ import type {
   LeadsDepartmentRuleDto,
   LeadsDepartmentRuleInput,
   LeadsDepartmentRulesSummary,
+  LeadsEligibilityOverrideInput,
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
@@ -187,6 +188,27 @@ export function updateLeadsParticipant(
     "PUT",
     input,
     "Erro ao salvar participante.",
+  );
+}
+
+export function setLeadsEligibilityOverride(
+  userId: string,
+  input: LeadsEligibilityOverrideInput,
+): Promise<{ override: { userId: string; eligible: boolean; startsAt: string; endsAt: string } }> {
+  return sendJson(
+    `/api/distribution/leads/participants/${userId}/eligibility`,
+    "POST",
+    input,
+    input.eligible ? "Erro ao liberar o consultor." : "Erro ao pausar o consultor.",
+  );
+}
+
+export function endLeadsEligibilityOverride(userId: string): Promise<{ ok: true; ended: boolean }> {
+  return sendJson(
+    `/api/distribution/leads/participants/${userId}/eligibility`,
+    "DELETE",
+    undefined,
+    "Erro ao encerrar a liberação/pausa.",
   );
 }
 

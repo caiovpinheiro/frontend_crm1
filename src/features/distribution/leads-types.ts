@@ -35,8 +35,32 @@ export interface LeadsParticipantDto {
   totalReceived: number;
   /** Departamentos dos quais é membro. */
   departments: { id: string; name: string }[];
+  /** Recebe lead agora? (status, peso, horário do departamento, liberação/pausa manual). */
+  eligibility?: LeadsEligibilityDto;
   createdAt: string;
   updatedAt: string;
+}
+
+export type LeadsEligibilityReason =
+  | "INACTIVE"
+  | "WEIGHT_ZERO"
+  | "OVERRIDE_INELIGIBLE"
+  | "OVERRIDE_ELIGIBLE"
+  | "RULES_OFF"
+  | "DEPARTMENT_ACTIVE"
+  | "OUT_OF_HOURS";
+
+export interface LeadsEligibilityDto {
+  eligibleNow: boolean;
+  reason: LeadsEligibilityReason;
+  /** Liberação (`eligible=true`) ou pausa manual vigente, com o fim. */
+  override: { eligible: boolean; startsAt: string; endsAt: string } | null;
+}
+
+/** Liberar (`eligible=true`) ou pausar até `until` ("HH:MM", São Paulo). */
+export interface LeadsEligibilityOverrideInput {
+  eligible: boolean;
+  until: string;
 }
 
 export interface LeadsParticipantsResponse {
