@@ -22,6 +22,7 @@
 
 export type WebhookVariableGroup =
   | "Negócio"
+  | "Produto do negócio"
   | "Contato"
   | "Anúncio (Meta CTWA)"
   | "Tags"
@@ -70,6 +71,27 @@ export const WEBHOOK_VARIABLE_OPTIONS: WebhookVariableOption[] = [
   { group: "Negócio", key: "deal.ownerId", token: "{{deal.ownerId}}", label: "ID do responsável" },
   { group: "Negócio", key: "deal.createdAt", token: "{{deal.createdAt}}", label: "Criado em (ISO)" },
   { group: "Negócio", key: "deal.updatedAt", token: "{{deal.updatedAt}}", label: "Atualizado em (ISO)" },
+
+  // ─── Produto do negócio ──────────────────────────────────
+  // Último produto adicionado ao negócio, lido na hora do disparo
+  // (backend: `automation-deal-products.ts`). Para os demais itens,
+  // `{{dealProducts.<i>.<campo>}}` (0 = último adicionado).
+  { group: "Produto do negócio", key: "dealProduct.name", token: "{{dealProduct.name}}", label: "Nome", defaultKeyPath: "product_name" },
+  { group: "Produto do negócio", key: "dealProduct.sku", token: "{{dealProduct.sku}}", label: "SKU / código", defaultKeyPath: "product_sku" },
+  { group: "Produto do negócio", key: "dealProduct.kind", token: "{{dealProduct.kind}}", label: "Tipo (Curso, Serviço…)", defaultKeyPath: "product_kind" },
+  { group: "Produto do negócio", key: "dealProduct.quantity", token: "{{dealProduct.quantity}}", label: "Quantidade", defaultKeyPath: "quantity" },
+  { group: "Produto do negócio", key: "dealProduct.unitPrice", token: "{{dealProduct.unitPrice}}", label: "Valor cheio (unitário)", hint: "Número com ponto, ex.: 229.91", defaultKeyPath: "unit_price" },
+  { group: "Produto do negócio", key: "dealProduct.discount", token: "{{dealProduct.discount}}", label: "Desconto (%)", hint: "Ex.: 25", defaultKeyPath: "discount" },
+  { group: "Produto do negócio", key: "dealProduct.finalUnitPrice", token: "{{dealProduct.finalUnitPrice}}", label: "Valor unitário com desconto", hint: "Número com ponto, ex.: 172.43", defaultKeyPath: "final_unit_price" },
+  { group: "Produto do negócio", key: "dealProduct.finalPrice", token: "{{dealProduct.finalPrice}}", label: "Valor final (quantidade × com desconto)", hint: "Número com ponto, ex.: 172.43", defaultKeyPath: "final_price" },
+  { group: "Produto do negócio", key: "dealProduct.mode", token: "{{dealProduct.mode}}", label: "Modalidade (EAD, Presencial…)", defaultKeyPath: "mode" },
+  { group: "Produto do negócio", key: "dealProduct.level", token: "{{dealProduct.level}}", label: "Nível (Graduação / Pós-Graduação)", defaultKeyPath: "level" },
+  { group: "Produto do negócio", key: "dealProduct.grau", token: "{{dealProduct.grau}}", label: "Grau", defaultKeyPath: "grau" },
+  { group: "Produto do negócio", key: "dealProduct.duration", token: "{{dealProduct.duration}}", label: "Duração (texto)", hint: "Ex.: 6 meses, 8 semestres", defaultKeyPath: "duration" },
+  { group: "Produto do negócio", key: "dealProduct.durationMonths", token: "{{dealProduct.durationMonths}}", label: "Duração em meses (pós)", hint: "Vazio na graduação", defaultKeyPath: "duration_months" },
+  { group: "Produto do negócio", key: "dealProduct.semesters", token: "{{dealProduct.semesters}}", label: "Duração em semestres (graduação)", hint: "Vazio na pós", defaultKeyPath: "semesters" },
+  { group: "Produto do negócio", key: "dealProduct.productId", token: "{{dealProduct.productId}}", label: "ID do produto", defaultKeyPath: "product_id" },
+  { group: "Produto do negócio", key: "dealProductsTotal", token: "{{dealProductsTotal}}", label: "Total dos produtos", hint: "Soma dos valores finais", defaultKeyPath: "products_total" },
 
   // ─── Contato ─────────────────────────────────────────────
   { group: "Contato", key: "contact.id", token: "{{contact.id}}", label: "ID do contato", defaultKeyPath: "contactId" },
@@ -279,6 +301,7 @@ export const WEBHOOK_VARIABLE_OPTIONS: WebhookVariableOption[] = [
 
 export const WEBHOOK_VARIABLE_GROUPS: WebhookVariableGroup[] = [
   "Negócio",
+  "Produto do negócio",
   "Contato",
   "Anúncio (Meta CTWA)",
   "Campos customizados do negócio",
