@@ -11,11 +11,13 @@ import {
   bulkAddLeadsParticipants,
   createLeadsDepartmentRule,
   deleteLeadsDepartmentRule,
+  endLeadsEligibilityOverride,
   fetchLeadsDepartmentRulesSummary,
   fetchLeadsHistory,
   fetchLeadsParticipants,
   fetchLeadsSettings,
   fetchLeadsStats,
+  setLeadsEligibilityOverride,
   updateLeadsDepartmentRule,
   updateLeadsParticipant,
   updateLeadsSettings,
@@ -24,6 +26,7 @@ import type {
   BulkAddLeadsParticipantsInput,
   LeadsDepartmentRuleInput,
   LeadsDepartmentRulesSummary,
+  LeadsEligibilityOverrideInput,
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
@@ -66,6 +69,28 @@ export function useLeadsParticipants(enabled = true) {
     enabled,
     staleTime: 10_000,
     refetchOnWindowFocus: false,
+    // A coluna "Elegível" muda com o relógio (horário do departamento,
+    // fim da liberação/pausa) — atualiza sem recarregar a página.
+    refetchInterval: 60_000,
+  });
+}
+
+/** Liberar/pausar até HH:MM, ou encerrar agora (`input` null). */
+export function useLeadsEligibilityOverride() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      userId,
+      input,
+    }: {
+      userId: string;
+      input: LeadsEligibilityOverrideInput | null;
+    }): Promise<unknown> =>
+      input ? setLeadsEligibilityOverride(userId, input) : endLeadsEligibilityOverride(userId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LEADS_PARTICIPANTS_KEY });
+      void qc.invalidateQueries({ queryKey: LEADS_DEPARTMENT_RULES_KEY });
+    },
   });
 }
 
@@ -82,6 +107,8 @@ export function useUpdateLeadsParticipant() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: LEADS_PARTICIPANTS_KEY });
       void qc.invalidateQueries({ queryKey: LEADS_STATS_KEY });
+      // Status/peso mudam "Ativos" e "Elegíveis" dos cards de departamento.
+      void qc.invalidateQueries({ queryKey: LEADS_DEPARTMENT_RULES_KEY });
     },
   });
 }

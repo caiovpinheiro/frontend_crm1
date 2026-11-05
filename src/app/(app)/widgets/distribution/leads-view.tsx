@@ -58,6 +58,10 @@ import {
 } from "@/features/distribution/leads-hooks";
 import type { LeadsParticipantDto } from "@/features/distribution/leads-types";
 import { LeadsDepartmentRulesSection } from "@/features/distribution/leads-department-rules-section";
+import {
+  EligibilityCell,
+  EligibilityOverrideDialog,
+} from "@/features/distribution/leads-eligibility";
 import { DistributionModeToggle } from "@/features/distribution/settings-panel";
 import { useDistributionResponsibles } from "@/features/distribution/hooks";
 import { cn } from "@/lib/utils";
@@ -68,7 +72,7 @@ const NOTE_MAX = 500;
 export type LeadsPane = "consultants" | "ranking" | "history";
 
 const CONSULTANTS_GRID =
-  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(108px,0.8fr)_13rem_13rem]";
+  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(108px,0.8fr)_13rem_minmax(150px,1fr)_13rem]";
 const RANKING_GRID =
   "grid-cols-[3.5rem_minmax(220px,1fr)_minmax(96px,0.6fr)]";
 const HISTORY_GRID =
@@ -256,11 +260,13 @@ function ConsultantDesktopRow({
   receivedCount,
   canManage,
   onEditNote,
+  onManageEligibility,
 }: {
   participant: LeadsParticipantDto;
   receivedCount: number;
   canManage: boolean;
   onEditNote: (p: LeadsParticipantDto) => void;
+  onManageEligibility: (p: LeadsParticipantDto) => void;
 }) {
   const { updateMut, save } = useParticipantSave();
   const active = participant.status === "ACTIVE";
@@ -278,6 +284,11 @@ function ConsultantDesktopRow({
         value={participant.weight}
         disabled={busy}
         onChange={(weight) => save(participant.userId, { weight })}
+      />
+      <EligibilityCell
+        participant={participant}
+        canManage={canManage}
+        onManage={onManageEligibility}
       />
       <div className={LIST_ACTIONS_CELL_CLASS}>
         {canManage && (
@@ -311,11 +322,13 @@ function ConsultantMobileCard({
   receivedCount,
   canManage,
   onEditNote,
+  onManageEligibility,
 }: {
   participant: LeadsParticipantDto;
   receivedCount: number;
   canManage: boolean;
   onEditNote: (p: LeadsParticipantDto) => void;
+  onManageEligibility: (p: LeadsParticipantDto) => void;
 }) {
   const { updateMut, save } = useParticipantSave();
   const active = participant.status === "ACTIVE";
@@ -389,6 +402,14 @@ function ConsultantMobileCard({
           value={participant.weight}
           disabled={busy}
           onChange={(weight) => save(participant.userId, { weight })}
+        />
+      </div>
+      <div className="mt-2 flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">Elegível</p>
+        <EligibilityCell
+          participant={participant}
+          canManage={canManage}
+          onManage={onManageEligibility}
         />
       </div>
     </li>
@@ -513,6 +534,7 @@ export function LeadsDistributionView({
   const bulkAddMut = useBulkAddLeadsParticipants();
   const [pendingUserIds, setPendingUserIds] = useState<string[]>([]);
   const [noteTarget, setNoteTarget] = useState<LeadsParticipantDto | null>(null);
+  const [eligibilityTarget, setEligibilityTarget] = useState<LeadsParticipantDto | null>(null);
 
   const participants = useMemo(
     () => participantsQuery.data?.participants ?? [],
@@ -740,6 +762,7 @@ export function LeadsDistributionView({
                     receivedCount={receivedByUser.get(p.userId) ?? 0}
                     canManage={canManage}
                     onEditNote={setNoteTarget}
+                    onManageEligibility={setEligibilityTarget}
                   />
                 ))}
               </ul>
@@ -755,6 +778,7 @@ export function LeadsDistributionView({
                         <ListColumnLabel>Recebidos</ListColumnLabel>
                         <ListColumnLabel>Rodízio</ListColumnLabel>
                         <ListColumnLabel>Peso</ListColumnLabel>
+                        <ListColumnLabel>Elegível</ListColumnLabel>
                         <ListColumnLabel align="right">Status</ListColumnLabel>
                       </>
                     }
@@ -766,6 +790,7 @@ export function LeadsDistributionView({
                         receivedCount={receivedByUser.get(p.userId) ?? 0}
                         canManage={canManage}
                         onEditNote={setNoteTarget}
+                        onManageEligibility={setEligibilityTarget}
                       />
                     ))}
                   </DataView>
@@ -1028,6 +1053,13 @@ export function LeadsDistributionView({
           )}
         </div>
       )}
+      {eligibilityTarget ? (
+        <EligibilityOverrideDialog
+          key={eligibilityTarget.userId}
+          participant={eligibilityTarget}
+          onClose={() => setEligibilityTarget(null)}
+        />
+      ) : null}
       <ObservationNoteDialog
         participant={noteTarget}
         onClose={() => setNoteTarget(null)}
