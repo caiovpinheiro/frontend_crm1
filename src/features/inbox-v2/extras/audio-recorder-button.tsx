@@ -57,6 +57,7 @@ const BAR_PATTERN = [3, 5, 9, 14, 18, 14, 9, 12, 16, 10, 6, 8, 14, 18, 12, 7, 10
  */
 export function AudioRecorderButton({
   conversationId,
+  channelId,
   className,
   onStateChange,
   disabled,
@@ -64,6 +65,8 @@ export function AudioRecorderButton({
   onBlocked,
 }: {
   conversationId: string | null;
+  /** Canal escolhido em "Enviar por" (mesmo override de texto e anexos). */
+  channelId?: string | null;
   className?: string;
   /** Notifica o Composer quando o estado de gravação muda */
   onStateChange?: (s: AudioRecordState) => void;
@@ -274,19 +277,35 @@ export function AudioRecorderButton({
     }
     const ext = voiceRecorderFileExt(blob.type || mimeRef.current);
     const fileName = `audio-${Date.now()}.${ext}`;
+    const duration = seconds;
     // Libera o composer na hora — o refetch do kanban no deal não segura o preview.
     discard();
-    sendAttachment.mutate(
-      { file: blob, fileName },
-      {
-        onSuccess: (data) => {
-          if (data.audioDelivery && data.audioDelivery !== "voice") {
-            toast("Enviado como áudio (não como nota de voz)");
-          }
-        },
-        onError: (err) => toast.error(err.message || "Falha ao enviar áudio"),
-      },
-    );
+    try {
+      // `mutateAsync`: o resultado chega mesmo se o composer remontar no meio
+      // do envio (callbacks do `mutate` não disparam após unmount).
+      const data = await sendAttachment.mutateAsync({ file: blob, fileName, channelId });
+      if (data.audioDelivery && data.audioDelivery !== "voice") {
+        toast("Enviado como áudio (não como nota de voz)");
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message ? err.message : "Falha ao enviar áudio",
+      );
+      restorePreview(blob, duration);
+    }
+  }
+
+  // Envio falhou: o áudio volta para a prévia para tentar de novo ou descartar.
+  function restorePreview(blob: Blob, duration: number) {
+    if (recorderRef.current || audioBlobRef.current) return; // já gravando outro
+    finalizedRef.current = true;
+    audioBlobRef.current = blob;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    const url = URL.createObjectURL(blob);
+    audioUrlRef.current = url;
+    setPreviewUrl(url);
+    setSeconds(duration);
+    setRecState("preview");
   }
 
   // ── Recording bar (inline, flex-1) ───────────────────────────────
