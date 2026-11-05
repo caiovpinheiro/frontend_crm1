@@ -118,6 +118,7 @@ import {
   widgetPlaceholderPx,
   type ServiceSection,
 } from "@/features/dashboard-v2/visible-sections";
+import { useDashboardTransfer } from "@/features/dashboard-v2/dashboard-transfer";
 import { useSeenIds } from "@/features/dashboard-v2/use-seen-widgets";
 import { DASHBOARD_TOUCH_TARGET_CLASS } from "@/features/dashboard-v2/layout-classes";
 import { cardQueryWaiting, queryWaiting } from "@/features/dashboard-v2/query-waiting";
@@ -375,6 +376,7 @@ function ManagerHome({
   const [tabActorUserIds, setTabActorUserIds] = useState<string[]>([]);
   const [tabDepartmentIds, setTabDepartmentIds] = useState<string[]>([]);
   const [hideInactiveAgents, setHideInactiveAgents] = useState(false);
+  const transfer = useDashboardTransfer();
   const uiScope = useDashboardStorageScope();
   const [uiHydrated, setUiHydrated] = useState(false);
   const uiSaverRef = useRef(createRemoteSliceSaver("ui"));
@@ -734,10 +736,12 @@ function ManagerHome({
               onClick: () => setOrganizing((value) => !value),
               active: organizing,
             },
+            ...transfer.items,
           ]}
         />
       }
     >
+      {transfer.element}
       {showTabLoader ? (
         <AppLoading variant="inline" className="min-h-0 flex-1" />
       ) : isDeals ? (
