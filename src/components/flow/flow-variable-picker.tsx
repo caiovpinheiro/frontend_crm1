@@ -28,7 +28,9 @@ const GROUP_ORDER = [
   "Anúncio (Meta CTWA)",
 ] as const
 
-const SKIP_WEBHOOK_GROUPS = new Set(["Evento", "Automação", "Sistema"])
+// "Produto do negócio" só resolve no passo Webhook (o backend carrega os
+// produtos lá); nas mensagens o produto é `{{produto.*}}`, do Enviar produto.
+const SKIP_WEBHOOK_GROUPS = new Set(["Evento", "Automação", "Sistema", "Produto do negócio"])
 
 const EXTRA_OPTIONS: FlowVarOpt[] = [
   { group: "Contato", token: "{{contact.name|first_name}}", label: "Primeiro nome do contato" },
