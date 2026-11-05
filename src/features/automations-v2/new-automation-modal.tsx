@@ -49,6 +49,7 @@ export function NewAutomationModal({
     AUTOMATION_TRIGGER_TYPES[0],
   );
   const [allowManualRun, setAllowManualRun] = useState(false);
+  const [keepRunningOnAgentReply, setKeepRunningOnAgentReply] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +58,7 @@ export function NewAutomationModal({
     setDescription("");
     setTriggerType(AUTOMATION_TRIGGER_TYPES[0]);
     setAllowManualRun(false);
+    setKeepRunningOnAgentReply(false);
   }, [open]);
 
   function goNext() {
@@ -81,6 +83,7 @@ export function NewAutomationModal({
         triggerConfig: {},
         active: false,
         allowManualRun,
+        keepRunningOnAgentReply,
       });
       toast.success("Automação criada");
       onOpenChange(false);
@@ -255,6 +258,24 @@ export function NewAutomationModal({
                   </span>
                 </label>
 
+                <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3.5 py-3">
+                  <SwitchGlass
+                    checked={keepRunningOnAgentReply}
+                    onChange={setKeepRunningOnAgentReply}
+                    aria-label="Continuar mesmo se o consultor responder"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-display text-[13px] font-bold text-[var(--text-primary)]">
+                      Continuar mesmo se o consultor responder
+                    </span>
+                    <span className="mt-0.5 block font-body text-[12px] leading-snug text-[var(--text-muted)]">
+                      Mensagem do atendente na conversa não encerra esta
+                      automação: ela segue do passo onde parou (ex.: esperando
+                      o formulário).
+                    </span>
+                  </span>
+                </label>
+
                 <div className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3.5 py-3">
                   <p className="font-display text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                     Resumo
@@ -284,6 +305,14 @@ export function NewAutomationModal({
                       </dt>
                       <dd className="text-[var(--text-primary)]">
                         {allowManualRun ? "Habilitado" : "Desabilitado"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">
+                        Continua se o consultor responder
+                      </dt>
+                      <dd className="text-[var(--text-primary)]">
+                        {keepRunningOnAgentReply ? "Sim" : "Não"}
                       </dd>
                     </div>
                   </dl>

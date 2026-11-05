@@ -53,6 +53,8 @@ export interface AutomationListItemDto {
   active: boolean;
   /** Habilita disparo manual pelo agente (picker do composer). */
   allowManualRun?: boolean;
+  /** Mensagem do consultor não encerra o fluxo em andamento. */
+  keepRunningOnAgentReply?: boolean;
   createdAt: string;
   updatedAt: string;
   stepCount: number;
@@ -313,6 +315,7 @@ export interface AutomationWriteBody {
   triggerConfig?: unknown;
   active?: boolean;
   allowManualRun?: boolean;
+  keepRunningOnAgentReply?: boolean;
   /**
    * Steps como sub-objeto do payload do PUT (rota legacy). Usado por
    * `replaceAutomation` / `useReplaceAutomation`. O `createAutomation`
