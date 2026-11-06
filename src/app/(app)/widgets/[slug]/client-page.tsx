@@ -27,6 +27,7 @@ import type { WidgetDto } from "@/features/widgets/types";
 const INTERNAL_ROUTES: Record<string, string> = {
   smart_distribution: "/widgets/distribution",
   ai_agents: "/ai-agents-v2",
+  remote_support: "/contacts",
 };
 
 /** Tempo maximo aguardando o iframe disparar `load`. Acima disso assumimos

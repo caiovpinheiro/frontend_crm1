@@ -441,6 +441,11 @@ export async function middleware(req: NextRequest, event?: NextFetchEvent) {
       return webchatResponse(req, pathname, nextWithTenant, event);
     }
 
+    // Suporte remoto: página do cliente + leitura por token. Públicas, sem sessão.
+    if (pathname.startsWith("/suporte/") || pathname.startsWith("/api/public/remote-support/")) {
+      return nextWithTenant();
+    }
+
     if (
       PUBLIC_PATHS.has(pathname) ||
       PUBLIC_API_PATHS.has(pathname) ||

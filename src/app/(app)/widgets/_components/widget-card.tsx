@@ -14,6 +14,7 @@ import {
   IconPuzzle as Puzzle,
   IconRobot as Bot,
   IconCalendar as Calendar,
+  IconScreenShare as ScreenShare,
   IconSettings as SettingsIcon,
   IconTrash as Trash2,
   IconWebhook as Webhook,
@@ -40,6 +41,7 @@ const ICON_BY_KEY: Record<string, LucideIcon> = {
   calendar: Calendar,
   report: BarChart3,
   webhook: Webhook,
+  "screen-share": ScreenShare,
 };
 
 function WidgetIcon({ widget, className }: { widget: WidgetDto; className?: string }) {
@@ -74,6 +76,8 @@ function WidgetIcon({ widget, className }: { widget: WidgetDto; className?: stri
 const INTERNAL_ROUTE_BY_SLUG: Record<string, string> = {
   smart_distribution: "/widgets/distribution",
   calls_history: "/widgets/calls",
+  // O módulo vive na ficha do contato (card "Suporte remoto").
+  remote_support: "/contacts",
 };
 
 const CALLS_CARD_COPY = {
