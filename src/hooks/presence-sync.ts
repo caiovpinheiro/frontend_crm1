@@ -58,6 +58,13 @@ export interface PresenceEnv {
   leave: (entityType: string, entityId: string) => void;
   /** Batida única (`presence-beat-hub.ts`); ausente = só heartbeat por entidade. */
   beat?: PresenceBeatHub | null;
+  /**
+   * Sinal IMEDIATO de entrada (`POST /api/presence/join`) quando a batida de
+   * 1 min está ativa: quem já está no negócio vê a entrada em ~1 s.
+   */
+  join?: (entityType: string, entityId: string) => Promise<EntityViewer[] | null>;
+  /** Sinal imediato de saída (beacon), par do `join`. */
+  joinLeave?: (entityType: string, entityId: string) => void;
   isHidden: () => boolean;
   onVisibilityChange: (fn: () => void) => () => void;
 }
@@ -77,6 +84,8 @@ export class PresenceSync {
   private readonly active = new Set<string>();
   /** Líder: última visão do que as seguidoras reportam. */
   private followerKeys = new Set<string>();
+  /** Líder, modo batida: entidades com entrada imediata já anunciada. */
+  private readonly announced = new Set<string>();
   private beatTimer: ReturnType<typeof setInterval> | null = null;
   private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
   private hiddenExpired = false;
@@ -111,6 +120,7 @@ export class PresenceSync {
         // por heartbeat; zera para o join imediato de cada uma.
         hub.onModeChange(() => {
           this.active.clear();
+          this.announced.clear();
           this.sync();
         }),
       );
@@ -174,14 +184,17 @@ export class PresenceSync {
       // Seguidora (ou líder que acabou de ceder): a nova líder renova o
       // que todos reportam — sair aqui faria a pilha piscar.
       this.active.clear();
+      this.announced.clear();
       this.stopBeat();
       return;
     }
     if (this.beatActive()) {
       // A batida única leva as entidades (o tique lê `desiredKeys` na hora
-      // de bater): sem heartbeat por entidade e sem `leave` HTTP.
+      // de bater): sem heartbeat por entidade. Entrada e saída vão na hora
+      // pelo sinal leve (`join`), para não esperar a batida de 1 min.
       this.active.clear();
       this.stopBeat();
+      this.syncAnnounced();
       return;
     }
     const want = this.desiredKeys();
@@ -198,6 +211,44 @@ export class PresenceSync {
     }
     if (this.active.size > 0) this.startBeat();
     else this.stopBeat();
+  }
+
+  /**
+   * Modo batida: anuncia na hora o negócio que entrou na lista (de qualquer
+   * aba) e a saída do que saiu. A união das abas evita sair de um negócio
+   * que outra aba ainda mostra.
+   */
+  private syncAnnounced(): void {
+    const join = this.env.join;
+    if (!join) return;
+    const want = this.desiredKeys();
+    for (const key of [...this.announced]) {
+      if (want.has(key)) continue;
+      this.announced.delete(key);
+      const { entityType, entityId } = parsePresenceKey(key);
+      this.env.joinLeave?.(entityType, entityId);
+    }
+    for (const key of want) {
+      if (this.announced.has(key)) continue;
+      this.announced.add(key);
+      void this.announce(key, join);
+    }
+  }
+
+  private async announce(
+    key: string,
+    join: NonNullable<PresenceEnv["join"]>,
+  ): Promise<void> {
+    const { entityType, entityId } = parsePresenceKey(key);
+    let viewers: EntityViewer[] | null = null;
+    try {
+      viewers = await join(entityType, entityId);
+    } catch {
+      viewers = null;
+    }
+    if (!viewers || !this.announced.has(key)) return;
+    this.deliver(key, viewers);
+    this.env.tabs?.post({ t: "viewers", key, viewers });
   }
 
   private async beat(key: string): Promise<void> {
@@ -265,6 +316,12 @@ export class PresenceSync {
   /** Líder fechando: despede-se só do que nenhuma seguidora vê. */
   private onSuspend(wasLeader: boolean): void {
     if (!wasLeader) return;
+    for (const key of this.announced) {
+      if (this.followerKeys.has(key)) continue;
+      const { entityType, entityId } = parsePresenceKey(key);
+      this.env.joinLeave?.(entityType, entityId);
+    }
+    this.announced.clear();
     for (const key of this.active) {
       if (this.followerKeys.has(key)) continue;
       const { entityType, entityId } = parsePresenceKey(key);
@@ -296,6 +353,29 @@ async function postHeartbeat(
   return Array.isArray(json.viewers) ? json.viewers : null;
 }
 
+async function postJoin(entityType: string, entityId: string): Promise<EntityViewer[] | null> {
+  const res = await fetch("/api/presence/join", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entityType, entityId }),
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as { viewers?: EntityViewer[] };
+  return Array.isArray(json.viewers) ? json.viewers : null;
+}
+
+function joinLeaveBeacon(entityType: string, entityId: string): void {
+  try {
+    const blob = new Blob(
+      [JSON.stringify({ entityType, entityId, action: "leave" })],
+      { type: "application/json" },
+    );
+    navigator.sendBeacon("/api/presence/join", blob);
+  } catch {
+    /* ignore */
+  }
+}
+
 function leaveBeacon(entityType: string, entityId: string): void {
   try {
     const blob = new Blob(
@@ -316,6 +396,8 @@ export function browserPresenceEnv(): PresenceEnv {
     heartbeat: postHeartbeat,
     leave: leaveBeacon,
     beat: presenceBeatHub(),
+    join: postJoin,
+    joinLeave: joinLeaveBeacon,
     isHidden: () => typeof document !== "undefined" && document.hidden,
     onVisibilityChange: (fn) => {
       if (typeof document === "undefined") return () => {};

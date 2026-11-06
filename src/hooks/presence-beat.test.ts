@@ -49,12 +49,23 @@ type Io = {
   beats: Beat[];
   pings: { at: number; tab: string }[];
   heartbeats: { at: number; tab: string; key: string }[];
+  /** Sinal imediato de entrada/saída (`/api/presence/join`), quando ligado. */
+  joins: { at: number; tab: string; key: string }[];
+  joinLeaves: { at: number; tab: string; key: string }[];
+  joinViewers: EntityViewer[];
   beatReply: (body: PresenceBeatBody) => PresenceCallResult;
 };
 
 const VIEWER: EntityViewer = { userId: "u9", name: "Outra Pessoa", avatarUrl: null };
 
-function abrir(hub: FakeTabHub, id: string, io: Io, idle?: PresenceIdleEnv, onUnauthorized?: () => boolean): Aba {
+function abrir(
+  hub: FakeTabHub,
+  id: string,
+  io: Io,
+  idle?: PresenceIdleEnv,
+  onUnauthorized?: () => boolean,
+  opts: { join?: boolean } = {},
+): Aba {
   const tab = hub.tab(id, { locks: true });
   const tabs = tab.coordinator();
   const beatHub = new PresenceBeatHub({
@@ -74,6 +85,17 @@ function abrir(hub: FakeTabHub, id: string, io: Io, idle?: PresenceIdleEnv, onUn
         io.leaves.push({ at: Date.now(), tab: id, key: `${type}|${entityId}` });
       },
       beat: beatHub,
+      ...(opts.join
+        ? {
+            join: async (type: string, entityId: string) => {
+              io.joins.push({ at: Date.now(), tab: id, key: `${type}|${entityId}` });
+              return io.joinViewers;
+            },
+            joinLeave: (type: string, entityId: string) => {
+              io.joinLeaves.push({ at: Date.now(), tab: id, key: `${type}|${entityId}` });
+            },
+          }
+        : {}),
     }),
   );
   const ticker = new PresenceTicker(
@@ -117,6 +139,9 @@ beforeEach(() => {
     beats: [],
     pings: [],
     heartbeats: [],
+    joins: [],
+    joinLeaves: [],
+    joinViewers: [],
     beatReply: () => ({ status: 200, nextBeatMs: PRESENCE_BEAT_DEFAULT_MS }),
   };
 });
@@ -424,5 +449,79 @@ describe("ociosidade, 401, 429 e x-tab-id", () => {
         new Response(JSON.stringify({ retryAfterMs: 30_000 }), { status: 429 })) as unknown as typeof fetch,
     );
     expect(r429).toEqual({ status: 429, retryAfterMs: 30_000 });
+  });
+});
+
+describe("sinal imediato de entrada/saída do negócio (/api/presence/join)", () => {
+  const abrirComJoin = (id: string) => abrir(hub, id, io, undefined, undefined, { join: true });
+  const gapsOf = (beats: Beat[]) => beats.slice(1).map((b, i) => b.at - beats[i]!.at);
+
+  it("abrir um negócio anuncia na hora (sem esperar a batida) e entrega quem já está lá", async () => {
+    io.joinViewers = [VIEWER];
+    const a = abrirComJoin("a");
+    await vi.advanceTimersByTimeAsync(1_000);
+    const seen: EntityViewer[][] = [];
+    a.sync.register("deal", "d1", (v) => seen.push(v));
+    await vi.advanceTimersByTimeAsync(10);
+    expect(io.joins.map((j) => j.key)).toEqual(["deal|d1"]);
+    expect(seen.at(-1)).toEqual([VIEWER]);
+  });
+
+  it("negócio aberto numa aba seguidora: a líder anuncia uma vez só", async () => {
+    const a = abrirComJoin("a");
+    await vi.advanceTimersByTimeAsync(1_000);
+    const b = abrirComJoin("b");
+    await vi.advanceTimersByTimeAsync(1_000);
+    a.sync.register("deal", "d1", () => undefined);
+    b.sync.register("deal", "d1", () => undefined);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(io.joins).toEqual([expect.objectContaining({ tab: "a", key: "deal|d1" })]);
+  });
+
+  it("sair: só avisa quando nenhuma aba mostra mais o negócio", async () => {
+    const a = abrirComJoin("a");
+    await vi.advanceTimersByTimeAsync(1_000);
+    const b = abrirComJoin("b");
+    await vi.advanceTimersByTimeAsync(1_000);
+    const offA = a.sync.register("deal", "d1", () => undefined);
+    const offB = b.sync.register("deal", "d1", () => undefined);
+    await vi.advanceTimersByTimeAsync(2_000);
+    offA();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(io.joinLeaves).toHaveLength(0);
+    offB();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(io.joinLeaves.map((l) => l.key)).toEqual(["deal|d1"]);
+  });
+
+  it("a batida de 1 min continua no mesmo ritmo", async () => {
+    const a = abrirComJoin("a");
+    await vi.advanceTimersByTimeAsync(1_000);
+    for (let i = 0; i < 5; i++) {
+      const off = a.sync.register("deal", String(i), () => undefined);
+      await vi.advanceTimersByTimeAsync(20_000);
+      off();
+    }
+    await vi.advanceTimersByTimeAsync(60_000);
+    for (const g of gapsOf(io.beats)) expect(g).toBe(PRESENCE_BEAT_DEFAULT_MS);
+    expect(io.joins).toHaveLength(5);
+    expect(io.heartbeats).toHaveLength(0);
+  });
+
+  it("aba oculta por mais de 30 s sai (regra de hoje) e volta ao reaparecer", async () => {
+    abrirComJoin("a");
+    await vi.advanceTimersByTimeAsync(1_000);
+    const b = abrirComJoin("b");
+    await vi.advanceTimersByTimeAsync(1_000);
+    b.sync.register("deal", "d2", () => undefined);
+    await vi.advanceTimersByTimeAsync(2_000);
+    b.tab.setHidden(true);
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(io.joinLeaves).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(io.joinLeaves.map((l) => l.key)).toEqual(["deal|d2"]);
+    b.tab.setHidden(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(io.joins.map((j) => j.key)).toEqual(["deal|d2", "deal|d2"]);
   });
 });

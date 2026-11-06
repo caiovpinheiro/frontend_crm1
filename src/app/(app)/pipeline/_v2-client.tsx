@@ -1345,20 +1345,23 @@ export default function KanbanV2ClientPage({
               pipelineId={pipelineId}
               departmentId={dealConversationDepartmentId}
               requireTabulationOnClose={dealConversationRequiresTabulation}
-              viewersSlot={dealViewersSlot}
               showTabs={false}
               headerActionsSlot={
-                <WhatsappCallChip
-                  conversationId={effectiveConversationId}
-                  channel={
-                    dealConversation?.id === effectiveConversationId
-                      ? (dealConversation.channel ?? null)
-                      : null
-                  }
-                  contactName={dealContactName}
-                  variant="cta"
-                  onlyWhenGranted
-                />
+                <>
+                  {/* Quem mais está neste negócio — ao lado do botão de ligação. */}
+                  {dealViewersSlot}
+                  <WhatsappCallChip
+                    conversationId={effectiveConversationId}
+                    channel={
+                      dealConversation?.id === effectiveConversationId
+                        ? (dealConversation.channel ?? null)
+                        : null
+                    }
+                    contactName={dealContactName}
+                    variant="cta"
+                    onlyWhenGranted
+                  />
+                </>
               }
               onConversationReopened={refreshActiveDealDetail}
               onResolved={refreshActiveDealDetail}
