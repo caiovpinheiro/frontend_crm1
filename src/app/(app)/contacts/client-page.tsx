@@ -32,6 +32,7 @@ import {
   IconUserPlus,
   IconUserOff,
   IconMessageCircle,
+  IconUser,
 } from "@tabler/icons-react";
 import { Building2, Check, Pencil, Search, UserPlus, Users, X } from "lucide-react";
 import { toast } from "sonner";
@@ -1420,6 +1421,17 @@ function ContactRowActions({
       className={LIST_ACTIONS_CELL_CLASS}
       {...(tour ? { "data-tour": "contacts-row-actions" } : {})}
     >
+      {/* Ficha completa (/contacts/[id]): a linha e o nome abrem o modal de edição,
+          então este é o único caminho para a ficha a partir da lista. */}
+      <Link
+        href={`/contacts/${c.number ?? c.id}`}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={`Abrir ficha de ${c.name}`}
+        title="Abrir ficha"
+        className="touch-target-40 flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)]"
+      >
+        <IconUser size={16} />
+      </Link>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onOpenLead(c); }}
