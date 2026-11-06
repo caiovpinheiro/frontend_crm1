@@ -34,6 +34,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { removeContactTag } from "@/features/directory-v2/api";
 import { useConfirm } from "@/hooks/use-confirm";
 import { entityPath, rewriteNumericPath } from "@/lib/public-path";
+import { useCan } from "@/hooks/use-my-permissions";
+import { useRemoteSupportWidget } from "@/features/remote-support/hooks";
+import { RemoteSupportPanel } from "@/features/remote-support/remote-support-panel";
 
 /**
  * /contacts/[id] — Detalhe + edição inline + delete.
@@ -75,6 +78,9 @@ export default function ContactDetailClientPage({ id }: { id: string }) {
   const updateMutation = useUpdateContact();
   const deleteMutation = useDeleteContact();
   const addNoteMutation = useAddContactNote();
+  const remoteSupportWidget = useRemoteSupportWidget();
+  const canViewRemoteSupport = useCan("remote_support:view");
+  const canStartRemoteSupport = useCan("remote_support:start");
 
   const [edit, setEdit] = useState<EditState>(EMPTY_EDIT);
   const [dirty, setDirty] = useState(false);
@@ -321,6 +327,17 @@ export default function ContactDetailClientPage({ id }: { id: string }) {
                   )}
                 </div>
               </GlassCard>
+
+              {/* Suporte remoto — widget `remote_support` + permissão; acesso à tela com consentimento do cliente */}
+              {remoteSupportWidget.enabled && canViewRemoteSupport && (
+                <GlassCard className="p-5">
+                  <SectionTitle>Suporte remoto</SectionTitle>
+                  <RemoteSupportPanel
+                    contactId={query.data.id}
+                    canStart={canStartRemoteSupport}
+                  />
+                </GlassCard>
+              )}
 
               {/* Deals vinculados */}
               <GlassCard className="p-5">
