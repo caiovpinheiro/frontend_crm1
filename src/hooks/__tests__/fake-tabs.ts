@@ -292,6 +292,8 @@ export class FakeTab {
       heartbeat: PresenceEnv["heartbeat"];
       leave: PresenceEnv["leave"];
       beat?: PresenceEnv["beat"];
+      join?: PresenceEnv["join"];
+      joinLeave?: PresenceEnv["joinLeave"];
     },
   ): PresenceEnv {
     return {
@@ -299,6 +301,8 @@ export class FakeTab {
       heartbeat: io.heartbeat,
       leave: io.leave,
       beat: io.beat,
+      join: io.join,
+      joinLeave: io.joinLeave,
       isHidden: () => this.hidden,
       onVisibilityChange: (fn) => {
         this.visibilityHandlers.add(fn);

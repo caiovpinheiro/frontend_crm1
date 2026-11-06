@@ -9,8 +9,8 @@ import type { EntityViewer } from "@/features/pipeline-v2/hooks";
  * Variantes:
  *  - "stack"  → pilha de avatares sobrepostos (até 5 + "+N"), p/ headers.
  *      `compact` remove o rótulo "Vendo agora".
- *  - "banner" → aviso em linha "Fulano também está nesse negócio", na mesma
- *      linha de Nota interna.
+ *  - "banner" → aviso em linha "Fulano está neste negócio", no cabeçalho da
+ *      conversa do negócio (ao lado do botão de ligação).
  */
 export function DealViewersStack({
   viewers,
@@ -67,46 +67,55 @@ export function DealViewersStack({
 }
 
 /**
- * Aviso em linha no rodapé: avatares pequenos + "Fulano também está nesse
- * negócio" (plural quando 2+). Alinhado à direita, tom discreto.
+ * Aviso em linha: avatares pequenos + "Fulano está neste negócio"
+ * ("Fulano e Ciclano estão…"; 3+: "Fulano, Ciclano e mais N estão…").
+ * Nomes completos no tooltip.
  */
+export function viewersLabel(names: string[]): { who: string; verb: "está" | "estão" } {
+  if (names.length <= 1) return { who: names[0] ?? "", verb: "está" };
+  if (names.length === 2) return { who: `${names[0]} e ${names[1]}`, verb: "estão" };
+  return { who: `${names[0]}, ${names[1]} e mais ${names.length - 2}`, verb: "estão" };
+}
+
 function ViewersBanner({ viewers }: { viewers: EntityViewer[] }) {
   const MAX = 3;
   const shown = viewers.slice(0, MAX);
   const overflow = viewers.length - shown.length;
   const names = viewers.map((v) => v.name);
 
-  const nameLabel =
-    names.length === 1
-      ? names[0]
-      : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
-  const verb = names.length === 1 ? "está" : "estão";
+  const { who, verb } = viewersLabel(names);
 
   return (
-    <div className="flex min-w-0 max-w-[280px] items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-2 py-1 text-[13px] text-[var(--text-secondary)]">
-      <div className="flex shrink-0 items-center">
-        {shown.map((v, i) => (
-          <div
-            key={v.userId}
-            className="rounded-full ring-2 ring-[var(--glass-bg-panel)]"
-            style={{ marginLeft: i === 0 ? 0 : -8, zIndex: shown.length - i }}
-          >
-            <UserAvatar name={v.name} imageUrl={v.avatarUrl} size={26} status="online" />
-          </div>
-        ))}
-        {overflow > 0 && (
-          <div
-            className="flex h-[26px] min-w-[26px] items-center justify-center rounded-full bg-[var(--glass-bg-strong)] px-1 text-[11px] font-bold text-[var(--text-secondary)] ring-2 ring-[var(--glass-bg-panel)]"
-            style={{ marginLeft: -8 }}
-          >
-            +{overflow}
-          </div>
-        )}
+    <TooltipGlass label={names.join(", ")} side="bottom">
+      <div
+        role="status"
+        aria-label={`${who} ${verb} neste negócio`}
+        className="flex min-w-0 max-w-[320px] items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 py-1 pr-3 pl-1 text-[13px] text-[var(--text-secondary)]"
+      >
+        <div className="flex shrink-0 items-center">
+          {shown.map((v, i) => (
+            <div
+              key={v.userId}
+              className="rounded-full ring-2 ring-[var(--glass-bg-panel)]"
+              style={{ marginLeft: i === 0 ? 0 : -8, zIndex: shown.length - i }}
+            >
+              <UserAvatar name={v.name} imageUrl={v.avatarUrl} size={26} status="online" />
+            </div>
+          ))}
+          {overflow > 0 && (
+            <div
+              className="flex h-[26px] min-w-[26px] items-center justify-center rounded-full bg-[var(--glass-bg-strong)] px-1 text-[11px] font-bold text-[var(--text-secondary)] ring-2 ring-[var(--glass-bg-panel)]"
+              style={{ marginLeft: -8 }}
+            >
+              +{overflow}
+            </div>
+          )}
+        </div>
+        <span className="truncate">
+          <strong className="font-semibold text-[var(--text-primary)]">{who}</strong> {verb} neste
+          negócio
+        </span>
       </div>
-      <span className="truncate">
-        <strong className="font-semibold text-[var(--text-primary)]">{nameLabel}</strong>{" "}
-        também {verb} nesse negócio
-      </span>
-    </div>
+    </TooltipGlass>
   );
 }
