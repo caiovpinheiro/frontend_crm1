@@ -74,6 +74,7 @@ describe("contrato de CSS e dos cards", () => {
     expect(read("../deal-list-table.tsx")).toContain("touchTarget");
     const contacts = read("../../../app/(app)/contacts/client-page.tsx");
     expect(contacts).toContain("touchTarget");
-    expect(contacts.match(/touch-target-40 flex h-8 w-8/g)?.length).toBe(4);
+    // 5 ações por linha: abrir ficha, abrir lead, ligar, e-mail e editar.
+    expect(contacts.match(/touch-target-40 flex h-8 w-8/g)?.length).toBe(5);
   });
 });
