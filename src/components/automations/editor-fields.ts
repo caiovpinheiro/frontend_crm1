@@ -471,6 +471,18 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
       optional: true,
       hint: "Só no modo Inteligente. Vazio = distribuição geral. Com seleção, só membros desses departamentos.",
     },
+    {
+      kind: "select",
+      key: "ownershipScope",
+      label: "O que distribuir",
+      allowEmpty: false,
+      options: [
+        { value: "department", label: "Seguir regra do departamento" },
+        { value: "conversation_and_deal", label: "Conversa e negócio" },
+        { value: "conversation_only", label: "Somente a conversa" },
+      ],
+      hint: "Somente a conversa = quem recebe atende a conversa; o negócio e o contato continuam com o dono atual. Conversa e negócio = quem recebe vira dono de tudo.",
+    },
     { kind: "text", key: "distributionType", label: "Tipo / segmento (só no modo Inteligente)", optional: true },
   ],
 }
