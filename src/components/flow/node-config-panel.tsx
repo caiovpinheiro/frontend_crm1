@@ -29,6 +29,11 @@ import {
   useTriggerNameLookup,
 } from "@/components/automations/trigger-config-fields"
 import { STEP_FIELDS, type EditorField } from "@/components/automations/editor-fields"
+import {
+  effectiveDistributionMode,
+  type OrgDistributionMode,
+} from "@/components/automations/distribution-mode-options"
+import { useDistributionSettings } from "@/features/distribution/hooks"
 import { NodeConfigEditor } from "@/components/automations/inline-editor"
 import {
   useAiAgentOptions,
@@ -53,7 +58,11 @@ const HIDE_EDITOR_KEYS = new Set([
 
 const CUSTOM_STEP_TYPES = new Set(["assign_owner", "condition", "round_robin"])
 
-function fieldsForFlow(stepType: string, cfg?: Record<string, unknown>): EditorField[] | null {
+function fieldsForFlow(
+  stepType: string,
+  cfg?: Record<string, unknown>,
+  orgDistributionMode?: OrgDistributionMode | null,
+): EditorField[] | null {
   const raw = STEP_FIELDS[stepType]
   if (!raw) return null
   const next = raw.filter((f) => {
@@ -72,7 +81,8 @@ function fieldsForFlow(stepType: string, cfg?: Record<string, unknown>): EditorF
     }
     if (
       stepType === "execute_distribution" &&
-      cfg?.mode === "leads" &&
+      // Modo efetivo: o salvo no passo ou, vazio, o padrão da organização.
+      effectiveDistributionMode(cfg?.mode, orgDistributionMode) === "leads" &&
       "key" in f &&
       (f.key === "departmentIds" || f.key === "distributionType")
     ) {
@@ -104,7 +114,11 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
   const inboundBound = triggerBindsInboundChannel(triggerType)
   const isCondition = stepType === "condition"
   const isRoundRobin = stepType === "round_robin"
-  const catalogFields = !CUSTOM_STEP_TYPES.has(stepType) && !isTrigger ? fieldsForFlow(stepType, cfg as Record<string, unknown>) : null
+  const distributionSettings = useDistributionSettings(stepType === "execute_distribution")
+  const catalogFields =
+    !CUSTOM_STEP_TYPES.has(stepType) && !isTrigger
+      ? fieldsForFlow(stepType, cfg as Record<string, unknown>, distributionSettings.data?.mode)
+      : null
   const { firstId, channelId: inheritedChannelId } = firstMessageChannel(allNodes)
   const isFirstMessageStep = id === firstId
   const isFinish = (stepType === "finish" || stepType === "stop_automation") && !catalogFields

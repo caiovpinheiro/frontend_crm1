@@ -35,6 +35,8 @@ export type EditorField =
   | (Common & { kind: "select"; options: Opt[]; allowEmpty?: boolean })
   | (Common & { kind: "source"; source: SourceKey })
   | (Common & { kind: "departmentMulti" })
+  /** Modo do passo Executar distribuição; vazio mostra o padrão real da org. */
+  | (Common & { kind: "distributionMode" })
   /** Select de motivo de perda dinâmico, dependente de `config.pipelineId`. */
   | (Common & { kind: "pipelineLossReason" })
   | (Common & { kind: "step" })
@@ -454,15 +456,10 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
   consume_stock: [{ kind: "info", text: "Baixa o estoque dos produtos do negócio. Bloqueia se faltar saldo." }],
   execute_distribution: [
     {
-      kind: "select",
+      kind: "distributionMode",
       key: "mode",
       label: "Modo de distribuição",
-      allowEmpty: false,
-      options: [
-        { value: "smart", label: "Inteligente (elegibilidade + fila)" },
-        { value: "leads", label: "Por Leads (rodízio por peso)" },
-      ],
-      hint: "Inteligente = presença, expediente e fila de espera. Por Leads = rodízio por peso (0–5) dos consultores da página Distribuição, sem fila; redistribui mesmo com dono.",
+      hint: "Inteligente = presença, expediente e fila de espera. Por Leads = rodízio por peso (0–5) dos consultores da página Distribuição, sem fila; redistribui mesmo com dono. Cada modo precisa estar ligado na página Distribuição.",
     },
     {
       kind: "departmentMulti",
