@@ -82,6 +82,20 @@ const ASSIGN_TARGET_OPTS: Opt[] = [
   { value: "contact", label: "Contato" },
   { value: "both", label: "Ambos" },
 ]
+// Passo "Devolver atendimento" (restore_attendance).
+const RESTORE_MODE_OPTS: Opt[] = [
+  { value: "previous", label: "Voltar ao anterior" },
+  { value: "clear", label: "Remover" },
+  { value: "keep", label: "Manter como está" },
+]
+const RESTORE_NOT_FOUND_OPTS: Opt[] = [
+  { value: "keep", label: "Manter como está" },
+  { value: "clear", label: "Remover" },
+]
+const RESTORE_REOPEN_OPTS: Opt[] = [
+  { value: "no", label: "Não reabrir (vale para o próximo atendimento)" },
+  { value: "yes", label: "Reabrir com o resultado" },
+]
 const TIMEOUT_ACTIONS: Opt[] = [
   { value: "continue", label: "Continuar fluxo" },
   { value: "stop", label: "Encerrar" },
@@ -131,6 +145,16 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
   // "Selecionar departamento" (o antigo StepConfigPanel foi removido).
   transfer_department: [
     { kind: "source", source: "department", key: "departmentId", label: "Departamento de destino" },
+  ],
+  restore_attendance: [
+    {
+      kind: "info",
+      text: "“Anterior” = quem atendia e o departamento de antes da última transferência (pelo histórico da conversa). Use no gatilho “Conversa encerrada” filtrado pelo departamento que devolve.",
+    },
+    { kind: "select", key: "agentMode", label: "Agente", options: RESTORE_MODE_OPTS },
+    { kind: "select", key: "departmentMode", label: "Departamento", options: RESTORE_MODE_OPTS },
+    { kind: "select", key: "notFound", label: "Sem anterior no histórico", options: RESTORE_NOT_FOUND_OPTS },
+    { kind: "select", key: "reopen", label: "Conversa encerrada", options: RESTORE_REOPEN_OPTS },
   ],
   add_tag: [{ kind: "tag", key: "tagName", label: "Nome da tag" }],
   remove_tag: [{ kind: "tag", key: "tagName", label: "Nome da tag" }],

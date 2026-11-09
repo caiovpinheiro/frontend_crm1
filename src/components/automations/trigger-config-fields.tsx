@@ -1050,7 +1050,8 @@ function ConversationTabulatedFields({
       <p className="text-xs text-muted-foreground">
         Disparado quando um agente encerra uma conversa. Por padrão vale
         qualquer encerramento manual — marque a opção abaixo para restringir
-        apenas aos encerramentos com tabulação. Filtros de departamento e
+        apenas aos encerramentos com tabulação. Encerramentos pela IA ou por
+        outra automação só contam se marcados. Filtros de departamento e
         tabulação são opcionais (categoria pai inclui todos os itens abaixo).
       </p>
 
@@ -1062,6 +1063,27 @@ function ConversationTabulatedFields({
           onChange={(e) => patch({ requireTabulation: e.target.checked })}
         />
         <span>Somente quando tiver tabulação</span>
+      </label>
+
+      {/* Quem encerrou: pessoa sempre conta; IA e automação são opcionais
+          (backend: `closedBy` × includeAiCloses/includeAutomationCloses). */}
+      <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 accent-[var(--brand-primary)]"
+          checked={value.includeAiCloses === true}
+          onChange={(e) => patch({ includeAiCloses: e.target.checked })}
+        />
+        <span>Também quando a IA encerrar</span>
+      </label>
+      <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 accent-[var(--brand-primary)]"
+          checked={value.includeAutomationCloses === true}
+          onChange={(e) => patch({ includeAutomationCloses: e.target.checked })}
+        />
+        <span>Também quando uma automação encerrar</span>
       </label>
 
       <div className="space-y-2">
