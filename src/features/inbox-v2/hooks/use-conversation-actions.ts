@@ -33,12 +33,20 @@ export function useAssignConversation() {
   return useMutation<
     Awaited<ReturnType<typeof postConversationAction>>,
     Error,
-    { conversationId: string; assignedToId: string | null }
+    {
+      conversationId: string;
+      assignedToId: string | null;
+      /** Resposta de "transferir também o dono do negócio?"; ausente = departamento. */
+      keepDealOwner?: boolean;
+    }
   >({
     mutationFn: (vars) =>
       postConversationAction(vars.conversationId, {
         action: "assign",
         assignedToId: vars.assignedToId,
+        ...(vars.keepDealOwner !== undefined
+          ? { keepDealOwner: vars.keepDealOwner }
+          : {}),
       }),
     onSuccess: (_data, vars) => {
       applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
@@ -134,6 +142,8 @@ export function useTransferConversation() {
       conversationId: string;
       assignedToId?: string | null;
       departmentId?: string | null;
+      /** Ausente = regra do departamento (`Department.keepDealOwner`). */
+      keepDealOwner?: boolean;
     }
   >({
     mutationFn: (vars) =>
@@ -144,6 +154,9 @@ export function useTransferConversation() {
           : {}),
         ...(vars.departmentId !== undefined
           ? { departmentId: vars.departmentId }
+          : {}),
+        ...(vars.keepDealOwner !== undefined
+          ? { keepDealOwner: vars.keepDealOwner }
           : {}),
       }),
     onSuccess: (data, vars) => {
@@ -591,21 +604,28 @@ export function useBulkAssignConversations() {
       tab?: string;
       search?: string;
       filters?: Record<string, unknown>;
+      /** Resposta de "transferir também o dono do negócio?". */
+      keepDealOwner?: boolean;
     }
   >({
     mutationFn: (vars) =>
       postBulkAction(
         vars.ids,
         "assign",
-        vars.allInFilter
-          ? {
-              allInFilter: true,
-              assignedToId: vars.assignedToId,
-              tab: vars.tab,
-              search: vars.search,
-              filters: vars.filters,
-            }
-          : { assignedToId: vars.assignedToId },
+        {
+          ...(vars.allInFilter
+            ? {
+                allInFilter: true,
+                assignedToId: vars.assignedToId,
+                tab: vars.tab,
+                search: vars.search,
+                filters: vars.filters,
+              }
+            : { assignedToId: vars.assignedToId }),
+          ...(vars.keepDealOwner !== undefined
+            ? { keepDealOwner: vars.keepDealOwner }
+            : {}),
+        },
       ),
     onSuccess: () => {
       void refreshInboxLists(qc);

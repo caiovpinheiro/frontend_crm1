@@ -309,6 +309,7 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
   const [distributionEnabled, setDistributionEnabled] = React.useState(
     dept?.distributionEnabled ?? false,
   );
+  const [keepDealOwner, setKeepDealOwner] = React.useState(dept?.keepDealOwner ?? false);
   const updateMutation = useUpdateDepartment();
   const setMembersMutation = useSetDepartmentMembers();
 
@@ -319,7 +320,7 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
   const [memberSearch, setMemberSearch] = React.useState("");
 
   React.useEffect(() => {
-    if (dept) { setName(dept.name); setIcon(dept.icon); setColor(dept.color); setIsSupport(dept.isSupport ?? false); setDistributionEnabled(dept.distributionEnabled ?? false); setMemberSearch(""); }
+    if (dept) { setName(dept.name); setIcon(dept.icon); setColor(dept.color); setIsSupport(dept.isSupport ?? false); setDistributionEnabled(dept.distributionEnabled ?? false); setKeepDealOwner(dept.keepDealOwner ?? false); setMemberSearch(""); }
   }, [dept?.id]);
 
   // Stable key prevents infinite re-render loop when currentMembers reference changes.
@@ -352,7 +353,7 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
     if (!dept) return;
     const deptId = dept.id;
     updateMutation.mutate(
-      { id: deptId, name: name.trim(), icon, color, isSupport, distributionEnabled },
+      { id: deptId, name: name.trim(), icon, color, isSupport, distributionEnabled, keepDealOwner },
       {
         onSuccess: () => {
           setMembersMutation.mutate(
@@ -476,6 +477,29 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
             checked={distributionEnabled}
             onChange={setDistributionEnabled}
             aria-label="Distribuição por departamento"
+          />
+        </div>
+
+        <div className="flex items-start justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3.5 py-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <IconBriefcase size={15} className="text-[var(--brand-primary)]" />
+              <span className="font-display text-[12.5px] font-semibold text-[var(--text-primary)]">
+                Manter dono do negócio
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-muted)]">
+              Ao distribuir ou transferir para este departamento, só a
+              conversa muda de responsável. O dono do negócio continua o
+              mesmo (ex.: o vendedor segue dono enquanto este time atende).
+              Negócio sem dono, ou com agente de IA como dono, recebe quem
+              atende.
+            </p>
+          </div>
+          <SwitchGlass
+            checked={keepDealOwner}
+            onChange={setKeepDealOwner}
+            aria-label="Manter dono do negócio"
           />
         </div>
 
