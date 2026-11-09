@@ -308,6 +308,7 @@ const LOOKUP_PREVIEW_TYPES = new Set([
   "mark_deal_lost",
   "assign_owner",
   "transfer_department",
+  "restore_attendance",
   "add_tag",
   "remove_tag",
   "create_deal",

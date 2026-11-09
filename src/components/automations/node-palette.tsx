@@ -63,6 +63,7 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
       { type: "mark_deal_lost" },
       { type: "assign_owner" },
       { type: "transfer_department" },
+      { type: "restore_attendance" },
       { type: "add_tag" },
       { type: "remove_tag" },
       { type: "update_field" },
