@@ -227,11 +227,18 @@ export type ConversationActionPayload =
       followUp?: boolean;
     }
   | { action: "reopen" }
-  | { action: "assign"; assignedToId: string | null }
+  | {
+      action: "assign";
+      assignedToId: string | null;
+      /** "Manter dono do negócio"; ausente = regra do departamento. */
+      keepDealOwner?: boolean;
+    }
   | {
       action: "transfer";
       assignedToId?: string | null;
       departmentId?: string | null;
+      /** "Manter dono do negócio"; ausente = regra do departamento. */
+      keepDealOwner?: boolean;
     };
 
 /** Resultado da Distribuição Inteligente acionada por uma transferência para departamento. */

@@ -27,6 +27,8 @@ import {
   usePortalPopover,
 } from "@/features/pipeline-v2/extras/use-portal-popover";
 
+import { DealOwnerScopeChoice } from "./deal-owner-scope-choice";
+
 interface BulkReassignPopoverProps {
   conversationIds: string[];
   disabled?: boolean;
@@ -59,6 +61,8 @@ export function BulkReassignPopover({
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
   const [filter, setFilter] = useState("");
+  // "Transferir também o dono do negócio?" (vale para todo o lote).
+  const [keepDealOwner, setKeepDealOwner] = useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   const { data: users = [], isLoading } = useTeamUsers(open);
@@ -86,6 +90,14 @@ export function BulkReassignPopover({
       description: allInFilter
         ? `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count.toLocaleString("pt-BR")} conversa${count === 1 ? "" : "s"} do filtro atual${unassign ? "" : ` para ${assigneeName}`}?`
         : `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count} conversa${count === 1 ? "" : "s"}${unassign ? "" : ` para ${assigneeName}`}?`,
+      // A pergunta do popover vai junto na confirmação.
+      ...(unassign
+        ? {}
+        : {
+            title: keepDealOwner
+              ? "Reatribuir só as conversas"
+              : "Reatribuir conversas e negócios",
+          }),
       confirmLabel: unassign ? "Remover" : "Reatribuir",
     });
     if (!confirmed) return;
@@ -100,11 +112,13 @@ export function BulkReassignPopover({
             tab,
             search,
             filters,
+            keepDealOwner,
           }
-        : { ids: conversationIds, assignedToId: userId },
+        : { ids: conversationIds, assignedToId: userId, keepDealOwner },
       {
         onSuccess: (result) => {
           setFilter("");
+          setKeepDealOwner(false);
           if (result.operationId) {
             onQueued?.(
               result.operationId,
@@ -125,7 +139,7 @@ export function BulkReassignPopover({
     );
   }
 
-  const pos = computePopoverPosition(rect, 280, 320);
+  const pos = computePopoverPosition(rect, 336, 320);
   const busy =
     bulkAssign.isPending ||
     disabled ||
@@ -192,6 +206,11 @@ export function BulkReassignPopover({
                   if (e.key === "Escape") close();
                 }}
                 className="mb-1.5 w-full rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]/40"
+              />
+              <DealOwnerScopeChoice
+                keepDealOwner={keepDealOwner}
+                onChange={setKeepDealOwner}
+                className="mb-1.5"
               />
               <ul className="max-h-64 overflow-y-auto">
                 {canUnassign && (
