@@ -911,6 +911,33 @@ function BubbleHoverActions({
   );
 }
 
+/**
+ * Layout da bolha de anexo. Arquivo (PDF, doc…) reserva a faixa da direita
+ * para o botão "Ações da mensagem" (absoluto no canto superior direito) e põe
+ * o horário embaixo, fora da linha: antes os dois cobriam o botão Baixar.
+ */
+export function mediaBubbleLayout(kind: TeamChatAttachment["kind"]): {
+  bubbleClass: string;
+  metaInline: boolean;
+  metaClass: string;
+} {
+  if (kind === "audio") {
+    return {
+      bubbleClass: "flex min-w-[16rem] flex-col gap-1 overflow-visible px-2.5 pb-1.5 pt-2",
+      metaInline: true,
+      metaClass: "flex justify-end pr-0.5",
+    };
+  }
+  if (kind === "image" || kind === "video") {
+    return { bubbleClass: "overflow-hidden p-1", metaInline: false, metaClass: "" };
+  }
+  return {
+    bubbleClass: "flex flex-col overflow-hidden p-1 pr-9",
+    metaInline: true,
+    metaClass: "flex justify-end px-1 pb-0.5",
+  };
+}
+
 function MessageBody({
   message,
   mine,
@@ -1015,21 +1042,13 @@ function MessageBody({
         </button>
       ))}
       {media.map((att, i) => {
-        const audio = att.kind === "audio";
+        const layout = mediaBubbleLayout(att.kind);
         const showMeta = !hasText && i === media.length - 1;
         return (
-          <div
-            key={`${att.url}-${i}`}
-            className={cn(
-              bubbleCls,
-              audio
-                ? "flex min-w-[16rem] flex-col gap-1 overflow-visible px-2.5 pb-1.5 pt-2"
-                : "overflow-hidden p-1",
-            )}
-          >
+          <div key={`${att.url}-${i}`} className={cn(bubbleCls, layout.bubbleClass)}>
             <MediaChip att={att} onOpenImage={att.kind === "image" ? () => openImage(att) : undefined} />
-            {showMeta && audio ? (
-              <span className="flex justify-end pr-0.5">{meta}</span>
+            {showMeta && layout.metaInline ? (
+              <span className={layout.metaClass}>{meta}</span>
             ) : showMeta ? (
               <span className="absolute bottom-1.5 right-2 drop-shadow">{meta}</span>
             ) : null}
