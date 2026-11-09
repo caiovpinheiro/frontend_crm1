@@ -75,6 +75,8 @@ import {
 import { ActiveChannelMultiSelect } from "./step-channel-picker"
 import { TagStepInput } from "./tag-step-input"
 import { readStepAllowedChannelIds, readStepChannelScope } from "@/lib/automation-workflow"
+import { useDistributionSettings } from "@/features/distribution/hooks"
+import { distributionModeOptions } from "./distribution-mode-options"
 
 const CUSTOM_FIELD_SENTINEL = "__custom__"
 
@@ -375,6 +377,16 @@ function Field({
         <Labeled label={field.label} optional={field.optional} hint={field.hint}>
           <PipelineLossReasonSelect
             pipelineId={str(config.pipelineId)}
+            value={str(config[field.key])}
+            onChange={(v) => set(field.key, v)}
+          />
+        </Labeled>
+      )
+
+    case "distributionMode":
+      return (
+        <Labeled label={field.label} optional={field.optional} hint={field.hint}>
+          <DistributionModeSelect
             value={str(config[field.key])}
             onChange={(v) => set(field.key, v)}
           />
@@ -741,6 +753,26 @@ function stopFlowPointer(e: React.PointerEvent) {
 }
 
 /** Select do DS v2 (DropdownGlass) — substitui `<select>` nativo. */
+/** Modo do passo Executar distribuição. Vazio = padrão da org, com o nome real. */
+function DistributionModeSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  const settings = useDistributionSettings()
+  return (
+    <ConfigSelect
+      value={value}
+      options={distributionModeOptions(settings.data?.mode).slice(1)}
+      placeholder={distributionModeOptions(settings.data?.mode)[0]!.label}
+      allowEmpty
+      onChange={onChange}
+    />
+  )
+}
+
 function ConfigSelect({
   value,
   options,
