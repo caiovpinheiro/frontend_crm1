@@ -68,6 +68,7 @@ export const ACTION_STEP_TYPES = [
   "mark_deal_lost",
   "assign_owner",
   "transfer_department",
+  "restore_attendance",
   "add_tag",
   "remove_tag",
   "update_field",
@@ -255,6 +256,7 @@ export function stepTypeLabel(t: string): string {
     mark_deal_lost: "Perda",
     assign_owner: "Atribuir responsável",
     transfer_department: "Transferir para departamento",
+    restore_attendance: "Devolver atendimento",
     add_tag: "Adicionar tag",
     remove_tag: "Remover tag",
     update_field: "Atualizar campo",
@@ -604,6 +606,12 @@ export function summarizeStepConfig(stepType: string, config: unknown, lookup?: 
     }
     case "transfer_department":
       return resolveNamed(c.departmentId, lookup, c.departmentName, "Departamento") ?? "Selecionar departamento";
+    case "restore_attendance": {
+      const mode = (v: unknown) => (v === "clear" ? "remover" : v === "keep" ? "manter" : "anterior");
+      const parts = [`Agente: ${mode(c.agentMode)}`, `Depto: ${mode(c.departmentMode)}`];
+      if (c.reopen === "yes" || c.reopen === true) parts.push("reabre");
+      return parts.join(" · ");
+    }
     case "add_tag":
     case "remove_tag": {
       // O passo guarda só o NOME da tag (`tagName`), sem id — então o
@@ -866,6 +874,10 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
       return { userId: "", target: "deal" };
     case "transfer_department":
       return { departmentId: "", departmentName: "" };
+    case "restore_attendance":
+      // Padrão: devolve agente e departamento de antes da transferência;
+      // sem histórico, mantém; não reabre conversa encerrada.
+      return { agentMode: "previous", departmentMode: "previous", notFound: "keep", reopen: "no" };
     case "add_tag":
     case "remove_tag":
       return { tagName: "" };
