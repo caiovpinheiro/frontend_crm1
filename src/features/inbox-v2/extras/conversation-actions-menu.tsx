@@ -39,6 +39,11 @@ type AiHandoffDeal = {
 import { useSendToChat } from "@/features/team-chat/send-to-chat-dialog";
 import { messagesKey } from "@/features/inbox-v2/hooks/use-messages";
 import type { MessagesResponse } from "@/features/inbox-v2/api/types";
+import {
+  DealOwnerScopeChoice,
+  useCachedConversationDepartmentId,
+  useDepartmentKeepsDealOwner,
+} from "./deal-owner-scope-choice";
 
 function attendanceNamesFromThread(
   data: MessagesResponse | undefined,
@@ -109,6 +114,14 @@ export function ConversationActionsMenu({
 }: ConversationActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
+  // "Transferir também o dono do negócio?" — vale para Assumir, Devolver à
+  // IA e Distribuir p/ departamento. null = padrão do departamento atual.
+  const [keepOwner, setKeepOwner] = useState<boolean | null>(null);
+  const currentDepartmentId = useCachedConversationDepartmentId(
+    open ? conversationId : null,
+  );
+  const deptKeepsOwner = useDepartmentKeepsDealOwner(currentDepartmentId, open);
+  const keepDealOwner = keepOwner ?? deptKeepsOwner;
   const containerRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
   const { openShare } = useSendToChat();
@@ -240,6 +253,7 @@ export function ConversationActionsMenu({
         contactId: contactId ?? undefined,
         departmentIds: [dept.id],
         reassign: true,
+        keepDealOwner,
       },
       {
         onSuccess: (result) => {
@@ -263,7 +277,7 @@ export function ConversationActionsMenu({
       return;
     }
     assign.mutate(
-      { conversationId, assignedToId: currentUserId },
+      { conversationId, assignedToId: currentUserId, keepDealOwner },
       {
         onSuccess: () => {
           setOpen(false);
@@ -281,7 +295,7 @@ export function ConversationActionsMenu({
       return;
     }
     assign.mutate(
-      { conversationId, assignedToId: agent.userId },
+      { conversationId, assignedToId: agent.userId, keepDealOwner },
       {
         onSuccess: () => {
           setOpen(false);
@@ -317,6 +331,13 @@ export function ConversationActionsMenu({
         // com o padrao dos menus contextuais do CRM. Icones a esquerda,
         // labels a direita — legibilidade + affordance clara.
         <div className="absolute right-0 top-full z-30 mt-2 w-56 overflow-visible rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-white p-1 shadow-[0_12px_32px_rgba(15,23,42,0.12)] v2-dark:bg-[#1a1f2e]">
+          {!isResolved && (
+            <DealOwnerScopeChoice
+              keepDealOwner={keepDealOwner}
+              onChange={setKeepOwner}
+              className="border-b border-[var(--glass-border)] px-2 pb-2 pt-1.5"
+            />
+          )}
           {isAiAssignee ? (
             <button
               type="button"

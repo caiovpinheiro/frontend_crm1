@@ -18,6 +18,11 @@ export interface Department {
   requireTabulationOnClose?: boolean;
   isSupport?: boolean;
   distributionEnabled?: boolean;
+  /**
+   * true = distribuir/transferir para este departamento troca só o
+   * responsável da conversa; o dono humano do negócio fica.
+   */
+  keepDealOwner?: boolean;
   /** Null = Seg–Sex 09:00–18:00. */
   operatingHours?: DepartmentOperatingHours | null;
   _count?: { conversations?: number; members?: number };
@@ -83,7 +88,7 @@ export function useCreateDepartment() {
 export function useUpdateDepartment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name?: string; color?: string; icon?: string; requireTabulationOnClose?: boolean; isSupport?: boolean; distributionEnabled?: boolean; operatingHours?: DepartmentOperatingHours | null }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; color?: string; icon?: string; requireTabulationOnClose?: boolean; isSupport?: boolean; distributionEnabled?: boolean; keepDealOwner?: boolean; operatingHours?: DepartmentOperatingHours | null }) => {
       const res = await fetch(`/api/settings/departments/${id}`, {
         method: "PUT",
         credentials: "include",

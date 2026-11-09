@@ -23,6 +23,8 @@ import {
 import { useTeamUsers, useTransferConversation } from "@/features/inbox-v2/hooks";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 
+import { DealOwnerScopeChoice } from "./deal-owner-scope-choice";
+
 interface TransferPopoverProps {
   conversationId: string | null;
   currentAssigneeId?: string | null;
@@ -45,6 +47,8 @@ export function TransferPopover({
   const [open, setOpen] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
   const [deptId, setDeptId] = useState<string | null>(null);
+  // "Manter dono do negócio": null = segue o departamento (destino ou atual).
+  const [keepOwner, setKeepOwner] = useState<boolean | null>(null);
   const [agentFilter, setAgentFilter] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -57,8 +61,14 @@ export function TransferPopover({
     if (!open) return;
     setAgentId(null);
     setDeptId(null);
+    setKeepOwner(null);
     setAgentFilter("");
   }, [open]);
+
+  const ruleDeptId = deptId ?? currentDepartmentId ?? null;
+  const deptKeepsOwner =
+    departments.find((d) => d.id === ruleDeptId)?.keepDealOwner === true;
+  const keepOwnerChecked = keepOwner ?? deptKeepsOwner;
 
   useEffect(() => {
     if (!open) return;
@@ -95,6 +105,8 @@ export function TransferPopover({
         conversationId,
         ...(agentId !== null ? { assignedToId: agentId } : {}),
         ...(deptId !== null ? { departmentId: deptId } : {}),
+        // Resposta explícita da pergunta (padrão = regra do departamento).
+        keepDealOwner: keepOwnerChecked,
       },
       { onSuccess: () => setOpen(false) },
     );
@@ -237,9 +249,11 @@ export function TransferPopover({
                   <li key={d.id}>
                     <button
                       type="button"
-                      onClick={() =>
-                        setDeptId((prev) => (prev === d.id ? null : d.id))
-                      }
+                      onClick={() => {
+                        setDeptId((prev) => (prev === d.id ? null : d.id));
+                        // Novo destino: a pergunta volta ao padrão dele.
+                        setKeepOwner(null);
+                      }}
                       className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[var(--glass-bg-overlay)] ${
                         isSelected
                           ? "bg-[var(--color-enterprise-bg)] font-semibold text-[var(--brand-primary)]"
@@ -273,6 +287,12 @@ export function TransferPopover({
               })}
             </ul>
           </div>
+
+          <DealOwnerScopeChoice
+            keepDealOwner={keepOwnerChecked}
+            onChange={setKeepOwner}
+            className="border-t border-[var(--glass-border)] px-3 py-2.5"
+          />
 
           <div className="flex items-center justify-end gap-2 border-t border-[var(--glass-border)] px-3 py-2.5">
             <button

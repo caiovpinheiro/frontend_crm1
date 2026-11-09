@@ -24,6 +24,12 @@ import {
   usePortalPopover,
 } from "@/features/pipeline-v2/extras/use-portal-popover";
 
+import {
+  DealOwnerScopeChoice,
+  useCachedConversationDepartmentId,
+  useDepartmentKeepsDealOwner,
+} from "./deal-owner-scope-choice";
+
 interface AssigneePopoverProps {
   conversationId: string | null;
   currentAssigneeName?: string;
@@ -42,6 +48,11 @@ export function AssigneePopover({
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
   const [filter, setFilter] = useState("");
+  // "Transferir também o dono do negócio?" — null = padrão do departamento.
+  const [keepOwner, setKeepOwner] = useState<boolean | null>(null);
+  const departmentId = useCachedConversationDepartmentId(open ? conversationId : null);
+  const deptKeepsOwner = useDepartmentKeepsDealOwner(departmentId, open);
+  const keepDealOwner = keepOwner ?? deptKeepsOwner;
 
   const { data: users = [], isLoading } = useTeamUsers(open, { includeAi: true });
   const assign = useAssignConversation();
@@ -57,17 +68,18 @@ export function AssigneePopover({
   function handleSelect(userId: string | null) {
     if (!conversationId) return;
     assign.mutate(
-      { conversationId, assignedToId: userId },
+      { conversationId, assignedToId: userId, keepDealOwner },
       {
         onSuccess: () => {
           close();
           setFilter("");
+          setKeepOwner(null);
         },
       },
     );
   }
 
-  const pos = computePopoverPosition(rect, 280, 256);
+  const pos = computePopoverPosition(rect, 336, 256);
 
   return (
     <>
@@ -131,6 +143,11 @@ export function AssigneePopover({
                   if (e.key === "Escape") close();
                 }}
                 className="mb-1.5 w-full rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]/40"
+              />
+              <DealOwnerScopeChoice
+                keepDealOwner={keepDealOwner}
+                onChange={setKeepOwner}
+                className="mb-1.5"
               />
               <ul className="max-h-56 overflow-y-auto">
                 {currentAssigneeId && (

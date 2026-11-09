@@ -133,6 +133,8 @@ export type ExecuteDistributionInput = {
   departmentIds?: string[];
   /** Redistribui mesmo com responsável atual (handoff manual). */
   reassign?: boolean;
+  /** "Manter dono do negócio" (só a conversa); ausente = regra do departamento. */
+  keepDealOwner?: boolean;
 };
 
 export async function executeDistribution(
