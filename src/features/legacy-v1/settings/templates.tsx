@@ -364,7 +364,9 @@ export default function TemplatesSettingsPage({ embedded = false }: { embedded?:
   );
 }
 
-const MEDIA_ACCEPT_TEMPLATE = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm";
+// Áudio entra como mensagem de voz no WhatsApp (a conversão é do envio).
+const MEDIA_ACCEPT_TEMPLATE =
+  "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,audio/ogg,audio/wav,.mp3,.ogg,.opus,.wav";
 
 function TemplateForm({
   initial,
@@ -675,7 +677,7 @@ function TemplateForm({
           ) : null}
         </div>
         <p className="font-body text-[11px] text-[var(--text-muted)]">
-          Até {MAX_EXTRA_TEXTS} textos extras e {MAX_TEMPLATE_ATTACHMENTS} arquivos. Aceita: JPG, PNG, WEBP, GIF, MP4, WEBM — máx. 16 MB cada.
+          Até {MAX_EXTRA_TEXTS} textos extras e {MAX_TEMPLATE_ATTACHMENTS} arquivos. Aceita: JPG, PNG, WEBP, GIF, MP4, WEBM e áudio (MP3, OGG, WAV) — máx. 16 MB cada. Áudio chega como mensagem de voz no WhatsApp.
         </p>
       </div>
 

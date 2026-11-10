@@ -97,6 +97,7 @@ import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone 
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
 import { NoticesStep } from "./notices-step";
+import { VOICE_DEFAULTS, VoiceStep, looksLikeVoiceKey } from "./voice-step";
 import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
 import { RulesExportMenu } from "./rules-export-menu";
@@ -126,6 +127,8 @@ type AgentDetail = {
   openaiApiKeyHint: string | null;
   hasAnthropicKey?: boolean;
   anthropicApiKeyHint?: string | null;
+  hasVoiceKey?: boolean;
+  voiceApiKeyHint?: string | null;
   createdAt: string;
   updatedAt: string;
   /** Contador do rascunho: o salvamento manda o que carregou; mudou no servidor → 409. */
@@ -210,6 +213,8 @@ type TestResult = {
   chosenOption?: string | null;
   /** Texto da mensagem pronta que sairia em seguida, no WhatsApp. */
   materialText?: string;
+  /** Texto que seria falado: a resposta iria por áudio e `reply` é a linha escrita que acompanha. */
+  voiceText?: string;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -413,7 +418,9 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
     showLink: false,
     citableFields: [],
     actions: [],
+    sendCard: false,
   },
+  voice: { ...VOICE_DEFAULTS },
   entry: {
     openingEnabled: true,
     openingMessage: "",
@@ -532,7 +539,7 @@ async function fetchAgent(id: string): Promise<AgentDetail> {
 
 async function updateAgentMeta(
   id: string,
-  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null },
+  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null; voiceApiKey?: string | null; confirmAnyChannel?: boolean },
 ): Promise<AgentDetail> {
   const res = await apiFetch(`/api/ai-agents-v2/${id}`, {
     method: "PUT",
@@ -984,6 +991,8 @@ export default function AIAgentV2EditPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
+  /** A pessoa confirmou ligar sem número escolhido na versão publicada. */
+  const confirmAnyChannel = React.useRef(false);
 
   const [section, setSection] = React.useState<SectionId>("inicio");
   const [knowTab, setKnowTab] = React.useState("materiais");
@@ -998,6 +1007,7 @@ export default function AIAgentV2EditPage() {
   const [dirty, setDirty] = React.useState(false);
   const [openaiKey, setOpenaiKey] = React.useState("");
   const [anthropicKey, setAnthropicKey] = React.useState("");
+  const [voiceKey, setVoiceKey] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [savedAt, setSavedAt] = React.useState<Date | null>(null);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -1084,14 +1094,23 @@ export default function AIAgentV2EditPage() {
       // gravar uma chave pela metade enquanto a pessoa digita.
       const keyToSend = looksLikeOpenAiApiKey(openaiKey) ? openaiKey.trim() : undefined;
       const anthropicToSend = looksLikeAnthropicKey(anthropicKey) ? anthropicKey.trim() : undefined;
+      const voiceKeyToSend = looksLikeVoiceKey(voiceKey) ? voiceKey.trim() : undefined;
       setSaving(true);
       setSaveError(null);
       try {
-        await updateAgentMeta(id, { name, active, openaiApiKey: keyToSend, anthropicApiKey: anthropicToSend });
+        await updateAgentMeta(id, {
+          name,
+          active,
+          openaiApiKey: keyToSend,
+          anthropicApiKey: anthropicToSend,
+          voiceApiKey: voiceKeyToSend,
+          ...(active && confirmAnyChannel.current ? { confirmAnyChannel: true } : {}),
+        });
         const saved = await saveDraft(id, { ...config, name }, draftVersion.current);
         if (typeof saved.draftVersion === "number") draftVersion.current = saved.draftVersion;
         if (keyToSend) setOpenaiKey("");
         if (anthropicToSend) setAnthropicKey("");
+        if (voiceKeyToSend) setVoiceKey("");
         if (editVersion.current === version) setDirty(false);
         setSavedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
@@ -1108,6 +1127,14 @@ export default function AIAgentV2EditPage() {
           setSaveError("este rascunho foi alterado em outra janela ou aba. Carregamos a versão mais nova — refaça a alteração que você tinha acabado de fazer.");
           return;
         }
+        // O servidor não ligou: a versão publicada não tem número escolhido
+        // e faltou a confirmação. Volta o interruptor e mostra o motivo.
+        if ((err as { code?: string } | null)?.code === "ACTIVATION_NEEDS_CHANNEL") {
+          confirmAnyChannel.current = false;
+          setActive(false);
+          setSaveError(err instanceof Error ? err.message : "Escolha o número de WhatsApp antes de ligar o agente.");
+          return;
+        }
         setSaveError(err instanceof Error ? err.message : "Erro ao salvar.");
         throw err;
       } finally {
@@ -1115,6 +1142,30 @@ export default function AIAgentV2EditPage() {
       }
     },
   });
+
+  // Ligar com a versão publicada sem número: ele assumiria as conversas novas
+  // de qualquer número sem agente próprio. Só liga depois de confirmar.
+  const handleActiveChange = async (next: boolean) => {
+    if (next) {
+      const published = (agentQuery.data?.publishedConfig ?? {}) as { channelIds?: unknown };
+      const channels = Array.isArray(published.channelIds) ? published.channelIds.filter(Boolean).length : 0;
+      if (channels === 0) {
+        const ok = await confirm({
+          title: "Ligar sem número escolhido?",
+          description:
+            "A versão publicada não tem número de WhatsApp escolhido. Ligado assim, ele assume as conversas novas de qualquer número que não tenha outro agente. Para limitar, escolha o número em “Onde ele atende”, publique e ligue depois.",
+          confirmLabel: "Ligar mesmo assim",
+          cancelLabel: "Deixar desligado",
+        });
+        if (!ok) return;
+        confirmAnyChannel.current = true;
+      }
+    } else {
+      confirmAnyChannel.current = false;
+    }
+    setActive(next);
+    markDirty();
+  };
 
   // Salvamento automático: 1,5 s depois da última alteração.
   React.useEffect(() => {
@@ -1209,7 +1260,7 @@ export default function AIAgentV2EditPage() {
       next: (fresh.lastVersionNumber ?? 0) + 1,
       first,
       changes: buildPublishDiff(fresh.publishedConfig, fresh.draftConfig, catalogsQuery.data ?? {}),
-      realClients: (active || first) && channels > 0 && phones === 0,
+      realClients: active && channels > 0 && phones === 0,
     });
   };
 
@@ -1227,13 +1278,16 @@ export default function AIAgentV2EditPage() {
     }
     setPublishInfo(null);
     setPublishBlocked(null);
-    // A primeira publicação liga o agente no servidor; o salvamento
-    // automático não pode desligá-lo de volta com o estado antigo.
-    if (first) setActive(true);
+    // Publicar não liga o agente: ligar é no interruptor de "Estado do agente".
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-versions", id] });
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-routing-map"] });
-    await confirm({ title: "Publicado", description: `A versão ${res.versionNumber} já está valendo no WhatsApp.` });
+    await confirm({
+      title: "Publicado",
+      description: active
+        ? `A versão ${res.versionNumber} já está valendo no WhatsApp.`
+        : `A versão ${res.versionNumber} está publicada. O agente está desligado: ligue em Publicação › Estado do agente quando quiser que ele comece a atender.`,
+    });
   };
 
   const confirmPublish = async (comment: string) => {
@@ -1359,6 +1413,7 @@ export default function AIAgentV2EditPage() {
             open
             nextVersion={publishInfo.next}
             firstPublish={publishInfo.first}
+            agentActive={active}
             changes={publishInfo.changes}
             realClients={publishInfo.realClients}
             publishing={publishMutation.isPending}
@@ -1605,10 +1660,7 @@ export default function AIAgentV2EditPage() {
                       setName(v);
                       markDirty();
                     }}
-                    onActiveChange={(v) => {
-                      setActive(v);
-                      markDirty();
-                    }}
+                    onActiveChange={(v) => void handleActiveChange(v)}
                     onKeyChange={(v) => {
                       setOpenaiKey(v);
                       markDirty();
@@ -1624,6 +1676,20 @@ export default function AIAgentV2EditPage() {
                     }}
                     onChange={updateConfig}
                     onValidateKey={() => validateKeyMutation.mutate()}
+                  />
+                )}
+                {section === "publicacao" && (
+                  <VoiceStep
+                    agentId={id}
+                    config={config}
+                    voiceKey={voiceKey}
+                    hasSavedKey={meta.hasVoiceKey ?? false}
+                    savedHint={meta.voiceApiKeyHint ?? null}
+                    onVoiceKeyChange={(v) => {
+                      setVoiceKey(v);
+                      markDirty();
+                    }}
+                    onChange={updateConfig}
                   />
                 )}
                 {section === "publicacao" && (
@@ -1765,6 +1831,7 @@ function PublishDialog({
   open,
   nextVersion,
   firstPublish,
+  agentActive,
   changes,
   realClients,
   publishing,
@@ -1774,6 +1841,7 @@ function PublishDialog({
   open: boolean;
   nextVersion: number;
   firstPublish: boolean;
+  agentActive: boolean;
   changes: DiffSection[];
   realClients: boolean;
   publishing: boolean;
@@ -1788,9 +1856,11 @@ function PublishDialog({
         <DialogHeader>
           <DialogTitle>Publicar a versão {nextVersion}?</DialogTitle>
           <DialogDescription>
-            {firstPublish
-              ? "Ele passa a atender no WhatsApp com esta configuração."
-              : "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente."}
+            {!agentActive
+              ? "A versão fica publicada, mas ele continua desligado. Ligue em Publicação › Estado do agente quando quiser que comece a atender."
+              : firstPublish
+                ? "Ele passa a atender no WhatsApp com esta configuração."
+                : "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -2239,7 +2309,10 @@ function StepStart({
             onChange={(v) => onChange("channelIds", v)}
           />
           {channelIds.length === 0 && (
-            <p className="text-xs text-destructive">Obrigatório para ele atender. Para testar aqui ao lado, não precisa.</p>
+            <p className="text-xs text-destructive">
+              Sem número escolhido, quando ligado ele assume as conversas novas de qualquer número que não tenha outro agente. Para testar aqui
+              ao lado, não precisa escolher.
+            </p>
           )}
         </Field>
         <Field label="Fase de teste: responder só para estes números" hint="Deixe vazio para atender todo mundo.">
@@ -4012,7 +4085,7 @@ function StepMessagesProducts({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Mensagens prontas que ele pode enviar" description="Modelos de mensagem do CRM (com vídeo, imagem ou texto). Ele só envia os que estiverem aqui.">
+      <SectionCard title="Mensagens prontas que ele pode enviar" description="Modelos de mensagem do CRM (com vídeo, imagem, áudio ou texto). Ele só envia os que estiverem aqui.">
         <SearchableToggleList
           items={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
           selected={allowedModels}
@@ -4087,6 +4160,30 @@ function StepMessagesProducts({
               onChange={(v) => onChange("productPolicy", { ...pp, allowedProductIds: v })}
               emptyLabel="Nenhum produto cadastrado no CRM"
             />
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 p-4">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">Enviar o cartão do produto</span>
+                <span className="block text-xs text-muted-foreground">
+                  Quando ajudar o cliente a decidir, ele manda a imagem do produto com o texto de Produtos › Mensagens — o mesmo que a equipe envia
+                  ao encaminhar um produto. Sem imagem cadastrada, vai só o texto.
+                </span>
+              </span>
+              <Switch
+                checked={pp.sendCard === true}
+                onCheckedChange={(v) => onChange("productPolicy", { ...pp, sendCard: v })}
+                aria-label="Enviar o cartão do produto"
+              />
+            </label>
+            <Field
+              label="Opção de preço que ele usa (opcional)"
+              hint="Nome do canal de preço cadastrado nos produtos. Com ele, o agente informa e envia o preço e o desconto dessa opção. Vazio: preço de tabela, sem desconto."
+            >
+              <Input
+                value={(pp.priceChannel as string) ?? ""}
+                onChange={(e) => onChange("productPolicy", { ...pp, priceChannel: e.target.value })}
+                placeholder="Ex.: o mesmo canal que a equipe escolhe ao adicionar o produto"
+              />
+            </Field>
           </div>
         )}
       </SectionCard>
@@ -6225,6 +6322,21 @@ function StepTeam({
       <LeadsHandoffCard config={config} catalogs={catalogs} onChange={onChange} />
 
       <SectionCard
+        title="Palavras que pedem uma pessoa"
+        description="Numa mensagem curta (até 4 palavras), qualquer uma delas conta como pedido de atendente. Vale a palavra inteira: o plural ou uma palavra parecida não conta — se quiser, inclua o plural aqui. O atalho “Pedido de humano” usa esta lista junto com as palavras dele."
+      >
+        <ChipInput
+          values={((handoff.humanRequestKeywords as string[]) ?? []).map(String)}
+          onChange={(v) => onChange("handoff.humanRequestKeywords", v)}
+          placeholder="atendente"
+        />
+        <p className="text-xs text-muted-foreground">
+          Tire daqui palavras que também aparecem em nomes de produtos, áreas ou serviços. Frases como “falar com atendente” e “falar com a equipe”
+          valem sempre, mesmo com a lista vazia.
+        </p>
+      </SectionCard>
+
+      <SectionCard
         title="Quando o cliente pede uma pessoa e já diz o assunto"
         description="Ex.: “quero falar com um atendente, não consigo emitir a segunda via”. Pedido sem assunto continua igual: o agente pergunta uma vez o que a pessoa precisa e transfere na mensagem seguinte."
       >
@@ -7246,6 +7358,12 @@ function StepTestPublish({
             {t.result && (
               <div className="flex flex-col items-start gap-1">
                 <div className="max-w-[88%]">
+                  {t.result.voiceText?.trim() ? (
+                    <div className="mb-1 rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                      <span className="mb-0.5 block text-[10.5px] font-semibold uppercase tracking-wide text-[#008069]">Áudio · texto que seria falado</span>
+                      <span className="whitespace-pre-line">{t.result.voiceText}</span>
+                    </div>
+                  ) : null}
                   <div className="rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
                     <span className="whitespace-pre-line">
                       {(t.result.interactive?.body ?? t.result.reply) || <span className="italic text-[#667781]">(sem resposta ao cliente)</span>}
