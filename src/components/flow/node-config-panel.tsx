@@ -84,7 +84,7 @@ function fieldsForFlow(
       // Modo efetivo: o salvo no passo ou, vazio, o padrão da organização.
       effectiveDistributionMode(cfg?.mode, orgDistributionMode) === "leads" &&
       "key" in f &&
-      (f.key === "departmentIds" || f.key === "distributionType")
+      (f.key === "departmentIds" || f.key === "distributionType" || f.key === "ifAssigned")
     ) {
       return false
     }
