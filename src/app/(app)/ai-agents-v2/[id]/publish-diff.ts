@@ -168,6 +168,8 @@ const PATH_LABEL: Record<string, string> = {
   "productPolicy.showLink": "Mostrar link",
   "productPolicy.citableFields": "Campos que pode citar",
   "productPolicy.actions": "Ações",
+  "productPolicy.sendCard": "Enviar o cartão do produto",
+  "productPolicy.priceChannel": "Opção de preço",
 
   "contextFields.contact": "Campos do cliente",
   "contextFields.deal": "Campos do negócio",
