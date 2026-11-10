@@ -287,12 +287,12 @@ export function TabulationDialog({
   }, [path.length, search]);
 
   const requireOnClose = query.data?.requireTabulationOnClose ?? !optional;
-  const emptyForest =
-    query.isSuccess && forest.length === 0 && path.length === 0;
+  // Sem exigência (ex.: conversa sem departamento e agente fora de depto que
+  // exige), o motivo é opcional mesmo com árvores listadas.
   const canConfirm =
     !submitting &&
     (isLeafSelected ||
-      (emptyForest && !requireOnClose) ||
+      (query.isSuccess && !requireOnClose) ||
       Boolean(allowCloseWithoutTabulation));
 
   return (
@@ -452,7 +452,9 @@ export function TabulationDialog({
               <p className="font-body text-[12.5px] text-[var(--text-muted)]">
                 {allowCloseWithoutTabulation && !isLeafSelected
                   ? "Admin: pode finalizar sem tabular"
-                  : "Selecione um motivo para continuar"}
+                  : query.isSuccess && !requireOnClose && !isLeafSelected
+                    ? "Motivo opcional"
+                    : "Selecione um motivo para continuar"}
               </p>
             )}
           </div>
@@ -482,7 +484,7 @@ export function TabulationDialog({
                   onConfirm(leaf.id, extra);
                   return;
                 }
-                if (allowCloseWithoutTabulation || (emptyForest && !requireOnClose)) {
+                if (allowCloseWithoutTabulation || (query.isSuccess && !requireOnClose)) {
                   onConfirm("", extra);
                 }
               }}
