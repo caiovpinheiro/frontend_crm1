@@ -61,7 +61,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "Publicação",
-    keys: [["channelIds", "Números de WhatsApp"], ["allowedPhoneNumbers", "Fase de teste"], ["autonomyMode", "Como ele responde"], ["model", "Modelo de IA"], ["simulateTyping", "Simular digitação"], ["markMessagesRead", "Marcar como lida"], ["typingPerCharMs", "Ritmo de digitação"], ["allowedDomains", "Sites permitidos"], ["structuredOutput", "Formato da resposta"]],
+    keys: [["channelIds", "Números de WhatsApp"], ["allowedPhoneNumbers", "Fase de teste"], ["autonomyMode", "Como ele responde"], ["voice", "Resposta por áudio"], ["model", "Modelo de IA"], ["simulateTyping", "Simular digitação"], ["markMessagesRead", "Marcar como lida"], ["typingPerCharMs", "Ritmo de digitação"], ["allowedDomains", "Sites permitidos"], ["structuredOutput", "Formato da resposta"]],
   },
 ];
 
@@ -168,6 +168,18 @@ const PATH_LABEL: Record<string, string> = {
   "productPolicy.showLink": "Mostrar link",
   "productPolicy.citableFields": "Campos que pode citar",
   "productPolicy.actions": "Ações",
+  "productPolicy.sendCard": "Enviar o cartão do produto",
+  "voice": "Resposta por áudio",
+  "voice.enabled": "Resposta por áudio ligada",
+  "voice.voiceId": "Voz",
+  "voice.mode": "Quando responde por áudio",
+  "voice.guidance": "Orientações de uso do áudio",
+  "voice.permissionQuestion": "Pergunta de permissão",
+  "voice.companionText": "Linha escrita que acompanha o áudio",
+  "voice.maxChars": "Tamanho máximo do áudio",
+  "voice.maxPerConversation": "Áudios por conversa",
+  "voice.dailyCharCap": "Teto diário de voz",
+  "productPolicy.priceChannel": "Opção de preço",
 
   "contextFields.contact": "Campos do cliente",
   "contextFields.deal": "Campos do negócio",
