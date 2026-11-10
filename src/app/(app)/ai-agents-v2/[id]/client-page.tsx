@@ -413,6 +413,7 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
     showLink: false,
     citableFields: [],
     actions: [],
+    sendCard: false,
   },
   entry: {
     openingEnabled: true,
@@ -532,7 +533,7 @@ async function fetchAgent(id: string): Promise<AgentDetail> {
 
 async function updateAgentMeta(
   id: string,
-  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null },
+  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null; confirmAnyChannel?: boolean },
 ): Promise<AgentDetail> {
   const res = await apiFetch(`/api/ai-agents-v2/${id}`, {
     method: "PUT",
@@ -984,6 +985,8 @@ export default function AIAgentV2EditPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
+  /** A pessoa confirmou ligar sem número escolhido na versão publicada. */
+  const confirmAnyChannel = React.useRef(false);
 
   const [section, setSection] = React.useState<SectionId>("inicio");
   const [knowTab, setKnowTab] = React.useState("materiais");
@@ -1087,7 +1090,13 @@ export default function AIAgentV2EditPage() {
       setSaving(true);
       setSaveError(null);
       try {
-        await updateAgentMeta(id, { name, active, openaiApiKey: keyToSend, anthropicApiKey: anthropicToSend });
+        await updateAgentMeta(id, {
+          name,
+          active,
+          openaiApiKey: keyToSend,
+          anthropicApiKey: anthropicToSend,
+          ...(active && confirmAnyChannel.current ? { confirmAnyChannel: true } : {}),
+        });
         const saved = await saveDraft(id, { ...config, name }, draftVersion.current);
         if (typeof saved.draftVersion === "number") draftVersion.current = saved.draftVersion;
         if (keyToSend) setOpenaiKey("");
@@ -1108,6 +1117,14 @@ export default function AIAgentV2EditPage() {
           setSaveError("este rascunho foi alterado em outra janela ou aba. Carregamos a versão mais nova — refaça a alteração que você tinha acabado de fazer.");
           return;
         }
+        // O servidor não ligou: a versão publicada não tem número escolhido
+        // e faltou a confirmação. Volta o interruptor e mostra o motivo.
+        if ((err as { code?: string } | null)?.code === "ACTIVATION_NEEDS_CHANNEL") {
+          confirmAnyChannel.current = false;
+          setActive(false);
+          setSaveError(err instanceof Error ? err.message : "Escolha o número de WhatsApp antes de ligar o agente.");
+          return;
+        }
         setSaveError(err instanceof Error ? err.message : "Erro ao salvar.");
         throw err;
       } finally {
@@ -1115,6 +1132,30 @@ export default function AIAgentV2EditPage() {
       }
     },
   });
+
+  // Ligar com a versão publicada sem número: ele assumiria as conversas novas
+  // de qualquer número sem agente próprio. Só liga depois de confirmar.
+  const handleActiveChange = async (next: boolean) => {
+    if (next) {
+      const published = (agentQuery.data?.publishedConfig ?? {}) as { channelIds?: unknown };
+      const channels = Array.isArray(published.channelIds) ? published.channelIds.filter(Boolean).length : 0;
+      if (channels === 0) {
+        const ok = await confirm({
+          title: "Ligar sem número escolhido?",
+          description:
+            "A versão publicada não tem número de WhatsApp escolhido. Ligado assim, ele assume as conversas novas de qualquer número que não tenha outro agente. Para limitar, escolha o número em “Onde ele atende”, publique e ligue depois.",
+          confirmLabel: "Ligar mesmo assim",
+          cancelLabel: "Deixar desligado",
+        });
+        if (!ok) return;
+        confirmAnyChannel.current = true;
+      }
+    } else {
+      confirmAnyChannel.current = false;
+    }
+    setActive(next);
+    markDirty();
+  };
 
   // Salvamento automático: 1,5 s depois da última alteração.
   React.useEffect(() => {
@@ -1209,7 +1250,7 @@ export default function AIAgentV2EditPage() {
       next: (fresh.lastVersionNumber ?? 0) + 1,
       first,
       changes: buildPublishDiff(fresh.publishedConfig, fresh.draftConfig, catalogsQuery.data ?? {}),
-      realClients: (active || first) && channels > 0 && phones === 0,
+      realClients: active && channels > 0 && phones === 0,
     });
   };
 
@@ -1227,13 +1268,16 @@ export default function AIAgentV2EditPage() {
     }
     setPublishInfo(null);
     setPublishBlocked(null);
-    // A primeira publicação liga o agente no servidor; o salvamento
-    // automático não pode desligá-lo de volta com o estado antigo.
-    if (first) setActive(true);
+    // Publicar não liga o agente: ligar é no interruptor de "Estado do agente".
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-versions", id] });
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-routing-map"] });
-    await confirm({ title: "Publicado", description: `A versão ${res.versionNumber} já está valendo no WhatsApp.` });
+    await confirm({
+      title: "Publicado",
+      description: active
+        ? `A versão ${res.versionNumber} já está valendo no WhatsApp.`
+        : `A versão ${res.versionNumber} está publicada. O agente está desligado: ligue em Publicação › Estado do agente quando quiser que ele comece a atender.`,
+    });
   };
 
   const confirmPublish = async (comment: string) => {
@@ -1359,6 +1403,7 @@ export default function AIAgentV2EditPage() {
             open
             nextVersion={publishInfo.next}
             firstPublish={publishInfo.first}
+            agentActive={active}
             changes={publishInfo.changes}
             realClients={publishInfo.realClients}
             publishing={publishMutation.isPending}
@@ -1605,10 +1650,7 @@ export default function AIAgentV2EditPage() {
                       setName(v);
                       markDirty();
                     }}
-                    onActiveChange={(v) => {
-                      setActive(v);
-                      markDirty();
-                    }}
+                    onActiveChange={(v) => void handleActiveChange(v)}
                     onKeyChange={(v) => {
                       setOpenaiKey(v);
                       markDirty();
@@ -1765,6 +1807,7 @@ function PublishDialog({
   open,
   nextVersion,
   firstPublish,
+  agentActive,
   changes,
   realClients,
   publishing,
@@ -1774,6 +1817,7 @@ function PublishDialog({
   open: boolean;
   nextVersion: number;
   firstPublish: boolean;
+  agentActive: boolean;
   changes: DiffSection[];
   realClients: boolean;
   publishing: boolean;
@@ -1788,9 +1832,11 @@ function PublishDialog({
         <DialogHeader>
           <DialogTitle>Publicar a versão {nextVersion}?</DialogTitle>
           <DialogDescription>
-            {firstPublish
-              ? "Ele passa a atender no WhatsApp com esta configuração."
-              : "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente."}
+            {!agentActive
+              ? "A versão fica publicada, mas ele continua desligado. Ligue em Publicação › Estado do agente quando quiser que comece a atender."
+              : firstPublish
+                ? "Ele passa a atender no WhatsApp com esta configuração."
+                : "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -2239,7 +2285,10 @@ function StepStart({
             onChange={(v) => onChange("channelIds", v)}
           />
           {channelIds.length === 0 && (
-            <p className="text-xs text-destructive">Obrigatório para ele atender. Para testar aqui ao lado, não precisa.</p>
+            <p className="text-xs text-destructive">
+              Sem número escolhido, quando ligado ele assume as conversas novas de qualquer número que não tenha outro agente. Para testar aqui
+              ao lado, não precisa escolher.
+            </p>
           )}
         </Field>
         <Field label="Fase de teste: responder só para estes números" hint="Deixe vazio para atender todo mundo.">
@@ -4012,7 +4061,7 @@ function StepMessagesProducts({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Mensagens prontas que ele pode enviar" description="Modelos de mensagem do CRM (com vídeo, imagem ou texto). Ele só envia os que estiverem aqui.">
+      <SectionCard title="Mensagens prontas que ele pode enviar" description="Modelos de mensagem do CRM (com vídeo, imagem, áudio ou texto). Ele só envia os que estiverem aqui.">
         <SearchableToggleList
           items={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
           selected={allowedModels}
@@ -4087,6 +4136,30 @@ function StepMessagesProducts({
               onChange={(v) => onChange("productPolicy", { ...pp, allowedProductIds: v })}
               emptyLabel="Nenhum produto cadastrado no CRM"
             />
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 p-4">
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">Enviar o cartão do produto</span>
+                <span className="block text-xs text-muted-foreground">
+                  Quando ajudar o cliente a decidir, ele manda a imagem do produto com o texto de Produtos › Mensagens — o mesmo que a equipe envia
+                  ao encaminhar um produto. Sem imagem cadastrada, vai só o texto.
+                </span>
+              </span>
+              <Switch
+                checked={pp.sendCard === true}
+                onCheckedChange={(v) => onChange("productPolicy", { ...pp, sendCard: v })}
+                aria-label="Enviar o cartão do produto"
+              />
+            </label>
+            <Field
+              label="Opção de preço que ele usa (opcional)"
+              hint="Nome do canal de preço cadastrado nos produtos. Com ele, o agente informa e envia o preço e o desconto dessa opção. Vazio: preço de tabela, sem desconto."
+            >
+              <Input
+                value={(pp.priceChannel as string) ?? ""}
+                onChange={(e) => onChange("productPolicy", { ...pp, priceChannel: e.target.value })}
+                placeholder="Ex.: o mesmo canal que a equipe escolhe ao adicionar o produto"
+              />
+            </Field>
           </div>
         )}
       </SectionCard>
