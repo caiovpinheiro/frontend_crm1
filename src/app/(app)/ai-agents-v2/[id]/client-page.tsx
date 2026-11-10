@@ -97,6 +97,7 @@ import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone 
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
 import { NoticesStep } from "./notices-step";
+import { VOICE_DEFAULTS, VoiceStep, looksLikeVoiceKey } from "./voice-step";
 import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
 import { RulesExportMenu } from "./rules-export-menu";
@@ -126,6 +127,8 @@ type AgentDetail = {
   openaiApiKeyHint: string | null;
   hasAnthropicKey?: boolean;
   anthropicApiKeyHint?: string | null;
+  hasVoiceKey?: boolean;
+  voiceApiKeyHint?: string | null;
   createdAt: string;
   updatedAt: string;
   /** Contador do rascunho: o salvamento manda o que carregou; mudou no servidor → 409. */
@@ -210,6 +213,8 @@ type TestResult = {
   chosenOption?: string | null;
   /** Texto da mensagem pronta que sairia em seguida, no WhatsApp. */
   materialText?: string;
+  /** Texto que seria falado: a resposta iria por áudio e `reply` é a linha escrita que acompanha. */
+  voiceText?: string;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -415,6 +420,7 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
     actions: [],
     sendCard: false,
   },
+  voice: { ...VOICE_DEFAULTS },
   entry: {
     openingEnabled: true,
     openingMessage: "",
@@ -533,7 +539,7 @@ async function fetchAgent(id: string): Promise<AgentDetail> {
 
 async function updateAgentMeta(
   id: string,
-  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null; confirmAnyChannel?: boolean },
+  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null; voiceApiKey?: string | null; confirmAnyChannel?: boolean },
 ): Promise<AgentDetail> {
   const res = await apiFetch(`/api/ai-agents-v2/${id}`, {
     method: "PUT",
@@ -1001,6 +1007,7 @@ export default function AIAgentV2EditPage() {
   const [dirty, setDirty] = React.useState(false);
   const [openaiKey, setOpenaiKey] = React.useState("");
   const [anthropicKey, setAnthropicKey] = React.useState("");
+  const [voiceKey, setVoiceKey] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [savedAt, setSavedAt] = React.useState<Date | null>(null);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -1087,6 +1094,7 @@ export default function AIAgentV2EditPage() {
       // gravar uma chave pela metade enquanto a pessoa digita.
       const keyToSend = looksLikeOpenAiApiKey(openaiKey) ? openaiKey.trim() : undefined;
       const anthropicToSend = looksLikeAnthropicKey(anthropicKey) ? anthropicKey.trim() : undefined;
+      const voiceKeyToSend = looksLikeVoiceKey(voiceKey) ? voiceKey.trim() : undefined;
       setSaving(true);
       setSaveError(null);
       try {
@@ -1095,12 +1103,14 @@ export default function AIAgentV2EditPage() {
           active,
           openaiApiKey: keyToSend,
           anthropicApiKey: anthropicToSend,
+          voiceApiKey: voiceKeyToSend,
           ...(active && confirmAnyChannel.current ? { confirmAnyChannel: true } : {}),
         });
         const saved = await saveDraft(id, { ...config, name }, draftVersion.current);
         if (typeof saved.draftVersion === "number") draftVersion.current = saved.draftVersion;
         if (keyToSend) setOpenaiKey("");
         if (anthropicToSend) setAnthropicKey("");
+        if (voiceKeyToSend) setVoiceKey("");
         if (editVersion.current === version) setDirty(false);
         setSavedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
@@ -1666,6 +1676,20 @@ export default function AIAgentV2EditPage() {
                     }}
                     onChange={updateConfig}
                     onValidateKey={() => validateKeyMutation.mutate()}
+                  />
+                )}
+                {section === "publicacao" && (
+                  <VoiceStep
+                    agentId={id}
+                    config={config}
+                    voiceKey={voiceKey}
+                    hasSavedKey={meta.hasVoiceKey ?? false}
+                    savedHint={meta.voiceApiKeyHint ?? null}
+                    onVoiceKeyChange={(v) => {
+                      setVoiceKey(v);
+                      markDirty();
+                    }}
+                    onChange={updateConfig}
                   />
                 )}
                 {section === "publicacao" && (
@@ -7319,6 +7343,12 @@ function StepTestPublish({
             {t.result && (
               <div className="flex flex-col items-start gap-1">
                 <div className="max-w-[88%]">
+                  {t.result.voiceText?.trim() ? (
+                    <div className="mb-1 rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                      <span className="mb-0.5 block text-[10.5px] font-semibold uppercase tracking-wide text-[#008069]">Áudio · texto que seria falado</span>
+                      <span className="whitespace-pre-line">{t.result.voiceText}</span>
+                    </div>
+                  ) : null}
                   <div className="rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
                     <span className="whitespace-pre-line">
                       {(t.result.interactive?.body ?? t.result.reply) || <span className="italic text-[#667781]">(sem resposta ao cliente)</span>}
