@@ -456,6 +456,17 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
       ],
       hint: "Somente a conversa = quem recebe atende a conversa; o negócio e o contato continuam com o dono atual. Conversa e negócio = quem recebe vira dono de tudo.",
     },
+    {
+      kind: "select",
+      key: "ifAssigned",
+      label: "Se a conversa já tiver responsável",
+      allowEmpty: false,
+      options: [
+        { value: "keep", label: "Manter com quem está atendendo" },
+        { value: "reassign", label: "Tirar e redistribuir" },
+      ],
+      hint: "Tirar e redistribuir = sai do responsável atual (ex.: o consultor que vendeu) e vai para o departamento. Só tira se houver alguém disponível; senão fica com quem está e segue por \"Se não houver atendente\".",
+    },
     { kind: "text", key: "distributionType", label: "Tipo / segmento (só no modo Inteligente)", optional: true },
   ],
 }
