@@ -6225,6 +6225,21 @@ function StepTeam({
       <LeadsHandoffCard config={config} catalogs={catalogs} onChange={onChange} />
 
       <SectionCard
+        title="Palavras que pedem uma pessoa"
+        description="Numa mensagem curta (até 4 palavras), qualquer uma delas conta como pedido de atendente. Vale a palavra inteira: o plural ou uma palavra parecida não conta — se quiser, inclua o plural aqui. O atalho “Pedido de humano” usa esta lista junto com as palavras dele."
+      >
+        <ChipInput
+          values={((handoff.humanRequestKeywords as string[]) ?? []).map(String)}
+          onChange={(v) => onChange("handoff.humanRequestKeywords", v)}
+          placeholder="atendente"
+        />
+        <p className="text-xs text-muted-foreground">
+          Tire daqui palavras que também aparecem em nomes de produtos, áreas ou serviços. Frases como “falar com atendente” e “falar com a equipe”
+          valem sempre, mesmo com a lista vazia.
+        </p>
+      </SectionCard>
+
+      <SectionCard
         title="Quando o cliente pede uma pessoa e já diz o assunto"
         description="Ex.: “quero falar com um atendente, não consigo emitir a segunda via”. Pedido sem assunto continua igual: o agente pergunta uma vez o que a pessoa precisa e transfere na mensagem seguinte."
       >
