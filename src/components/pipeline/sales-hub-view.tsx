@@ -34,7 +34,9 @@ import type { BoardStage } from "@/components/pipeline/kanban-board";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
-import { useDealDetail, useStageUrlSync } from "@/features/pipeline-v2/hooks";
+import { useDealDetail, useEntityViewers, useStageUrlSync } from "@/features/pipeline-v2/hooks";
+import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
+import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
@@ -317,6 +319,11 @@ export function SalesHubView({
   }, []);
 
   const queueStages = queueStagesProp ?? stages;
+
+  // "Fulano está neste negócio" — mesma presença do Kanban (`_v2-client`).
+  // Só entra na sala com o CUID: `?deal=<número>` virando CUID faria
+  // join/leave/join na mesma abertura.
+  const dealViewers = useEntityViewers("deal", stableDealIdForEffects(activeDealId));
 
   const { hydrated: stageHydrated } = useStageUrlSync(
     queueStages,
@@ -1070,6 +1077,8 @@ export function SalesHubView({
                       )}
                     </button>
                   </TooltipHost>
+                  {/* Quem mais está neste negócio — ao lado do botão de ligação. */}
+                  <DealViewersStack viewers={dealViewers} variant="banner" />
                   <WhatsappCallChip
                     conversationId={activeConversation.id}
                     channel={
