@@ -2,7 +2,10 @@
 
 import { apiUrl } from "@/lib/api";
 import { postWhatsappCall } from "@/lib/wa-whatsapp-call";
-import { sendCallPermissionTemplate } from "@/lib/wa-call-permission-send";
+import {
+  fetchCallPermissionTemplates,
+  sendCallPermissionTemplate,
+} from "@/lib/wa-call-permission-send";
 /**
  * WhatsappCallChip
  * ─────────────────
@@ -38,10 +41,7 @@ import {
 } from "@tanstack/react-query";
 import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { IconChevronDown as ChevronDown, IconChevronRight as ChevronRight, IconHistory as History, IconInfoCircle as Info, IconLoader2 as Loader2, IconMicrophone as Mic, IconPhone as Phone, IconPhoneIncoming as PhoneIncoming, IconPhoneOff as PhoneOff, IconPhoneOutgoing as PhoneOutgoing, IconPlayerPlay as Play, IconRefresh as RefreshCw } from "@tabler/icons-react";
-import {
-  CallPermissionTemplateDialog,
-  type CallPermissionTemplate,
-} from "@/components/inbox/call-permission-template-dialog";
+import { CallPermissionTemplateDialog } from "@/components/inbox/call-permission-template-dialog";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -229,13 +229,6 @@ function inferGrantFromMessages(
   };
 }
 
-async function fetchCallPermissionTemplates(): Promise<CallPermissionTemplate[]> {
-  const r = await fetch(apiUrl(`/api/meta/whatsapp/call-permission-templates`));
-  if (!r.ok) return [];
-  const j = (await r.json().catch(() => ({}))) as { items?: CallPermissionTemplate[] };
-  return Array.isArray(j.items) ? j.items : [];
-}
-
 export function WhatsappCallChip({
   conversationId,
   channel,
@@ -330,8 +323,9 @@ export function WhatsappCallChip({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = React.useState(false);
   const templatesQuery = useQuery({
-    queryKey: ["call-permission-templates"],
-    queryFn: fetchCallPermissionTemplates,
+    queryKey: ["call-permission-templates", conversationId],
+    queryFn: () => fetchCallPermissionTemplates(conversationId),
+    retry: false,
     enabled: templateDialogOpen && isWaVoiceChannel,
     staleTime: 5 * 60_000,
   });
@@ -1201,6 +1195,7 @@ export function WhatsappCallChip({
         contactName={contactName}
         templates={templatesQuery.data ?? []}
         loading={templatesQuery.isLoading}
+        error={templatesQuery.error?.message ?? null}
         sending={requestPermission.isPending}
         onSubmit={(name) => requestPermission.mutate(name)}
       />

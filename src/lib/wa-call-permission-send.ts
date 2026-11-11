@@ -3,10 +3,25 @@ import type { CallPermissionTemplate } from "@/components/inbox/call-permission-
 
 export const CALL_PERMISSION_TPL_STORAGE = "wa_call_permission_tpl";
 
-export async function fetchCallPermissionTemplates(): Promise<CallPermissionTemplate[]> {
-  const r = await fetch(apiUrl("/api/meta/whatsapp/call-permission-templates"));
-  if (!r.ok) return [];
-  const j = (await r.json().catch(() => ({}))) as { items?: CallPermissionTemplate[] };
+/**
+ * Templates de permissão de ligação da WABA do canal da conversa (a org pode
+ * ter mais de um número, cada um na sua WABA). Erro da API vira exceção com a
+ * mensagem do servidor, para a modal não mostrar "nenhum template" quando o
+ * problema é outro (token vencido, canal sem WABA…).
+ */
+export async function fetchCallPermissionTemplates(
+  conversationId?: string | null,
+): Promise<CallPermissionTemplate[]> {
+  const qs = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : "";
+  const r = await fetch(apiUrl(`/api/meta/whatsapp/call-permission-templates${qs}`));
+  const j = (await r.json().catch(() => ({}))) as {
+    items?: CallPermissionTemplate[];
+    message?: string;
+  };
+  if (!r.ok) {
+    const fromApi = typeof j.message === "string" ? j.message.trim() : "";
+    throw new Error(fromApi || "Não foi possível carregar os templates de ligação.");
+  }
   return Array.isArray(j.items) ? j.items : [];
 }
 
