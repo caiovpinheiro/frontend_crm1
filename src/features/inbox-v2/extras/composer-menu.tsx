@@ -142,8 +142,9 @@ export function ComposerMenu({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const callTemplatesQuery = useQuery({
-    queryKey: ["call-permission-templates"],
-    queryFn: fetchCallPermissionTemplates,
+    queryKey: ["call-permission-templates", conversationId],
+    queryFn: () => fetchCallPermissionTemplates(conversationId),
+    retry: false,
     enabled: callPermissionOpen && !!conversationId && !!enableCallPermission,
     staleTime: 5 * 60_000,
   });
@@ -478,6 +479,7 @@ export function ComposerMenu({
         contactName={contactName}
         templates={callTemplatesQuery.data ?? []}
         loading={callTemplatesQuery.isLoading}
+        error={callTemplatesQuery.error?.message ?? null}
         sending={sendCallPermission.isPending}
         onSubmit={(name) => sendCallPermission.mutate(name)}
       />
