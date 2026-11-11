@@ -44,6 +44,12 @@ export function distributionOutcomeToast(
       message: `Nenhum agente elegível em ${dept}. Lead enviado à fila de espera.`,
     };
   }
+  if (reason === "NO_ELIGIBLE_PARTICIPANT") {
+    return {
+      tone: "warning",
+      message: `Ninguém de ${dept} está disponível no rodízio por leads agora (pausado, fora do horário ou sem liberação). Nenhum consultor foi atribuído.`,
+    };
+  }
   if (reason === "SMART_DISTRIBUTION_NOT_ENABLED") {
     return { tone: "error", message: "Módulo de Distribuição não habilitado." };
   }

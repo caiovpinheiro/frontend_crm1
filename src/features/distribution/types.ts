@@ -88,6 +88,8 @@ export type DistributionReason =
   | "NO_ELIGIBLE_RESPONSIBLE"
   | "NO_DEPARTMENT"
   | "RETIRED_WHATSAPP_CHANNEL"
+  /** Org em Por Leads: ninguém do departamento elegível no rodízio agora. */
+  | "NO_ELIGIBLE_PARTICIPANT"
   | "QUEUED";
 
 export interface DistributionResult {
