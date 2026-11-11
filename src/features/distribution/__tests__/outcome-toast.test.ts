@@ -23,6 +23,18 @@ describe("distributionOutcomeToast", () => {
   });
 });
 
+describe("distributionOutcomeToast — Por Leads", () => {
+  it("NO_ELIGIBLE_PARTICIPANT avisa que ninguém do departamento está no rodízio", () => {
+    const t = distributionOutcomeToast(
+      { success: false, reason: "NO_ELIGIBLE_PARTICIPANT" },
+      "Academico",
+    );
+    expect(t.tone).toBe("warning");
+    expect(t.message).toContain("Academico");
+    expect(t.message).toContain("rodízio por leads");
+  });
+});
+
 describe("normalizeExecuteDistributionResult", () => {
   it("converte { queued: true } em QUEUED de sucesso", () => {
     expect(normalizeExecuteDistributionResult({ queued: true, jobId: "j1" })).toEqual({
