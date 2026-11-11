@@ -48,6 +48,7 @@ export function CallPermissionTemplateDialog({
   contactName,
   templates,
   loading,
+  error = null,
   sending,
   onSubmit,
 }: {
@@ -56,6 +57,8 @@ export function CallPermissionTemplateDialog({
   contactName?: string | null;
   templates: CallPermissionTemplate[];
   loading: boolean;
+  /** Falha ao carregar a lista (mostrada no lugar de "nenhum template"). */
+  error?: string | null;
   sending: boolean;
   onSubmit: (templateName: string) => void;
 }) {
@@ -144,6 +147,13 @@ export function CallPermissionTemplateDialog({
             <div className="flex flex-col items-center gap-2 py-10 text-[13px] text-[var(--text-muted)]">
               <IconLoader2 className="size-5 animate-spin" />
               Carregando templates…
+            </div>
+          ) : error ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-dashed border-[var(--glass-border)] px-4 py-8 text-center text-[13px] text-[var(--text-muted)]"
+            >
+              Não foi possível carregar os templates de ligação: {error}
             </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[var(--glass-border)] px-4 py-8 text-center text-[13px] text-[var(--text-muted)]">
