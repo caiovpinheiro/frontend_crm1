@@ -22,9 +22,34 @@ import { SURFACE } from "./ui";
 
 type VoiceOption = { id: string; name: string; language: string | null };
 
+type VoiceSettings = { stability: number; similarityBoost: number; style: number; speakerBoost: boolean; speed: number };
+
+/** Modelos de voz e o padrão de cada um (os mesmos do servidor). */
+const VOICE_MODELS: Array<{ id: string; label: string; hint: string; defaults: VoiceSettings }> = [
+  {
+    id: "eleven_flash_v2_5",
+    label: "Flash v2.5",
+    hint: "O mais rápido. Bom para respostas curtas.",
+    defaults: { stability: 0.4, similarityBoost: 0.75, style: 0, speakerBoost: true, speed: 1 },
+  },
+  {
+    id: "eleven_multilingual_v2",
+    label: "Multilingual v2",
+    hint: "Mais natural e com mais entonação; demora um pouco mais.",
+    defaults: { stability: 0.4, similarityBoost: 0.75, style: 0.3, speakerBoost: true, speed: 1 },
+  },
+  {
+    id: "eleven_v3",
+    label: "v3",
+    hint: "O mais expressivo. O agente pode marcar o jeito de falar, como [animada] ou [confiante]; as marcações não aparecem no texto escrito.",
+    defaults: { stability: 0.5, similarityBoost: 0.75, style: 0, speakerBoost: true, speed: 1 },
+  },
+];
+
 export const VOICE_DEFAULTS = {
   enabled: false,
   provider: "elevenlabs",
+  model: "eleven_flash_v2_5",
   mode: "mirror",
   maxChars: 450,
   maxPerConversation: 4,
@@ -68,6 +93,14 @@ export function VoiceStep({
   const enabled = voice.enabled === true;
   const mode = voice.mode === "agent" ? "agent" : "mirror";
   const voiceId = typeof voice.voiceId === "string" ? voice.voiceId : "";
+  const model = VOICE_MODELS.find((m) => m.id === voice.model) ?? VOICE_MODELS[0];
+  // Ajuste vazio = padrão do modelo escolhido.
+  const own = (voice.settings as Partial<VoiceSettings> | undefined) ?? {};
+  const setting = <K extends keyof VoiceSettings>(key: K): VoiceSettings[K] => (own[key] ?? model.defaults[key]) as VoiceSettings[K];
+  const setSetting = (patch: Partial<VoiceSettings>) => set({ settings: { ...own, ...patch } });
+  const hasOwnSettings = Object.keys(own).length > 0;
+  // O v3 só tem três níveis de estabilidade.
+  const stabilityStep = model.id === "eleven_v3" ? 0.5 : 0.05;
 
   const [editingKey, setEditingKey] = React.useState(false);
   const [voices, setVoices] = React.useState<VoiceOption[] | null>(null);
@@ -98,7 +131,7 @@ export function VoiceStep({
       const res = await apiFetch(`/api/ai-agents-v2/${agentId}/voice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voiceId }),
+        body: JSON.stringify({ voiceId, model: model.id, settings: own }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
@@ -125,8 +158,8 @@ export function VoiceStep({
         <div className="space-y-1">
           <h3 className="text-[15px] font-semibold leading-tight tracking-tight">Resposta por áudio</h3>
           <p className="text-[13px] leading-relaxed text-muted-foreground">
-            Ele manda a própria resposta como mensagem de voz, com uma linha escrita junto. Valor, data e link vão sempre também por escrito. Se
-            o áudio não puder sair, a resposta vai em texto.
+            Ele manda a resposta como mensagem de voz, falada de um jeito mais coloquial, com uma linha escrita junto. Valor, data e link vão
+            sempre também por escrito. Se o áudio não puder sair, a resposta vai em texto.
           </p>
         </div>
         <Switch checked={enabled} onCheckedChange={(v) => set({ enabled: v })} aria-label="Ligar resposta por áudio" />
@@ -190,6 +223,84 @@ export function VoiceStep({
             {message && <p className="text-xs text-amber-600">{message}</p>}
           </Row>
 
+          <Row label="Modelo de voz" hint={model.hint}>
+            <Select value={model.id} onValueChange={(v) => set({ model: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VOICE_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
+
+          <details className="rounded-xl border border-border/70 p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Opções avançadas da voz</summary>
+            <div className="mt-4 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Sem mexer, vale o padrão do modelo escolhido. Use “Ouvir” para comparar antes de salvar.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Row label="Estabilidade" hint="Menor: mais variação e emoção. Maior: mais uniforme e monótona.">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={stabilityStep}
+                    value={setting("stability")}
+                    onChange={(e) => setSetting({ stability: Math.min(1, Math.max(0, Number(e.target.value) || 0)) })}
+                  />
+                </Row>
+                <Row label="Semelhança com a voz" hint="Quanto a fala se prende ao timbre original da voz (0 a 1).">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={setting("similarityBoost")}
+                    onChange={(e) => setSetting({ similarityBoost: Math.min(1, Math.max(0, Number(e.target.value) || 0)) })}
+                  />
+                </Row>
+                <Row label="Estilo" hint="Exagero do estilo da voz (0 a 1). Acima de 0 a geração pode demorar mais.">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={setting("style")}
+                    onChange={(e) => setSetting({ style: Math.min(1, Math.max(0, Number(e.target.value) || 0)) })}
+                  />
+                </Row>
+                <Row label="Velocidade" hint="De 0,7 (mais devagar) a 1,2 (mais rápido). 1 é o normal.">
+                  <Input
+                    type="number"
+                    min={0.7}
+                    max={1.2}
+                    step={0.05}
+                    value={setting("speed")}
+                    onChange={(e) => setSetting({ speed: Math.min(1.2, Math.max(0.7, Number(e.target.value) || 1)) })}
+                  />
+                </Row>
+              </div>
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">Reforço do locutor</span>
+                  <span className="block text-xs text-muted-foreground">Deixa a fala mais parecida com a voz original; a geração demora um pouco mais.</span>
+                </span>
+                <Switch checked={setting("speakerBoost")} onCheckedChange={(v) => setSetting({ speakerBoost: v })} aria-label="Reforço do locutor" />
+              </label>
+              {hasOwnSettings && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => set({ settings: undefined })}>
+                  Voltar ao padrão do modelo
+                </Button>
+              )}
+            </div>
+          </details>
+
           <div className="space-y-2">
             <Label>Quando ele responde por áudio</Label>
             <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Quando ele responde por áudio">
@@ -235,7 +346,7 @@ export function VoiceStep({
             </>
           )}
 
-          <Row label="Linha escrita que acompanha o áudio" hint="Usada quando a resposta não tem valor, data nem link (esses já vão por escrito).">
+          <Row label="Linha escrita que acompanha o áudio" hint="Usada quando a resposta não tem valor, data nem link. Quando tem, vai só o dado por escrito, sem repetir a frase do áudio.">
             <Input
               value={(voice.companionText as string) ?? ""}
               onChange={(e) => set({ companionText: e.target.value })}
