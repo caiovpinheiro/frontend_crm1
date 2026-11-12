@@ -8,6 +8,7 @@ import {
   IconClock as Clock,
   IconInbox as Inbox,
   IconLayoutKanban as Columns3,
+  IconPaperclip as Paperclip,
   IconRefresh as RefreshCw,
   IconSearch as Search,
   IconSend as Send,
@@ -18,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
+import { MessageContent } from "@/components/crm/message-bubble/message-content";
 import { EmptyState } from "@/components/crm/empty-state";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PagePrimaryButton } from "@/components/crm/page-toolbar";
@@ -35,7 +37,15 @@ import {
   useWhatsAppGroupMutations,
   useWhatsAppGroups,
 } from "@/features/whatsapp-groups/hooks";
-import { groupMessagesByDay, isFirstOfRun, type GroupThreadMessage } from "@/features/whatsapp-groups/thread";
+import {
+  groupMessagesByDay,
+  isFirstOfRun,
+  isGroupMediaMessage,
+  toBubbleMessage,
+  type GroupThreadMessage,
+} from "@/features/whatsapp-groups/thread";
+import { AudioRecorderButton, FilePickerButton } from "@/features/inbox-v2/extras";
+import type { AudioRecordState } from "@/features/inbox-v2/extras/audio-recorder-button";
 import type { WhatsAppGroupDetail, WhatsAppGroupMember } from "@/features/whatsapp-groups/types";
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome";
 import { cn } from "@/lib/utils";
@@ -187,7 +197,7 @@ export default function GruposWhatsAppClientPage() {
                               {g.name || "Grupo sem nome"}
                             </span>
                             <span className="shrink-0 text-[12px] tabular-nums text-[var(--orbita-text-tertiary)]">
-                              {formatListTime(g.syncedAt)}
+                              {g.lastMessageAt ? formatListTime(g.lastMessageAt) : ""}
                             </span>
                           </div>
                           <p className="mt-1 truncate text-[13.5px] text-[var(--orbita-text-secondary)]">
@@ -271,6 +281,8 @@ function GroupThread({
   const thread = useWhatsAppGroupMessages(group.id);
   const mut = useWhatsAppGroupMutations();
   const [draft, setDraft] = useState("");
+  const [recState, setRecState] = useState<AudioRecordState>("idle");
+  const recording = recState !== "idle";
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -306,6 +318,10 @@ function GroupThread({
     );
     inputRef.current?.focus();
   };
+
+  // Áudio e anexo: mesmos botões do inbox, enviando para o grupo.
+  const sendFile = (file: Blob, fileName: string) =>
+    mut.sendAttachment.mutateAsync({ id: group.id, file, fileName });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -387,6 +403,15 @@ function GroupThread({
             send();
           }}
         >
+          {!recording ? (
+            <FilePickerButton
+              conversationId={null}
+              sendFile={sendFile}
+              className="h-11 w-11 shrink-0"
+            >
+              <Paperclip className="h-5 w-5" aria-label="Anexar arquivo" />
+            </FilePickerButton>
+          ) : null}
           <textarea
             ref={inputRef}
             value={draft}
@@ -401,16 +426,28 @@ function GroupThread({
             maxLength={4096}
             placeholder="Digite uma mensagem para o grupo"
             aria-label="Mensagem para o grupo"
-            className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
+            className={cn(
+              "max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]",
+              recording && "hidden",
+            )}
           />
-          <button
-            type="submit"
-            aria-label="Enviar"
-            disabled={!draft.trim()}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--orbita-selected)] text-white transition-opacity disabled:opacity-50"
-          >
-            <Send className="h-5 w-5" />
-          </button>
+          {/* Sem texto, o botão vira o gravador (como no WhatsApp e no inbox). */}
+          {draft.trim() && !recording ? (
+            <button
+              type="submit"
+              aria-label="Enviar"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--orbita-selected)] text-white transition-opacity disabled:opacity-50"
+            >
+              <Send className="h-5 w-5" />
+            </button>
+          ) : (
+            <AudioRecorderButton
+              conversationId={null}
+              sendFile={sendFile}
+              onStateChange={setRecState}
+              className={cn("h-11 shrink-0", recording ? "flex-1" : "w-11")}
+            />
+          )}
         </form>
         <p className="mt-1.5 hidden px-1 text-[11.5px] text-[var(--orbita-text-tertiary)] md:block">
           Enter envia · Shift+Enter quebra a linha
@@ -438,7 +475,13 @@ function MessageBubble({ msg, first }: { msg: GroupThreadMessage; first: boolean
             {author}
           </p>
         ) : null}
-        <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{msg.text}</p>
+        {isGroupMediaMessage(msg) && !msg.pending ? (
+          <div className="text-[15px] leading-snug">
+            <MessageContent message={toBubbleMessage(msg)} isOutgoing={mine} />
+          </div>
+        ) : (
+          <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{msg.text}</p>
+        )}
         <div
           className={cn(
             "mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums",

@@ -92,3 +92,20 @@ describe("AudioRecorderButton", () => {
     expect(screen.queryByRole("button", { name: "Parar gravação" })).toBeNull();
   });
 });
+
+describe("AudioRecorderButton com destino próprio (grupos WhatsApp)", () => {
+  it("envia para sendFile, sem conversa do inbox", async () => {
+    const sendFile = vi.fn().mockResolvedValue({ ok: true });
+    render(
+      <TooltipProvider>
+        <AudioRecorderButton conversationId={null} sendFile={sendFile} />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getAllByRole("button")[0]!);
+    fireEvent.click(await screen.findByRole("button", { name: "Parar gravação" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Enviar áudio" }));
+    await waitFor(() => expect(sendFile).toHaveBeenCalled());
+    expect(sendFile.mock.calls[0]![1]).toMatch(/^audio-\d+\./);
+    expect(h.send).not.toHaveBeenCalled();
+  });
+});

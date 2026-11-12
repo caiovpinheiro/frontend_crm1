@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -25,6 +25,7 @@ export function FilePickerButton({
   beforeSend,
   onBlocked,
   onStageFiles,
+  sendFile,
 }: {
   conversationId: string | null;
   children: React.ReactNode;
@@ -45,12 +46,20 @@ export function FilePickerButton({
    * vários arquivos de uma vez.
    */
   onStageFiles?: (files: File[]) => void;
+  /**
+   * Destino próprio (ex.: grupo WhatsApp). Com ele o arquivo não vai para a
+   * conversa do inbox; sem ele, nada muda.
+   */
+  sendFile?: (file: File, fileName: string) => Promise<unknown>;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const sendAttachment = useSendAttachment(conversationId);
+  const [customPending, setCustomPending] = useState(false);
+  const sendPending = sendFile ? customPending : sendAttachment.isPending;
+  const hasTarget = Boolean(conversationId) || Boolean(sendFile);
 
   function openPicker() {
-    if (!conversationId) {
+    if (!hasTarget) {
       toast.error("Selecione uma conversa antes de anexar");
       return;
     }
@@ -82,6 +91,17 @@ export function FilePickerButton({
       const ok = await beforeSend();
       if (!ok) return;
     }
+    if (sendFile) {
+      setCustomPending(true);
+      try {
+        await sendFile(file, file.name);
+      } catch (err) {
+        toast.error(err instanceof Error && err.message ? err.message : "Falha ao enviar anexo");
+      } finally {
+        setCustomPending(false);
+      }
+      return;
+    }
     sendAttachment.mutate(
       { file, fileName: file.name },
       {
@@ -109,7 +129,7 @@ export function FilePickerButton({
         size="icon"
         className={className}
         onClick={openPicker}
-        disabled={sendAttachment.isPending || !conversationId || !!disabled}
+        disabled={sendPending || !hasTarget || !!disabled}
       >
         {children}
       </ButtonGlass>
