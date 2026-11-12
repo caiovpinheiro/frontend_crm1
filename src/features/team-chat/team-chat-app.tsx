@@ -29,6 +29,7 @@ import {
   useOrbitaFavorites,
   useRoomWorkItems,
   useTeamChatColleagues,
+  useLoadOlderTeamChatMessages,
   useTeamChatMessages,
   useTeamChatMutations,
   useTeamChatNotes,
@@ -455,6 +456,7 @@ function Thread({
   const workItemsQuery = useRoomWorkItems(room.id);
   const { send, react, pin, removeMessage } = useTeamChatMutations();
   const messages = data?.messages ?? [];
+  const older = useLoadOlderTeamChatMessages(room.id, messages.length);
   const workItems = workItemsQuery.data?.items ?? [];
   const messagesError =
     error instanceof Error ? error.message : isError ? "Não foi possível carregar as mensagens." : null;
@@ -509,6 +511,9 @@ function Thread({
           meId={meId}
           error={messagesError}
           scrollToMessageId={scrollToMessageId}
+          hasOlder={older.hasMore}
+          loadingOlder={older.loading}
+          onLoadOlder={older.loadOlder}
           onRetry={() => {
             void refetch();
           }}

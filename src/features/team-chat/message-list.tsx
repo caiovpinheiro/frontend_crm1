@@ -149,6 +149,9 @@ export function MessageList({
   onDelete,
   onOpenRecord,
   scrollToMessageId,
+  hasOlder = false,
+  loadingOlder = false,
+  onLoadOlder,
 }: {
   room: TeamChatRoom;
   messages: TeamChatMessage[];
@@ -168,6 +171,10 @@ export function MessageList({
   onDelete?: (message: TeamChatMessage) => void;
   onOpenRecord?: (card: OpenCrmCard) => void;
   scrollToMessageId?: string;
+  /** Há mensagens antes da mais antiga carregada. */
+  hasOlder?: boolean;
+  loadingOlder?: boolean;
+  onLoadOlder?: () => Promise<void> | void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -175,6 +182,10 @@ export function MessageList({
   const prevRoomId = useRef(room.id);
   const prevCount = useRef(messages.length);
   const didInitScroll = useRef(false);
+  const prevLastId = useRef<string | undefined>(undefined);
+  // Altura/posição antes de acrescentar mensagens antigas no topo — para a
+  // tela não pular quando elas entram.
+  const olderAnchor = useRef<{ height: number; top: number } | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [unseen, setUnseen] = useState(0);
   const isDirect = room.kind === "DM";
@@ -199,10 +210,26 @@ export function MessageList({
     setUnseen(0);
   };
 
+  const requestOlder = () => {
+    const el = scrollRef.current;
+    if (!el || !hasOlder || loadingOlder || !onLoadOlder) return;
+    olderAnchor.current = { height: el.scrollHeight, top: el.scrollTop };
+    void Promise.resolve(onLoadOlder()).catch((err: unknown) => {
+      olderAnchor.current = null;
+      toast.error(err instanceof Error ? err.message : "Não foi possível carregar as mensagens anteriores.");
+    });
+  };
+  const requestOlderRef = useRef(requestOlder);
+  useLayoutEffect(() => {
+    requestOlderRef.current = requestOlder;
+  });
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
+      // Perto do topo: busca a página anterior (só depois da 1ª descida ao fim).
+      if (didInitScroll.current && el.scrollTop < 160) requestOlderRef.current();
       const near = nearBottom(el);
       stickToBottom.current = near;
       if (near) {
@@ -223,17 +250,31 @@ export function MessageList({
     prevRoomId.current = room.id;
     stickToBottom.current = true;
     prevCount.current = 0;
+    prevLastId.current = undefined;
+    olderAnchor.current = null;
     didInitScroll.current = false;
     setShowScrollDown(false);
     setUnseen(0);
   }, [room.id]);
 
+  // Mensagens antigas entraram no topo: mantém na tela o que estava visível.
+  const firstMessageId = messages[0]?.id;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const anchor = olderAnchor.current;
+    if (!el || !anchor) return;
+    olderAnchor.current = null;
+    el.scrollTop = el.scrollHeight - anchor.height + anchor.top;
+  }, [firstMessageId]);
+
   const lastMessage = messages[messages.length - 1];
   useEffect(() => {
     const count = messages.length;
     const isInit = !didInitScroll.current && count > 0;
-    const grew = count > prevCount.current;
+    // Só conta como "nova" se a última mudou — página antiga no topo não é nova.
+    const grew = count > prevCount.current && lastMessage?.id !== prevLastId.current;
     prevCount.current = count;
+    prevLastId.current = lastMessage?.id;
 
     if (!isInit && !grew) return;
 
@@ -306,6 +347,18 @@ export function MessageList({
       ) : (
       <div ref={scrollRef} className="chat-scroll flex-1 overflow-x-hidden overflow-y-auto">
         <div className="flex min-h-full w-full flex-col justify-end px-3 py-4 md:px-6 lg:px-8">
+          {hasOlder ? (
+            <div className="mb-4 flex justify-center">
+              <button
+                type="button"
+                onClick={requestOlder}
+                disabled={loadingOlder}
+                className="rounded-full border border-border bg-[var(--orbita-block)] px-4 py-1.5 text-[13px] font-medium text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)] disabled:opacity-70"
+              >
+                {loadingOlder ? "Carregando mensagens anteriores…" : "Carregar mensagens anteriores"}
+              </button>
+            </div>
+          ) : (
           <div className="mb-4 flex justify-center">
             <div className="flex max-w-md flex-col items-center rounded-2xl border border-border bg-[var(--orbita-block)] px-6 py-5 text-center">
               {isDirect && room.peer ? (
@@ -323,6 +376,7 @@ export function MessageList({
               </p>
             </div>
           </div>
+          )}
           {q && visible.every((m) => m.kind === "SYSTEM") && !visible.some((m) => m.content.toLowerCase().includes(q)) ? (
             <p className="py-10 text-center text-[15px] text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
           ) : (

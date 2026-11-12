@@ -8,6 +8,13 @@ import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { ApiError } from "@/lib/api";
+
+import {
+  mergeMessageLists,
+  pageHasMore,
+  prependOlderMessages,
+  TEAM_CHAT_PAGE_SIZE,
+} from "./message-pages";
 import {
   pollWhileVisible,
   TEAM_CHAT_MESSAGES_POLL_MS,
@@ -121,20 +128,6 @@ export function markRoomReadInCache(
   });
 }
 
-function mergeMessageLists(cached: TeamChatMessage[] | undefined, fetched: TeamChatMessage[]) {
-  if (!cached?.length) return fetched;
-  const byId = new Map(fetched.map((m) => [m.id, m]));
-  const newest = fetched[fetched.length - 1]?.createdAt;
-  for (const msg of cached) {
-    if (byId.has(msg.id)) continue;
-    if (newest && msg.createdAt >= newest) byId.set(msg.id, msg);
-  }
-  return [...byId.values()].sort((a, b) => {
-    if (a.createdAt === b.createdAt) return a.id.localeCompare(b.id);
-    return a.createdAt.localeCompare(b.createdAt);
-  });
-}
-
 export function upsertTeamChatMessage(
   qc: ReturnType<typeof useQueryClient>,
   msg: TeamChatMessage,
@@ -202,6 +195,47 @@ export function useTeamChatMessages(roomId: string | null) {
     ...pollWhileVisible(visible, TEAM_CHAT_MESSAGES_POLL_MS),
     retry: retryUnlessTimeout,
   });
+}
+
+/**
+ * "Carregar anteriores": busca a página antes da mensagem mais antiga do
+ * cache e acrescenta no começo. `hasMore` começa pelo tamanho da primeira
+ * página e passa a valer a resposta de cada carga.
+ */
+export function useLoadOlderTeamChatMessages(roomId: string | null, loadedCount: number) {
+  const qc = useQueryClient();
+  const [state, setState] = useState<{ roomId: string | null; hasMore: boolean | null; loading: boolean }>({
+    roomId,
+    hasMore: null,
+    loading: false,
+  });
+  const current = state.roomId === roomId ? state : { roomId, hasMore: null, loading: false };
+  const inFlight = useRef(false);
+
+  const hasMore = current.hasMore ?? pageHasMore(loadedCount);
+
+  const loadOlder = async () => {
+    if (!roomId || inFlight.current || !hasMore) return;
+    const cached = qc.getQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, roomId]);
+    const oldest = cached?.messages[0]?.createdAt;
+    if (!oldest) return;
+    inFlight.current = true;
+    setState({ roomId, hasMore, loading: true });
+    try {
+      const page = await listTeamChatMessages(roomId, { before: oldest, take: TEAM_CHAT_PAGE_SIZE });
+      qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, roomId], (prev) => ({
+        messages: prependOlderMessages(prev?.messages, page.messages),
+      }));
+      setState({ roomId, hasMore: pageHasMore(page.messages.length), loading: false });
+    } catch (err) {
+      setState({ roomId, hasMore, loading: false });
+      throw err;
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  return { hasMore, loading: current.loading, loadOlder };
 }
 
 export function useTeamChatColleagues(enabled = true) {

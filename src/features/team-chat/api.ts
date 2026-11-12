@@ -38,9 +38,16 @@ export async function createTeamChatRoom(input: {
   );
 }
 
-export async function listTeamChatMessages(roomId: string): Promise<{ messages: TeamChatMessage[] }> {
+export async function listTeamChatMessages(
+  roomId: string,
+  opts?: { before?: string; take?: number },
+): Promise<{ messages: TeamChatMessage[] }> {
+  const qs = new URLSearchParams();
+  if (opts?.before) qs.set("before", opts.before);
+  if (opts?.take) qs.set("take", String(opts.take));
+  const suffix = qs.size ? `?${qs.toString()}` : "";
   return json(
-    apiFetch(`/api/team-chat/rooms/${roomId}/messages`),
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages${suffix}`),
     "Não foi possível carregar as mensagens.",
   );
 }
