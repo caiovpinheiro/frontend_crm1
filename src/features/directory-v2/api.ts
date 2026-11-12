@@ -570,6 +570,8 @@ export interface ActivityListItemDto {
   completedBy?: { id: string; name: string; avatarUrl: string | null } | null;
   user: { id: string; name: string; email: string | null; avatarUrl: string | null } | null;
   department?: { id: string; name: string; color: string | null; icon: string | null } | null;
+  /** Todos da organização veem a tarefa. */
+  visibleToAll?: boolean;
   contact: { id: string; name: string; email: string | null } | null;
   deal: { id: string; title: string; stageId: string } | null;
   /** Quem criou a tarefa (pode diferir do responsável `user`). */
@@ -647,6 +649,8 @@ export interface CreateActivityPayload {
   userId?: string | null;
   /** Responsável departamento (tarefa compartilhada). */
   departmentId?: string | null;
+  /** Todos da organização veem e podem concluir a tarefa. */
+  visibleToAll?: boolean;
 }
 
 export function createActivity(payload: CreateActivityPayload): Promise<ActivityListItemDto> {
@@ -669,6 +673,7 @@ export interface UpdateActivityPayload {
   dealId?: string | null;
   userId?: string | null;
   departmentId?: string | null;
+  visibleToAll?: boolean;
   /** true marca o usuário da sessão como quem está executando. */
   inProgress?: boolean;
 }

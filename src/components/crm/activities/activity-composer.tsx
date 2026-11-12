@@ -87,7 +87,7 @@ export function ActivityComposer({
   const [debouncedContactSearch, setDebouncedContactSearch] = useState("")
   const [location, setLocation] = useState("")
   const [notes, setNotes] = useState("")
-  const [assignKind, setAssignKind] = useState<"user" | "department">("user")
+  const [assignKind, setAssignKind] = useState<"user" | "department" | "all">("user")
   const [assigneeUserId, setAssigneeUserId] = useState("")
   const [departmentId, setDepartmentId] = useState("")
 
@@ -209,6 +209,7 @@ export function ActivityComposer({
   const submit = () => {
     if (!canSubmit) return
     const isDept = assignKind === "department"
+    const isAll = assignKind === "all"
     onCreate({
       id: `a-${Date.now()}`,
       kind,
@@ -223,8 +224,8 @@ export function ActivityComposer({
       dealTitle: dealTitle,
       location: usesLocation ? location.trim() || undefined : undefined,
       notes: notes.trim() || undefined,
-      assigneeType: isDept ? "department" : "user",
-      assigneeUserId: isDept ? null : assigneeUserId || null,
+      assigneeType: assignKind,
+      assigneeUserId: isDept || isAll ? null : assigneeUserId || null,
       departmentId: isDept ? departmentId : null,
     })
     onOpenChange(false)
@@ -485,8 +486,18 @@ export function ActivityComposer({
           >
             Departamento
           </button>
+          <button
+            type="button"
+            onClick={() => setAssignKind("all")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors",
+              assignKind === "all" ? assignPillOn : pillOff,
+            )}
+          >
+            Todos
+          </button>
         </div>
-        {assignKind === "user" ? (
+        {assignKind === "all" ? null : assignKind === "user" ? (
           <select
             className={cn(formControlClass, "text-sm text-foreground")}
             value={assigneeUserId}
@@ -516,6 +527,11 @@ export function ActivityComposer({
         {assignKind === "department" && (
           <p className="text-[11px] text-muted-foreground">
             Todos os membros do departamento verão e poderão concluir esta tarefa.
+          </p>
+        )}
+        {assignKind === "all" && (
+          <p className="text-[11px] text-muted-foreground">
+            Todos da organização verão e poderão concluir esta tarefa.
           </p>
         )}
       </div>

@@ -32,8 +32,8 @@ export interface Activity {
   dealTitle?: string | null
   /** Quem criou (pode diferir do responsável). Null = Sistema. */
   createdBy?: { id: string; name: string; avatarUrl?: string | null } | null
-  /** Responsável: usuário específico ou departamento (compartilhada). */
-  assigneeType?: "user" | "department"
+  /** Responsável: usuário específico, departamento (compartilhada) ou todos da organização. */
+  assigneeType?: "user" | "department" | "all"
   assigneeUserId?: string | null
   departmentId?: string | null
   /** Rótulo pronto para exibição do responsável (nome do user/depto). */

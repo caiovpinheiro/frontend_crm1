@@ -141,14 +141,18 @@ export function ActivityRow({
               {activity.location}
             </span>
           )}
-          {activity.assigneeType === "department" && activity.assigneeLabel && (
+          {(activity.assigneeType === "department" || activity.assigneeType === "all") && activity.assigneeLabel && (
             <span
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[10px] font-bold"
               style={{
                 backgroundColor: "rgba(167,139,250,0.14)",
                 color: "#8b5cf6",
               }}
-              title={`Tarefa do departamento ${activity.assigneeLabel}`}
+              title={
+                activity.assigneeType === "all"
+                  ? "Tarefa visível para todos da organização"
+                  : `Tarefa do departamento ${activity.assigneeLabel}`
+              }
             >
               <IconUsersGroup size={12} />
               {activity.assigneeLabel}

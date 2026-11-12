@@ -95,6 +95,7 @@ export function ActivitiesPanel({
         dealId: a.dealId ?? dealId,
         userId: a.assigneeType === "department" ? null : a.assigneeUserId ?? undefined,
         departmentId: a.assigneeType === "department" ? a.departmentId ?? null : null,
+        visibleToAll: a.assigneeType === "all",
       },
       {
         onSuccess: () => {

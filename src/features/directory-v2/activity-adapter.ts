@@ -72,10 +72,12 @@ export function dtoToActivity(dto: ActivityListItemDto): Activity {
       ? { id: dto.createdBy.id, name: dto.createdBy.name, avatarUrl: dto.createdBy.avatarUrl }
       : null,
     notes: dto.description ?? undefined,
-    assigneeType: isDept ? "department" : "user",
+    assigneeType: dto.visibleToAll ? "all" : isDept ? "department" : "user",
     assigneeUserId: dto.user?.id ?? null,
     departmentId: dto.department?.id ?? null,
-    assigneeLabel: dto.department?.name ?? dto.user?.name ?? null,
+    assigneeLabel: dto.visibleToAll
+      ? "Todos"
+      : (dto.department?.name ?? dto.user?.name ?? null),
     startedBy: dto.startedBy ?? null,
     startedAt: dto.startedAt ?? null,
     completedBy: dto.completedBy ?? null,
