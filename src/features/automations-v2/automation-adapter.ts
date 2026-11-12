@@ -31,6 +31,7 @@ const TRIGGER_LABEL: Record<string, AutomationTrigger> = {
   call_received: "Ligação recebida",
   call_made: "Ligação realizada",
   call_permission_granted: "Permissão de ligação concedida",
+  activity_scheduled: "Horário da tarefa",
   manual: "Manual",
 };
 

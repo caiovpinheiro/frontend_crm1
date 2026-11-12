@@ -29,6 +29,8 @@ export type AutomationTriggerType =
   | "conversation_tabulated"
   | "attendance_closing"
   | "whatsapp_session_expiring"
+  /** Horário da tarefa (Activity.scheduledAt), com deslocamento antes/depois. */
+  | "activity_scheduled"
   | "lead_distributed"
   | "manual";
 
@@ -57,6 +59,7 @@ export const AUTOMATION_TRIGGER_TYPES: AutomationTriggerType[] = [
   "conversation_tabulated",
   "attendance_closing",
   "whatsapp_session_expiring",
+  "activity_scheduled",
   "lead_distributed",
   "manual",
 ];
@@ -242,6 +245,7 @@ export function triggerTypeLabel(t: string): string {
     conversation_tabulated: "Conversa encerrada",
     attendance_closing: "Atendimento sendo encerrado",
     whatsapp_session_expiring: "Sessão do WhatsApp prestes a encerrar",
+    activity_scheduled: "Horário da tarefa",
     lead_distributed: "Lead distribuído (consultor humano)",
     manual: "Manual (executar pela conversa)",
   };
@@ -492,6 +496,8 @@ export function summarizeTriggerConfig(
     }
     case "whatsapp_session_expiring":
       return `${String(c.hoursBeforeExpiry ?? 1)}h antes do encerramento`;
+    case "activity_scheduled":
+      return describeActivitySchedule(c);
     case "lifecycle_changed": {
       const to = c.toLifecycle ?? c.lifecycleStage;
       const from = c.fromLifecycle ?? c.from;
@@ -1234,7 +1240,40 @@ export function defaultTriggerConfig(triggerType: string): Record<string, unknow
       return { departmentId: "", tabulationId: "", tabulationLabel: "", requireTabulation: false };
     case "whatsapp_session_expiring":
       return { hoursBeforeExpiry: 1 };
+    case "activity_scheduled":
+      return {
+        timing: "before",
+        offsetAmount: 30,
+        offsetUnit: "minutes",
+        activityType: "",
+        includeCompleted: false,
+      };
     default:
       return {};
   }
+}
+
+const ACTIVITY_SCHEDULE_UNIT_LABEL: Record<string, [string, string]> = {
+  minutes: ["minuto", "minutos"],
+  hours: ["hora", "horas"],
+  days: ["dia", "dias"],
+};
+
+const ACTIVITY_SCHEDULE_TYPE_LABEL: Record<string, string> = {
+  TASK: "Tarefa",
+  MEETING: "Reunião",
+  CALL: "Ligação",
+  OTHER: "Evento",
+  EMAIL: "E-mail",
+};
+
+/** Resumo do gatilho "Horário da tarefa" (espelha o backend). */
+export function describeActivitySchedule(c: Record<string, unknown>): string {
+  const type = typeof c.activityType === "string" ? c.activityType : "";
+  const suffix = type && ACTIVITY_SCHEDULE_TYPE_LABEL[type] ? ` · ${ACTIVITY_SCHEDULE_TYPE_LABEL[type]}` : "";
+  if (c.timing !== "before" && c.timing !== "after") return `No horário da tarefa${suffix}`;
+  const amount = Number(c.offsetAmount);
+  if (!Number.isInteger(amount) || amount < 1) return "Configurar horário";
+  const [one, many] = ACTIVITY_SCHEDULE_UNIT_LABEL[String(c.offsetUnit)] ?? ACTIVITY_SCHEDULE_UNIT_LABEL.minutes;
+  return `${amount} ${amount === 1 ? one : many} ${c.timing === "before" ? "antes" : "depois"} da tarefa${suffix}`;
 }

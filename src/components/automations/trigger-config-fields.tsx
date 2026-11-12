@@ -725,6 +725,8 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
         </div>
       );
     }
+    case "activity_scheduled":
+      return <ActivityScheduledFields value={value} patch={patch} />;
     case "message_received":
     case "message_sent":
       return (
@@ -1157,6 +1159,131 @@ function flattenTabulationTree(
     }
   }
   return out;
+}
+
+const ACTIVITY_TIMING_OPTIONS = [
+  { value: "before", label: "Antes" },
+  { value: "at", label: "No horário" },
+  { value: "after", label: "Depois" },
+] as const;
+
+const ACTIVITY_OFFSET_UNITS = [
+  { value: "minutes", label: "Minutos" },
+  { value: "hours", label: "Horas" },
+  { value: "days", label: "Dias" },
+];
+
+const ACTIVITY_TYPE_OPTIONS = [
+  { value: "", label: "Qualquer tipo" },
+  { value: "TASK", label: "Tarefa" },
+  { value: "MEETING", label: "Reunião" },
+  { value: "CALL", label: "Ligação" },
+  { value: "OTHER", label: "Evento" },
+  { value: "EMAIL", label: "E-mail" },
+];
+
+/** Gatilho "Horário da tarefa": dispara antes, no horário ou depois de Activity.scheduledAt. */
+function ActivityScheduledFields({
+  value,
+  patch,
+}: {
+  value: Record<string, unknown>;
+  patch: (next: Record<string, unknown>) => void;
+}) {
+  const timing =
+    value.timing === "before" || value.timing === "after" ? value.timing : "at";
+  const amount = Number(value.offsetAmount ?? 30);
+  const unit = typeof value.offsetUnit === "string" ? value.offsetUnit : "minutes";
+  const activityType = typeof value.activityType === "string" ? value.activityType : "";
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <Label>Quando disparar</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {ACTIVITY_TIMING_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() =>
+                patch(
+                  opt.value === "at"
+                    ? { timing: "at" }
+                    : {
+                        timing: opt.value,
+                        offsetAmount: Number.isInteger(amount) && amount >= 1 ? amount : 30,
+                        offsetUnit: unit,
+                      },
+                )
+              }
+              className={cn(
+                "h-9 rounded-[var(--radius-md)] border font-display text-xs font-semibold transition-colors",
+                timing === opt.value
+                  ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
+                  : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--brand-primary)]",
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {timing !== "at" && (
+        <div className="space-y-2">
+          <Label htmlFor="tc-activity-offset">
+            Quanto tempo {timing === "before" ? "antes" : "depois"} da tarefa
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              id="tc-activity-offset"
+              type="number"
+              min={1}
+              step={1}
+              value={Number.isFinite(amount) ? amount : ""}
+              onChange={(event) => patch({ offsetAmount: Number(event.target.value) })}
+            />
+            <DropdownGlass
+              triggerClassName="w-full"
+              value={unit}
+              options={ACTIVITY_OFFSET_UNITS}
+              onValueChange={(v) => patch({ offsetUnit: v })}
+            />
+          </div>
+          {(!Number.isInteger(amount) || amount < 1) && (
+            <p className="text-xs text-destructive">Informe um número inteiro maior que zero.</p>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label>Tipo de tarefa</Label>
+        <DropdownGlass
+          triggerClassName="w-full"
+          value={activityType}
+          options={ACTIVITY_TYPE_OPTIONS}
+          onValueChange={(v) => patch({ activityType: v })}
+        />
+      </div>
+
+      <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 accent-[var(--brand-primary)]"
+          checked={value.includeCompleted === true}
+          onChange={(e) => patch({ includeCompleted: e.target.checked })}
+        />
+        <span>Disparar também para tarefas já concluídas</span>
+      </label>
+
+      <p className="text-xs text-muted-foreground">
+        Dispara uma vez por tarefa agendada (até 30 dias de antecedência). Se a
+        tarefa for reagendada, dispara de novo no novo horário. O contato e o
+        negócio da tarefa ficam disponíveis no fluxo; use {"{{data.activityTitle}}"} e{" "}
+        {"{{data.activityScheduledAtFormatted}}"} nas mensagens.
+      </p>
+    </div>
+  );
 }
 
 export function TriggerTypeSelect({

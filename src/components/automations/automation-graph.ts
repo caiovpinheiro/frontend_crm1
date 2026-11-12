@@ -5,6 +5,7 @@
 import type { Edge, Node } from "@xyflow/react"
 import { normalizeConditionConfig } from "@/lib/automation-condition"
 import {
+  describeActivitySchedule,
   apiStepsToWorkflow,
   summarizeStepConfig,
   stepTypeLabel,
@@ -225,6 +226,9 @@ function summarizeTrigger(triggerType: string, triggerConfig: Record<string, unk
   const parts: string[] = []
   if (triggerType === "whatsapp_session_expiring") {
     return `${String(triggerConfig.hoursBeforeExpiry ?? 1)}h antes do encerramento`
+  }
+  if (triggerType === "activity_scheduled") {
+    return describeActivitySchedule(triggerConfig)
   }
   if (triggerConfig.pipelineId) parts.push(`Pipeline: ${String(triggerConfig.pipelineId).slice(0, 12)}…`)
   if (triggerConfig.fromStageId) parts.push(`De: ${String(triggerConfig.stageName ?? triggerConfig.fromStageId).slice(0, 24)}`)
