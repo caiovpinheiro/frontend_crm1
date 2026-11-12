@@ -1,3 +1,5 @@
+import type { Message } from "@/components/crm/message-bubble/types";
+
 import type { WhatsAppGroupMessage } from "./types";
 
 /**
@@ -8,7 +10,12 @@ export type GroupThreadMessage = WhatsAppGroupMessage & { pending?: boolean; loc
 
 export type GroupMessagesCache = { messages: GroupThreadMessage[] } | undefined;
 
-export function optimisticGroupMessage(text: string, tempId: string, now = new Date()): GroupThreadMessage {
+export function optimisticGroupMessage(
+  text: string,
+  tempId: string,
+  now = new Date(),
+  media?: { messageType: string; fileName: string },
+): GroupThreadMessage {
   return {
     id: tempId,
     fromJid: "me",
@@ -16,9 +23,34 @@ export function optimisticGroupMessage(text: string, tempId: string, now = new D
     fromPhone: null,
     fromMe: true,
     text,
+    messageType: media?.messageType ?? "text",
+    // Sem URL enquanto sobe: o balão mostra o rótulo até o servidor responder.
+    mediaUrl: null,
+    mimeType: null,
+    fileName: media?.fileName ?? null,
     createdAt: now.toISOString(),
     pending: true,
   };
+}
+
+/** Tipo provisório do anexo pelo MIME do navegador (o servidor confirma). */
+export function pendingAttachmentType(mime: string, fileName: string): string {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return /^audio-\d+\./.test(fileName) ? "ptt" : "audio";
+  return "document";
+}
+
+/** Rótulo provisório do anexo enquanto sobe. */
+export function pendingAttachmentText(messageType: string, fileName: string): string {
+  return messageType === "ptt" || messageType === "audio" ? "[áudio]" : `📎 ${fileName}`;
+}
+
+const MEDIA_TYPES = new Set(["image", "video", "audio", "ptt", "document", "sticker"]);
+
+/** Mensagem do grupo com arquivo? (decide balão de mídia × texto) */
+export function isGroupMediaMessage(msg: Pick<WhatsAppGroupMessage, "messageType">): boolean {
+  return MEDIA_TYPES.has(msg.messageType);
 }
 
 /** Acrescenta a mensagem otimista no fim da conversa (cache vazio inclusive). */
@@ -93,4 +125,21 @@ export function isFirstOfRun(items: GroupThreadMessage[], index: number): boolea
   const prev = items[index - 1];
   const cur = items[index];
   return prev.fromMe !== cur.fromMe || prev.fromJid !== cur.fromJid;
+}
+
+/**
+ * Mensagem do grupo no formato do balão do CRM (`MessageContent`): o mesmo
+ * player de áudio e os mesmos cartões de imagem/vídeo/documento, que só
+ * carregam o arquivo quando a pessoa toca.
+ */
+export function toBubbleMessage(msg: GroupThreadMessage): Message {
+  return {
+    id: msg.id,
+    content: msg.text,
+    time: msg.createdAt,
+    createdAt: msg.createdAt,
+    type: msg.fromMe ? "outgoing" : "incoming",
+    messageType: msg.messageType,
+    mediaUrl: msg.mediaUrl,
+  };
 }

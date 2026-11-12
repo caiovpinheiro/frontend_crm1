@@ -15,6 +15,8 @@ export type WhatsAppGroupListItem = {
   ownerJid: string | null;
   participantCount: number;
   syncedAt: string;
+  /** Última mensagem recebida ou enviada (ordena a lista). */
+  lastMessageAt: string | null;
 };
 
 export type WhatsAppGroupDetail = WhatsAppGroupListItem & {
@@ -34,6 +36,11 @@ export type WhatsAppGroupMessage = {
   fromPhone: string | null;
   fromMe: boolean;
   text: string;
+  /** text | image | video | audio | ptt | document | sticker. */
+  messageType: string;
+  mediaUrl: string | null;
+  mimeType: string | null;
+  fileName: string | null;
   createdAt: string;
 };
 

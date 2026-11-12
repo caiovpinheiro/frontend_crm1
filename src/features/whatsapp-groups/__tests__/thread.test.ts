@@ -6,8 +6,12 @@ import {
   groupMessagesByDay,
   isFirstOfRun,
   mergeServerMessages,
+  isGroupMediaMessage,
   optimisticGroupMessage,
+  pendingAttachmentText,
+  pendingAttachmentType,
   settlePendingMessage,
+  toBubbleMessage,
 } from "../thread";
 import type { WhatsAppGroupMessage } from "../types";
 
@@ -18,6 +22,10 @@ const msg = (id: string, over: Partial<WhatsAppGroupMessage> = {}): WhatsAppGrou
   fromPhone: null,
   fromMe: false,
   text: id,
+  messageType: "text",
+  mediaUrl: null,
+  mimeType: null,
+  fileName: null,
   createdAt: "2026-11-12T10:00:00.000Z",
   ...over,
 });
@@ -84,5 +92,38 @@ describe("grupos WhatsApp — agrupamento da conversa", () => {
   it("nome só na primeira bolha de uma sequência da mesma pessoa", () => {
     const items = [msg("a"), msg("b"), msg("c", { fromJid: "b@s.whatsapp.net" }), msg("d", { fromMe: true })];
     expect(items.map((_, i) => isFirstOfRun(items, i))).toEqual([true, false, true, true]);
+  });
+});
+
+describe("grupos WhatsApp — mídia", () => {
+  it("mensagem com arquivo vira o balão de mídia do CRM", () => {
+    const m = msg("m9", {
+      fromMe: true,
+      text: "📎 proposta.pdf",
+      messageType: "document",
+      mediaUrl: "/api/storage/org1/attachments/a.pdf",
+    });
+    expect(isGroupMediaMessage(m)).toBe(true);
+    expect(isGroupMediaMessage(msg("t"))).toBe(false);
+    expect(toBubbleMessage(m)).toMatchObject({
+      id: "m9",
+      content: "📎 proposta.pdf",
+      type: "outgoing",
+      messageType: "document",
+      mediaUrl: "/api/storage/org1/attachments/a.pdf",
+    });
+  });
+
+  it("anexo enviando: tipo e rótulo provisórios", () => {
+    expect(pendingAttachmentType("audio/webm", "audio-1731400000000.webm")).toBe("ptt");
+    expect(pendingAttachmentType("audio/mpeg", "musica.mp3")).toBe("audio");
+    expect(pendingAttachmentType("application/pdf", "a.pdf")).toBe("document");
+    expect(pendingAttachmentText("ptt", "audio-1.webm")).toBe("[áudio]");
+    expect(pendingAttachmentText("image", "foto.png")).toBe("📎 foto.png");
+    const tmp = optimisticGroupMessage("📎 foto.png", "tmp-9", new Date(), {
+      messageType: "image",
+      fileName: "foto.png",
+    });
+    expect(tmp).toMatchObject({ pending: true, messageType: "image", mediaUrl: null, fileName: "foto.png" });
   });
 });

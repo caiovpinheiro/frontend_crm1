@@ -63,6 +63,7 @@ export function AudioRecorderButton({
   disabled,
   beforeSend,
   onBlocked,
+  sendFile,
 }: {
   conversationId: string | null;
   /** Canal escolhido em "Enviar por" (mesmo override de texto e anexos). */
@@ -75,8 +76,16 @@ export function AudioRecorderButton({
   beforeSend?: () => boolean | Promise<boolean>;
   /** Chamado quando a gravação é bloqueada (sessão encerrada, etc.). */
   onBlocked?: () => void;
+  /**
+   * Destino próprio (ex.: grupo WhatsApp). Com ele o áudio não vai para a
+   * conversa do inbox; sem ele, nada muda.
+   */
+  sendFile?: (file: Blob, fileName: string) => Promise<unknown>;
 }) {
   const sendAttachment = useSendAttachment(conversationId);
+  const [customPending, setCustomPending] = useState(false);
+  const sendPending = sendFile ? customPending : sendAttachment.isPending;
+  const hasTarget = Boolean(conversationId) || Boolean(sendFile);
 
   // ── Refs ─────────────────────────────────────────────────────────
   const recorderRef   = useRef<MediaRecorder | null>(null);
@@ -167,7 +176,7 @@ export function AudioRecorderButton({
       return;
     }
     if (starting || recState !== "idle") return;
-    if (!conversationId) { toast.error("Selecione uma conversa antes de gravar"); return; }
+    if (!hasTarget) { toast.error("Selecione uma conversa antes de gravar"); return; }
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       toast.error("Gravação não suportada neste navegador"); return;
     }
@@ -283,6 +292,15 @@ export function AudioRecorderButton({
     try {
       // `mutateAsync`: o resultado chega mesmo se o composer remontar no meio
       // do envio (callbacks do `mutate` não disparam após unmount).
+      if (sendFile) {
+        setCustomPending(true);
+        try {
+          await sendFile(blob, fileName);
+        } finally {
+          setCustomPending(false);
+        }
+        return;
+      }
       const data = await sendAttachment.mutateAsync({ file: blob, fileName, channelId });
       if (data.audioDelivery && data.audioDelivery !== "voice") {
         toast("Enviado como áudio (não como nota de voz)");
@@ -421,11 +439,11 @@ export function AudioRecorderButton({
         <button
           type="button"
           onClick={sendAudio}
-          disabled={sendAttachment.isPending}
+          disabled={sendPending}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-white shadow-[0_2px_12px_rgba(91,111,245,0.40)] transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
           aria-label="Enviar áudio"
         >
-          {sendAttachment.isPending ? (
+          {sendPending ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--glass-border)] border-t-white" />
           ) : (
             <IconSend size={16} />
@@ -443,7 +461,7 @@ export function AudioRecorderButton({
       size="icon"
       className={className}
       onClick={start}
-      disabled={sendAttachment.isPending || !conversationId || !!disabled || starting}
+      disabled={sendPending || !hasTarget || !!disabled || starting}
       title={disabled ? "Sessão encerrada — use um template" : "Gravar áudio"}
     >
       {starting ? (

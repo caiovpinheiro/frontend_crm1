@@ -43,6 +43,25 @@ export function sendWhatsAppGroupMessage(id: string, text: string) {
   );
 }
 
+/** Anexo ou áudio gravado (multipart, como o anexo do inbox). */
+export function sendWhatsAppGroupAttachment(
+  id: string,
+  file: Blob,
+  fileName: string,
+  caption?: string,
+) {
+  const form = new FormData();
+  form.append("file", file, fileName);
+  if (caption?.trim()) form.append("caption", caption.trim());
+  return json<{ ok: boolean; message?: WhatsAppGroupMessage | null }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/attachments`, {
+      method: "POST",
+      body: form,
+    }),
+    "Não foi possível enviar o arquivo.",
+  );
+}
+
 export function listWhatsAppGroupMessages(id: string) {
   return json<{ messages: WhatsAppGroupMessage[] }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/messages`),

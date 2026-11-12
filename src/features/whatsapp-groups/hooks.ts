@@ -9,6 +9,7 @@ import {
   listWhatsAppGroupMessages,
   listWhatsAppGroups,
   openWhatsAppGroupMember,
+  sendWhatsAppGroupAttachment,
   sendWhatsAppGroupMessage,
   syncWhatsAppGroups,
 } from "./api";
@@ -17,6 +18,8 @@ import {
   dropPendingMessage,
   mergeServerMessages,
   optimisticGroupMessage,
+  pendingAttachmentText,
+  pendingAttachmentType,
   settlePendingMessage,
   type GroupMessagesCache,
 } from "./thread";
@@ -40,11 +43,24 @@ export function groupMessagesPollInterval(
   return hasGroup && visible ? GROUP_MESSAGES_POLL_MS : false;
 }
 
+/**
+ * A lista também é poll: o grupo que recebeu mensagem sobe para o topo.
+ * Mesmo ritmo das mensagens; nada com a aba oculta.
+ */
+export const GROUP_LIST_POLL_MS = 30_000;
+
+export function groupListPollInterval(visible: boolean): number | false {
+  return visible ? GROUP_LIST_POLL_MS : false;
+}
+
 export function useWhatsAppGroups() {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: whatsappGroupsKey,
     queryFn: listWhatsAppGroups,
     staleTime: 8_000,
+    refetchInterval: groupListPollInterval(visible),
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -81,6 +97,9 @@ export function useWhatsAppGroupMessages(id: string | null) {
 export function useWhatsAppGroupMutations() {
   const qc = useQueryClient();
   const invalidate = () => void qc.invalidateQueries({ queryKey: whatsappGroupsKey });
+  /** Só a lista (o grupo sobe para o topo), sem refazer a conversa aberta. */
+  const refreshList = () =>
+    void qc.invalidateQueries({ queryKey: whatsappGroupsKey, exact: true });
   const refreshAfterSync = () => {
     invalidate();
     for (const delay of SYNC_REFRESH_DELAYS_MS) {
@@ -107,6 +126,40 @@ export function useWhatsAppGroupMutations() {
         return { tempId };
       },
       onSuccess: (data, vars, ctx) => {
+        refreshList();
+        if (!ctx) return;
+        qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.id), (cur) =>
+          settlePendingMessage(cur, ctx.tempId, data.message),
+        );
+      },
+      onError: (_err, vars, ctx) => {
+        if (!ctx) return;
+        qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.id), (cur) =>
+          dropPendingMessage(cur, ctx.tempId),
+        );
+      },
+    }),
+    sendAttachment: useMutation({
+      mutationFn: ({ id, file, fileName, caption }: { id: string; file: Blob; fileName: string; caption?: string }) =>
+        sendWhatsAppGroupAttachment(id, file, fileName, caption),
+      onMutate: async ({ id, file, fileName }) => {
+        const key = groupMessagesKey(id);
+        await qc.cancelQueries({ queryKey: key });
+        const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const messageType = pendingAttachmentType(file.type, fileName);
+        qc.setQueryData<GroupMessagesCache>(key, (cur) =>
+          appendPendingMessage(
+            cur,
+            optimisticGroupMessage(pendingAttachmentText(messageType, fileName), tempId, new Date(), {
+              messageType,
+              fileName,
+            }),
+          ),
+        );
+        return { tempId };
+      },
+      onSuccess: (data, vars, ctx) => {
+        refreshList();
         if (!ctx) return;
         qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.id), (cur) =>
           settlePendingMessage(cur, ctx.tempId, data.message),
