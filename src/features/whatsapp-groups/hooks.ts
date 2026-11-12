@@ -12,6 +12,14 @@ import {
   sendWhatsAppGroupMessage,
   syncWhatsAppGroups,
 } from "./api";
+import {
+  appendPendingMessage,
+  dropPendingMessage,
+  mergeServerMessages,
+  optimisticGroupMessage,
+  settlePendingMessage,
+  type GroupMessagesCache,
+} from "./thread";
 
 export const whatsappGroupsKey = ["whatsapp-groups"] as const;
 
@@ -49,11 +57,20 @@ export function useWhatsAppGroup(id: string | null) {
   });
 }
 
+export function groupMessagesKey(id: string | null) {
+  return [...whatsappGroupsKey, id, "messages"] as const;
+}
+
 export function useWhatsAppGroupMessages(id: string | null) {
   const visible = useDocumentVisible();
+  const qc = useQueryClient();
   return useQuery({
-    queryKey: [...whatsappGroupsKey, id, "messages"],
-    queryFn: () => listWhatsAppGroupMessages(id!),
+    queryKey: groupMessagesKey(id),
+    queryFn: async () => {
+      const res = await listWhatsAppGroupMessages(id!);
+      const prev = qc.getQueryData<GroupMessagesCache>(groupMessagesKey(id));
+      return { messages: mergeServerMessages(res.messages, prev) };
+    },
     enabled: Boolean(id),
     staleTime: 4_000,
     refetchInterval: groupMessagesPollInterval(Boolean(id), visible),
@@ -79,8 +96,27 @@ export function useWhatsAppGroupMutations() {
     send: useMutation({
       mutationFn: ({ id, text }: { id: string; text: string }) =>
         sendWhatsAppGroupMessage(id, text),
-      onSuccess: (_data, vars) => {
-        void qc.invalidateQueries({ queryKey: [...whatsappGroupsKey, vars.id, "messages"] });
+      // A bolha aparece na hora; o POST só confirma (ou tira, se falhar).
+      onMutate: async ({ id, text }) => {
+        const key = groupMessagesKey(id);
+        await qc.cancelQueries({ queryKey: key });
+        const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        qc.setQueryData<GroupMessagesCache>(key, (cur) =>
+          appendPendingMessage(cur, optimisticGroupMessage(text, tempId)),
+        );
+        return { tempId };
+      },
+      onSuccess: (data, vars, ctx) => {
+        if (!ctx) return;
+        qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.id), (cur) =>
+          settlePendingMessage(cur, ctx.tempId, data.message),
+        );
+      },
+      onError: (_err, vars, ctx) => {
+        if (!ctx) return;
+        qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.id), (cur) =>
+          dropPendingMessage(cur, ctx.tempId),
+        );
       },
     }),
     openMember: useMutation({

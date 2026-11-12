@@ -2,37 +2,61 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Columns3, Inbox, RefreshCw, Send, UsersRound } from "lucide-react";
+import {
+  IconArrowLeft as ArrowLeft,
+  IconCheck as Check,
+  IconClock as Clock,
+  IconInbox as Inbox,
+  IconLayoutKanban as Columns3,
+  IconRefresh as RefreshCw,
+  IconSearch as Search,
+  IconSend as Send,
+  IconUsers as Users,
+  IconUsersGroup as UsersRound,
+  IconX as X,
+} from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { EmptyState } from "@/components/crm/empty-state";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { PageChrome } from "@/components/crm/page-header";
-import { PageGhostButton, PagePrimaryButton } from "@/components/crm/page-toolbar";
-import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import { SectionHeader } from "@/components/crm/section-header";
+import { PagePrimaryButton } from "@/components/crm/page-toolbar";
+import { Avatar, GroupGlyph } from "@/features/team-chat/avatar";
+import {
+  formatClock,
+  formatDayLabel,
+  formatListTime,
+  getOrbitaNameColor,
+  initialsOf,
+} from "@/features/team-chat/helpers";
 import {
   useWhatsAppGroup,
   useWhatsAppGroupMessages,
   useWhatsAppGroupMutations,
   useWhatsAppGroups,
 } from "@/features/whatsapp-groups/hooks";
+import { groupMessagesByDay, isFirstOfRun, type GroupThreadMessage } from "@/features/whatsapp-groups/thread";
+import type { WhatsAppGroupDetail, WhatsAppGroupMember } from "@/features/whatsapp-groups/types";
+import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome";
 import { cn } from "@/lib/utils";
+
+const ICON_BTN =
+  "grid h-9 w-9 shrink-0 place-items-center rounded-[var(--orbita-radius-inner)] text-[var(--orbita-text-secondary)] transition-colors hover:bg-[var(--orbita-field)] hover:text-[var(--orbita-text)] disabled:opacity-50";
+
+function errorText(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
 
 export default function GruposWhatsAppClientPage() {
   const list = useWhatsAppGroups();
   const mut = useWhatsAppGroupMutations();
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const [mobileThread, setMobileThread] = useState(false);
   const [autoSynced, setAutoSynced] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
-  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
-  const router = useRouter();
-  const threadRef = useRef<HTMLDivElement | null>(null);
 
-  const groups = list.data?.groups ?? [];
+  const groups = useMemo(() => list.data?.groups ?? [], [list.data?.groups]);
   const connected = list.data?.connected === true;
   const channel = list.data?.channel ?? null;
   const filtered = useMemo(() => {
@@ -52,327 +76,499 @@ export default function GruposWhatsAppClientPage() {
     if (!connected || autoSynced || list.isLoading) return;
     setAutoSynced(true);
     mut.sync.mutate(undefined, {
-      onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao sincronizar"),
+      onError: (err) => toast.error(errorText(err, "Falha ao sincronizar")),
     });
   }, [autoSynced, connected, list.isLoading, mut.sync]);
 
   const detail = useWhatsAppGroup(connected ? selectedId : null);
-  const thread = useWhatsAppGroupMessages(connected ? selectedId : null);
   const group = detail.data?.group;
-  const messages = thread.data?.messages ?? [];
+  // Celular com a conversa aberta: some a barra inferior e o campo fica na base.
+  useMobileChatChrome(connected && mobileThread);
 
-  useEffect(() => {
-    setMembersOpen(false);
-    setActiveMemberId(null);
-  }, [selectedId]);
-
-  useEffect(() => {
-    const el = threadRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages.length, selectedId]);
+  const syncNow = () =>
+    mut.sync.mutate(undefined, {
+      onSuccess: () => toast.success("Atualizando grupos…"),
+      onError: (err) => toast.error(errorText(err, "Falha ao sincronizar")),
+    });
 
   return (
-    <div className={cn("v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-hidden bg-background")}>
+    <div className="v2-screen grid h-full min-h-0 min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-hidden bg-[var(--bg-base)]">
       <NavRailSpacer />
-      <PageChrome
-        className="px-4 py-5"
-        header={
-          <SectionHeader
-            icon={UsersRound}
-            title="Grupos WhatsApp"
-            search={false}
-            actions={
-              connected ? (
-                <PageGhostButton
-                  type="button"
-                  disabled={mut.sync.isPending}
-                  onClick={() =>
-                    mut.sync.mutate(undefined, {
-                      onSuccess: () => toast.success("Atualizando grupos…"),
-                      onError: (err) =>
-                        toast.error(err instanceof Error ? err.message : "Falha ao sincronizar"),
-                    })
-                  }
-                >
-                  <RefreshCw size={14} className={mut.sync.isPending ? "animate-spin" : undefined} />
-                  Atualizar
-                </PageGhostButton>
-              ) : null
-            }
-          />
-        }
-        bodyClassName="min-h-0"
-      >
+      <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {list.isLoading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : !connected ? (
-          <EmptyState
-            icon={<UsersRound className="size-7" />}
-            title="Nenhum WhatsApp QR Code conectado"
-            description="Conecte um número em Canais (WhatsApp QR Code) para ver e gerenciar os grupos dessa conta."
-            action={<PagePrimaryButton href="/settings/channels">Ir para Canais</PagePrimaryButton>}
-          />
+          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <EmptyState
+              icon={<UsersRound className="size-7" />}
+              title="Nenhum WhatsApp QR Code conectado"
+              description="Conecte um número em Canais (WhatsApp QR Code) para ver e gerenciar os grupos dessa conta."
+              action={<PagePrimaryButton href="/settings/channels">Ir para Canais</PagePrimaryButton>}
+            />
+          </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[minmax(260px,320px)_1fr]">
-            <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]">
-              <div className="border-b border-[var(--glass-border)] p-3">
-                <SearchFilterBar
-                  value={q}
-                  onChange={setQ}
-                  placeholder="Buscar grupos..."
-                  withFilter={false}
-                  className="w-full"
-                />
-                {channel?.phoneNumber ? (
-                  <p className="mt-2 font-body text-[12px] text-[var(--text-muted)]">
-                    Conta {channel.phoneNumber}
-                  </p>
-                ) : null}
+          <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
+            {/* Lista de grupos */}
+            <aside
+              className={cn(
+                "orbita-block h-full min-h-0 w-full shrink-0 flex-col border-r border-[var(--orbita-divider)] md:flex md:w-[min(36%,26rem)] md:min-w-[20rem]",
+                mobileThread ? "hidden" : "flex",
+              )}
+            >
+              <div className="shrink-0 border-b border-border px-4 pb-3 pt-4">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 px-1">
+                    <h1 className="truncate font-display text-[20px] font-bold text-[var(--orbita-text)]">
+                      Grupos WhatsApp
+                    </h1>
+                    {channel?.phoneNumber ? (
+                      <p className="truncate text-[13px] text-[var(--orbita-text-tertiary)]">
+                        Conta {channel.phoneNumber}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className={ICON_BTN}
+                    aria-label="Atualizar grupos"
+                    title="Atualizar grupos"
+                    disabled={mut.sync.isPending}
+                    onClick={syncNow}
+                  >
+                    <RefreshCw className={cn("h-[18px] w-[18px]", mut.sync.isPending && "animate-spin")} />
+                  </button>
+                </div>
+                <div className="relative mt-3">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--orbita-text-tertiary)]" />
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Buscar grupos"
+                    aria-label="Buscar grupos"
+                    className="h-11 w-full rounded-[10px] border border-border bg-[var(--orbita-field)] py-2.5 pl-10 pr-3 text-[15px] text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
+                  />
+                </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              <div className="chat-scroll min-h-0 flex-1 overflow-y-auto">
                 {filtered.length === 0 ? (
-                  <p className="px-2 py-8 text-center font-body text-[13px] text-[var(--text-muted)]">
+                  <p className="px-6 py-10 text-center text-[14px] text-[var(--orbita-text-tertiary)]">
                     {mut.sync.isPending
                       ? "Sincronizando grupos…"
-                      : "Nenhum grupo nesta conta ainda."}
+                      : q.trim()
+                        ? "Nenhum grupo com esse nome."
+                        : "Nenhum grupo nesta conta ainda."}
                   </p>
                 ) : (
-                  filtered.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => setSelectedId(g.id)}
-                      className={cn(
-                        "mb-1 flex w-full flex-col gap-0.5 rounded-xl px-3 py-2.5 text-left transition-colors",
-                        selectedId === g.id
-                          ? "bg-[var(--brand-primary)]/10 text-[var(--text-primary)]"
-                          : "hover:bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)]",
-                      )}
-                    >
-                      <span className="font-display text-[13px] font-semibold truncate">
-                        {g.name || "Grupo sem nome"}
-                      </span>
-                      <span className="font-body text-[12px] text-[var(--text-muted)]">
-                        {g.participantCount} participante{g.participantCount === 1 ? "" : "s"}
-                      </span>
-                    </button>
-                  ))
+                  filtered.map((g) => {
+                    const active = selectedId === g.id;
+                    return (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => {
+                          if (g.id !== selectedId) setMembersOpen(false);
+                          setSelectedId(g.id);
+                          setMobileThread(true);
+                        }}
+                        className={cn(
+                          "flex min-h-[76px] w-full items-center gap-3.5 border-b border-[var(--orbita-divider)] px-4 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                          active ? "orbita-item-selected" : "hover:bg-[var(--orbita-field)]",
+                        )}
+                      >
+                        <GroupGlyph seed={g.id} size={48} name={g.name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline gap-2">
+                            <span
+                              className={cn(
+                                "min-w-0 flex-1 truncate text-[16px] leading-tight text-[var(--orbita-text)]",
+                                active ? "font-semibold" : "font-medium",
+                              )}
+                            >
+                              {g.name || "Grupo sem nome"}
+                            </span>
+                            <span className="shrink-0 text-[12px] tabular-nums text-[var(--orbita-text-tertiary)]">
+                              {formatListTime(g.syncedAt)}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-[13.5px] text-[var(--orbita-text-secondary)]">
+                            {g.participantCount} participante{g.participantCount === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </aside>
 
-            <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]">
+            {/* Conversa */}
+            <section
+              className={cn(
+                "orbita-block relative h-full min-h-0 min-w-0 flex-1 flex-col md:flex",
+                mobileThread ? "flex" : "hidden",
+              )}
+            >
               {!selectedId ? (
-                <EmptyState
-                  icon={<UsersRound className="size-7" />}
+                <ThreadPlaceholder
                   title="Selecione um grupo"
                   description="Escolha um grupo à esquerda para ver as mensagens e enviar."
                 />
               ) : detail.isLoading ? (
                 <AppLoading variant="inline" className="min-h-0 flex-1" />
               ) : !group ? (
-                <EmptyState
-                  icon={<UsersRound className="size-7" />}
+                <ThreadPlaceholder
                   title="Grupo não encontrado"
-                  description="Atualize a lista e tente de novo."
+                  description={
+                    detail.isError
+                      ? errorText(detail.error, "Não foi possível carregar o grupo.")
+                      : "Atualize a lista e tente de novo."
+                  }
                 />
               ) : (
-                <>
-                  <div className="border-b border-[var(--glass-border)] px-4 py-3">
-                    <h2 className="font-display text-[16px] font-bold text-[var(--text-primary)]">
-                      {group.name || "Grupo sem nome"}
-                    </h2>
-                    {group.description ? (
-                      <p className="mt-1 font-body text-[13px] text-[var(--text-muted)] line-clamp-2">
-                        {group.description}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="border-b border-[var(--glass-border)] px-4 py-2">
-                    <button
-                      type="button"
-                      onClick={() => setMembersOpen((v) => !v)}
-                      className="flex w-full items-center justify-between gap-2 py-1 text-left"
-                    >
-                      <span className="font-display text-[12px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        Participantes ({group.members.length})
-                      </span>
-                      <ChevronDown
-                        size={16}
-                        className={cn(
-                          "text-[var(--text-muted)] transition-transform",
-                          membersOpen ? "rotate-180" : "rotate-0",
-                        )}
-                      />
-                    </button>
-                    {membersOpen ? (
-                      <ul className="mt-1 max-h-48 overflow-y-auto">
-                        {group.members.map((m) => {
-                          const label = m.name || m.phone || m.jid;
-                          const open = activeMemberId === m.id;
-                          return (
-                            <li key={m.id} className="rounded-lg">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setActiveMemberId((cur) => (cur === m.id ? null : m.id))
-                                }
-                                className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[var(--glass-bg-overlay)]"
-                              >
-                                <div className="min-w-0">
-                                  <p className="truncate font-body text-[13px] text-[var(--text-secondary)]">
-                                    {label}
-                                  </p>
-                                  {m.phone && m.name ? (
-                                    <p className="font-body text-[12px] text-[var(--text-muted)]">
-                                      {m.phone}
-                                    </p>
-                                  ) : null}
-                                </div>
-                                {m.isSuperAdmin || m.isAdmin ? (
-                                  <span className="shrink-0 rounded-full border border-[var(--glass-border)] px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
-                                    {m.isSuperAdmin ? "Super admin" : "Admin"}
-                                  </span>
-                                ) : null}
-                              </button>
-                              {open ? (
-                                <div className="mb-1 flex flex-wrap gap-2 px-2 pb-2">
-                                  <PageGhostButton
-                                    type="button"
-                                    disabled={mut.openMember.isPending}
-                                    onClick={() => {
-                                      mut.openMember.mutate(
-                                        { groupId: group.id, memberId: m.id },
-                                        {
-                                          onSuccess: (data) =>
-                                            router.push(`/inbox?c=${encodeURIComponent(data.conversationId)}`),
-                                          onError: (err) =>
-                                            toast.error(
-                                              err instanceof Error
-                                                ? err.message
-                                                : "Não foi possível abrir no inbox",
-                                            ),
-                                        },
-                                      );
-                                    }}
-                                  >
-                                    <Inbox size={14} />
-                                    Inbox
-                                  </PageGhostButton>
-                                  <PageGhostButton
-                                    type="button"
-                                    disabled={mut.openMember.isPending}
-                                    onClick={() => {
-                                      mut.openMember.mutate(
-                                        { groupId: group.id, memberId: m.id },
-                                        {
-                                          onSuccess: (data) => {
-                                            if (data.dealId) {
-                                              router.push(`/pipeline?deal=${encodeURIComponent(data.dealId)}`);
-                                              return;
-                                            }
-                                            router.push(`/contacts/${encodeURIComponent(data.contactId)}`);
-                                            toast.message("Contato sem negócio aberto — abrindo a ficha.");
-                                          },
-                                          onError: (err) =>
-                                            toast.error(
-                                              err instanceof Error
-                                                ? err.message
-                                                : "Não foi possível abrir no pipeline",
-                                            ),
-                                        },
-                                      );
-                                    }}
-                                  >
-                                    <Columns3 size={14} />
-                                    Pipeline
-                                  </PageGhostButton>
-                                </div>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                  </div>
-                  <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                    {thread.isLoading ? (
-                      <AppLoading variant="inline" className="min-h-[120px]" />
-                    ) : messages.length === 0 ? (
-                      <p className="py-10 text-center font-body text-[13px] text-[var(--text-muted)]">
-                        As mensagens recentes do grupo aparecem aqui.
-                      </p>
-                    ) : (
-                      <ul className="flex flex-col gap-2">
-                        {messages.map((msg) => (
-                          <li
-                            key={msg.id}
-                            className={cn(
-                              "max-w-[85%] rounded-2xl px-3 py-2",
-                              msg.fromMe
-                                ? "ml-auto bg-[var(--brand-primary)]/15 text-[var(--text-primary)]"
-                                : "mr-auto bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)]",
-                            )}
-                          >
-                            {!msg.fromMe ? (
-                              <p className="mb-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
-                                {msg.fromName || msg.fromPhone || "Participante"}
-                              </p>
-                            ) : null}
-                            <p className="whitespace-pre-wrap break-words font-body text-[13px]">
-                              {msg.text}
-                            </p>
-                            <p className="mt-1 text-right font-body text-[10px] text-[var(--text-muted)]">
-                              {new Date(msg.createdAt).toLocaleString("pt-BR", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <form
-                    className="flex gap-2 border-t border-[var(--glass-border)] p-3"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const text = draft.trim();
-                      if (!text) return;
-                      mut.send.mutate(
-                        { id: group.id, text },
-                        {
-                          onSuccess: () => {
-                            setDraft("");
-                            toast.success("Mensagem enviada");
-                          },
-                          onError: (err) =>
-                            toast.error(err instanceof Error ? err.message : "Falha no envio"),
-                        },
-                      );
-                    }}
-                  >
-                    <textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      rows={2}
-                      placeholder="Escreva uma mensagem para o grupo…"
-                      className="min-h-[44px] flex-1 resize-none rounded-xl border border-[var(--glass-border)] bg-transparent px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-                    />
-                    <PagePrimaryButton type="submit" disabled={mut.send.isPending || !draft.trim()}>
-                      <Send size={14} />
-                      Enviar
-                    </PagePrimaryButton>
-                  </form>
-                </>
+                <GroupThread
+                  key={group.id}
+                  group={group}
+                  membersOpen={membersOpen}
+                  onBack={() => setMobileThread(false)}
+                  onToggleMembers={() => setMembersOpen((v) => !v)}
+                />
               )}
             </section>
+
+            {group && membersOpen ? (
+              <MembersPanel group={group} onClose={() => setMembersOpen(false)} />
+            ) : null}
           </div>
         )}
-      </PageChrome>
+      </main>
     </div>
+  );
+}
+
+function ThreadPlaceholder({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="chat-thread-texture flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <div className="grid h-16 w-16 place-items-center rounded-full bg-[var(--orbita-field)] text-[var(--orbita-selected)]">
+        <UsersRound className="h-7 w-7" />
+      </div>
+      <h2 className="mt-5 font-display text-[18px] font-semibold text-[var(--orbita-text)]">{title}</h2>
+      <p className="mt-2 max-w-xs text-sm leading-relaxed text-[var(--orbita-text-secondary)]">{description}</p>
+    </div>
+  );
+}
+
+function GroupThread({
+  group,
+  membersOpen,
+  onBack,
+  onToggleMembers,
+}: {
+  group: WhatsAppGroupDetail;
+  membersOpen: boolean;
+  onBack: () => void;
+  onToggleMembers: () => void;
+}) {
+  const thread = useWhatsAppGroupMessages(group.id);
+  const mut = useWhatsAppGroupMutations();
+  const [draft, setDraft] = useState("");
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const messages = useMemo(() => thread.data?.messages ?? [], [thread.data?.messages]);
+  const days = useMemo(() => groupMessagesByDay(messages), [messages]);
+  const memberCount = Math.max(group.members.length, group.participantCount);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [draft]);
+
+  const send = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setDraft("");
+    mut.send.mutate(
+      { id: group.id, text },
+      {
+        onError: (err) => {
+          // Devolve o texto para o operador não perder o que escreveu.
+          setDraft((cur) => cur || text);
+          toast.error(errorText(err, "Falha no envio"));
+        },
+      },
+    );
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-black/[0.06] bg-[var(--orbita-chrome)] dark:border-white/[0.06]">
+        <div className="flex h-[60px] items-center justify-between gap-3 px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <button type="button" onClick={onBack} aria-label="Voltar" className={cn(ICON_BTN, "md:hidden")}>
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <GroupGlyph seed={group.id} size={40} name={group.name} />
+            <div className="min-w-0">
+              <h2 className="truncate text-[16px] font-semibold text-[var(--orbita-text)]">
+                {group.name || "Grupo sem nome"}
+              </h2>
+              <p className="truncate text-[13px] text-[var(--orbita-text-secondary)]">
+                {group.description?.trim() ||
+                  `${memberCount} participante${memberCount === 1 ? "" : "s"}`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleMembers}
+            aria-label="Participantes"
+            title="Participantes"
+            aria-pressed={membersOpen}
+            className={cn(ICON_BTN, membersOpen && "bg-[var(--orbita-field)] text-[var(--orbita-selected)]")}
+          >
+            <Users className="h-5 w-5" />
+          </button>
+        </div>
+      </header>
+
+      <div ref={scrollRef} className="chat-thread-texture chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2 md:px-6">
+        {thread.isLoading ? (
+          <AppLoading variant="inline" className="min-h-[160px]" />
+        ) : thread.isError && messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 py-10 text-center">
+            <p className="max-w-sm text-sm text-destructive">
+              {errorText(thread.error, "Não foi possível carregar as mensagens.")}
+            </p>
+            <button
+              type="button"
+              onClick={() => void thread.refetch()}
+              className="rounded-full border border-border bg-[var(--orbita-block)] px-4 py-1.5 text-[13px] font-medium text-[var(--orbita-text)] hover:bg-[var(--orbita-field)]"
+            >
+              Tentar de novo
+            </button>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center py-10">
+            <span className="rounded-full border border-border bg-[var(--orbita-block)] px-4 py-1.5 text-[13px] text-[var(--orbita-text-secondary)]">
+              As mensagens do grupo aparecem aqui a partir de agora.
+            </span>
+          </div>
+        ) : (
+          days.map((day) => (
+            <div key={day.key}>
+              <div className="pointer-events-none sticky top-1 z-[2] my-3.5 flex justify-center">
+                <span className="rounded-full border border-border bg-[var(--orbita-block)] px-3.5 py-1 text-[13px] font-medium text-[var(--orbita-text-secondary)] shadow-sm">
+                  {formatDayLabel(day.iso)}
+                </span>
+              </div>
+              <ul className="flex flex-col">
+                {day.items.map((msg, i) => (
+                  <MessageBubble key={msg.id} msg={msg} first={isFirstOfRun(day.items, i)} />
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="relative z-20 shrink-0 border-t border-border bg-[var(--orbita-block)] px-3 pb-3 pt-2 md:px-4">
+        <form
+          className="flex w-full items-end gap-2 rounded-[16px] border border-border bg-[var(--orbita-block)] p-2 shadow-[0_8px_24px_rgba(91,111,245,0.08)]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
+          }}
+        >
+          <textarea
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            rows={1}
+            maxLength={4096}
+            placeholder="Digite uma mensagem para o grupo"
+            aria-label="Mensagem para o grupo"
+            className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] leading-snug text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
+          />
+          <button
+            type="submit"
+            aria-label="Enviar"
+            disabled={!draft.trim()}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--orbita-selected)] text-white transition-opacity disabled:opacity-50"
+          >
+            <Send className="h-5 w-5" />
+          </button>
+        </form>
+        <p className="mt-1.5 hidden px-1 text-[11.5px] text-[var(--orbita-text-tertiary)] md:block">
+          Enter envia · Shift+Enter quebra a linha
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg, first }: { msg: GroupThreadMessage; first: boolean }) {
+  const mine = msg.fromMe;
+  const author = msg.fromName || msg.fromPhone || "Participante";
+  return (
+    <li className={cn("flex w-full", mine ? "justify-end" : "justify-start", first ? "mt-2" : "mt-0.5")}>
+      <div
+        className={cn(
+          "max-w-[min(78%,36rem)] px-3 pb-1.5 pt-2",
+          mine ? "orbita-bubble-sent" : "orbita-bubble-received",
+          first && "orbita-bubble--tail",
+          msg.pending && "opacity-80",
+        )}
+      >
+        {!mine && first ? (
+          <p className="mb-0.5 truncate text-[13px] font-semibold" style={{ color: getOrbitaNameColor(msg.fromJid) }}>
+            {author}
+          </p>
+        ) : null}
+        <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{msg.text}</p>
+        <div
+          className={cn(
+            "mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums",
+            mine ? "text-[var(--orbita-bubble-sent-meta)]" : "text-[var(--orbita-text-tertiary)]",
+          )}
+        >
+          <span>{formatClock(msg.createdAt)}</span>
+          {mine ? (
+            msg.pending ? (
+              <Clock className="h-3 w-3" aria-label="Enviando" />
+            ) : (
+              <Check className="h-3.5 w-3.5" aria-label="Enviada" />
+            )
+          ) : null}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function MembersPanel({ group, onClose }: { group: WhatsAppGroupDetail; onClose: () => void }) {
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Fechar participantes"
+        onClick={onClose}
+        className="fixed inset-0 z-30 bg-black/30 md:hidden"
+      />
+      <aside className="orbita-block fixed inset-y-0 right-0 z-40 flex w-[min(100%,340px)] flex-col border-l border-[var(--orbita-divider)] md:static md:z-auto md:h-full md:w-[320px] md:shrink-0">
+        <div className="flex h-[60px] shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+          <h3 className="text-[15px] font-semibold text-[var(--orbita-text)]">
+            Participantes ({group.members.length})
+          </h3>
+          <button type="button" onClick={onClose} aria-label="Fechar" className={ICON_BTN}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <ul className="chat-scroll min-h-0 flex-1 overflow-y-auto py-1">
+          {group.members.length === 0 ? (
+            <li className="px-4 py-8 text-center text-[13px] text-[var(--orbita-text-tertiary)]">
+              Participantes ainda não sincronizados.
+            </li>
+          ) : (
+            group.members.map((m) => <MemberRow key={m.id} groupId={group.id} member={m} />)
+          )}
+        </ul>
+      </aside>
+    </>
+  );
+}
+
+function MemberRow({ groupId, member }: { groupId: string; member: WhatsAppGroupMember }) {
+  const router = useRouter();
+  const mut = useWhatsAppGroupMutations();
+  const [open, setOpen] = useState(false);
+  const label = member.name || member.phone || member.jid;
+
+  const openIn = (target: "inbox" | "pipeline") =>
+    mut.openMember.mutate(
+      { groupId, memberId: member.id },
+      {
+        onSuccess: (data) => {
+          if (target === "inbox") {
+            router.push(`/inbox?c=${encodeURIComponent(data.conversationId)}`);
+            return;
+          }
+          if (data.dealId) {
+            router.push(`/pipeline?deal=${encodeURIComponent(data.dealId)}`);
+            return;
+          }
+          router.push(`/contacts/${encodeURIComponent(data.contactId)}`);
+          toast.message("Contato sem negócio aberto — abrindo a ficha.");
+        },
+        onError: (err) =>
+          toast.error(
+            errorText(err, target === "inbox" ? "Não foi possível abrir no inbox" : "Não foi possível abrir no pipeline"),
+          ),
+      },
+    );
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          "flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--orbita-field)]",
+          open && "bg-[var(--orbita-field)]",
+        )}
+      >
+        <Avatar
+          person={{ id: member.jid, name: label, initials: initialsOf(label), presence: "offline" }}
+          size="sm"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-medium text-[var(--orbita-text)]">{label}</p>
+          {member.phone && member.name ? (
+            <p className="truncate text-[12px] text-[var(--orbita-text-tertiary)]">{member.phone}</p>
+          ) : null}
+        </div>
+        {member.isSuperAdmin || member.isAdmin ? (
+          <span className="shrink-0 rounded-full bg-[var(--orbita-chip-active)] px-2 py-0.5 text-[11px] font-semibold text-[var(--orbita-chip-active-text)]">
+            {member.isSuperAdmin ? "Super admin" : "Admin"}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <div className="flex gap-2 px-4 pb-3 pl-[60px]">
+          <button
+            type="button"
+            disabled={mut.openMember.isPending}
+            onClick={() => openIn("inbox")}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--orbita-block)] px-3 py-1.5 text-[13px] font-medium text-[var(--orbita-text)] hover:bg-[var(--orbita-field)] disabled:opacity-60"
+          >
+            <Inbox className="h-3.5 w-3.5" />
+            Inbox
+          </button>
+          <button
+            type="button"
+            disabled={mut.openMember.isPending}
+            onClick={() => openIn("pipeline")}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-[var(--orbita-block)] px-3 py-1.5 text-[13px] font-medium text-[var(--orbita-text)] hover:bg-[var(--orbita-field)] disabled:opacity-60"
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            Pipeline
+          </button>
+        </div>
+      ) : null}
+    </li>
   );
 }
