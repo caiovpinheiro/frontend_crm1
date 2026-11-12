@@ -33,6 +33,10 @@ import {
 } from "@/features/inbox-v2/api";
 import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
+import {
+  insertAtSelection,
+  readPastedPlainText,
+} from "@/lib/clipboard-image-caption";
 
 import { ActiveBotsButton } from "./active-bots-button";
 import { AudioRecorderButton, type AudioRecordState } from "./audio-recorder-button";
@@ -619,25 +623,46 @@ export function Composer({
 
     // Impede que o binário caia como texto no campo.
     e.preventDefault();
-    stageFiles(images, "imagem-colada");
+    if (!stageFiles(images, "imagem-colada")) return;
+
+    // Imagem + texto no mesmo clipboard ("Copiar foto e texto"): o texto entra
+    // no campo (no cursor, sem apagar o que já foi digitado) e, no envio, vira
+    // a legenda da imagem (flushOutbound → flushPendingFiles(caption)).
+    const pastedText = readPastedPlainText(e.clipboardData);
+    if (!pastedText) return;
+    const el = e.currentTarget;
+    const { value: next, caret } = insertAtSelection(
+      el.value,
+      el.selectionStart,
+      el.selectionEnd,
+      pastedText,
+    );
+    onChange(next);
+    draftRef.current = next;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(caret, caret);
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    });
   }
 
   // Encosta arquivos como anexos pendentes (preview só para imagem). O
   // envio ocorre no fluxo normal (botão / Enter) via flushPendingFiles(),
   // com o texto do composer como legenda do primeiro arquivo.
-  function stageFiles(files: File[], fallbackBaseName = "arquivo") {
-    if (files.length === 0) return;
+  function stageFiles(files: File[], fallbackBaseName = "arquivo"): boolean {
+    if (files.length === 0) return false;
     if (!attachmentsEnabled) {
       toast.info("Este canal ainda não aceita anexos — envie só texto.");
-      return;
+      return false;
     }
     if (!conversationId) {
       toast.error("Selecione uma conversa antes de anexar");
-      return;
+      return false;
     }
     if (inputDisabled) {
       warnOutboundBlocked();
-      return;
+      return false;
     }
     const now = Date.now();
     const staged = files.map((file, i) => {
@@ -652,6 +677,7 @@ export function Composer({
     });
     setPendingFiles((prev) => [...prev, ...staged]);
     requestAnimationFrame(() => textareaRef.current?.focus());
+    return true;
   }
 
   // Arrastar arquivo do computador: escuta em capture no document para o
