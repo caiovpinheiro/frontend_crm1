@@ -10,6 +10,7 @@ import {
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  Layers,
   Mail,
   Phone,
   Play,
@@ -173,6 +174,92 @@ function blockGeometry(start: Date, durationMin: number): { top: number; height:
   }
 }
 
+/** Altura mínima de um bloco no grid — abaixo disso o texto fica ilegível. */
+const MIN_BLOCK_HEIGHT = 22
+
+type PlacedTask = {
+  task: Task
+  top: number
+  height: number
+  lane: number
+  lanes: number
+  clusterId: number
+}
+
+type OverflowCluster = {
+  clusterId: number
+  top: number
+  height: number
+  start: Date
+  end: Date
+  all: Task[]
+}
+
+/**
+ * Distribui as tarefas de um dia em colunas (lanes) estilo Google Agenda:
+ * tarefas que se sobrepõem visualmente ficam lado a lado. Quando um grupo
+ * passa de `maxLanes`, o grupo inteiro vira um bloco-resumo ("8 tarefas")
+ * que abre a lista ao clicar — evita blocos estreitos demais para ler.
+ */
+function layoutDayTasks(
+  tasks: Task[],
+  maxLanes: number,
+): { placed: PlacedTask[]; overflow: OverflowCluster[] } {
+  const items = tasks
+    .map((task) => {
+      const geo = blockGeometry(taskStart(task), task.durationMin)
+      if (!geo) return null
+      return { task, top: geo.top, height: Math.max(geo.height, MIN_BLOCK_HEIGHT) }
+    })
+    .filter((x): x is { task: Task; top: number; height: number } => x !== null)
+    .sort((a, b) => a.top - b.top || b.height - a.height)
+
+  const clusters: Array<Array<(typeof items)[number] & { lane: number }>> = []
+  let current: Array<(typeof items)[number] & { lane: number }> = []
+  let laneEnds: number[] = []
+  let clusterEnd = -Infinity
+  for (const item of items) {
+    if (item.top >= clusterEnd && current.length) {
+      clusters.push(current)
+      current = []
+      laneEnds = []
+    }
+    let lane = laneEnds.findIndex((end) => end <= item.top)
+    if (lane === -1) {
+      lane = laneEnds.length
+      laneEnds.push(0)
+    }
+    laneEnds[lane] = item.top + item.height
+    current.push({ ...item, lane })
+    clusterEnd = Math.max(current.length === 1 ? -Infinity : clusterEnd, item.top + item.height)
+  }
+  if (current.length) clusters.push(current)
+
+  const placed: PlacedTask[] = []
+  const overflow: OverflowCluster[] = []
+  clusters.forEach((cluster, clusterId) => {
+    const lanes = Math.max(...cluster.map((c) => c.lane)) + 1
+    if (lanes <= maxLanes) {
+      for (const c of cluster) placed.push({ ...c, lanes, clusterId })
+      return
+    }
+    const top = Math.min(...cluster.map((c) => c.top))
+    const bottom = Math.max(...cluster.map((c) => c.top + c.height))
+    const all = cluster.map((c) => c.task)
+    const starts = all.map((t) => taskStart(t).getTime())
+    const ends = all.map((t) => taskStart(t).getTime() + t.durationMin * 60_000)
+    overflow.push({
+      clusterId,
+      top,
+      height: Math.max(bottom - top, 44),
+      start: new Date(Math.min(...starts)),
+      end: new Date(Math.max(...ends)),
+      all,
+    })
+  })
+  return { placed, overflow }
+}
+
 function useNow(): Date {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -202,11 +289,14 @@ function NowLine({ now }: { now: Date }) {
 function TaskBlock({
   task,
   compact,
+  tiny,
   draggable,
   onOpen,
 }: {
   task: Task
   compact?: boolean
+  /** Bloco baixo (≤ 30 min): uma linha só, hora + título. */
+  tiny?: boolean
   draggable?: boolean
   onOpen?: (task: Task) => void
 }) {
@@ -246,7 +336,7 @@ function TaskBlock({
         onOpen?.(task)
       }}
       className={cn(
-        "w-full overflow-hidden rounded-lg border px-1.5 py-0.5 text-left",
+        "h-full w-full overflow-hidden rounded-lg border px-1.5 py-0.5 text-left shadow-sm",
         CHIP_BLOCK[tone ?? meta.colorKey],
       )}
     >
@@ -263,14 +353,17 @@ function TaskBlock({
         ) : null}
         <div className="min-w-0 flex-1">
           <p className={cn("truncate font-semibold", compact ? "text-[10px] leading-tight" : "text-xs")}>
+            {tiny && <span className="mr-1 font-normal opacity-80">{formatTime(start)}</span>}
             {task.title}
           </p>
+          {!tiny && (
           <p className="truncate text-[10px] opacity-80">
             {formatTime(start)}
             <span className="mx-1">·</span>
             {who ?? typeLabel}
             {!who && task.contact ? ` · ${task.contact}` : ""}
           </p>
+          )}
           {!compact && task.linkLabel && task.linkHref && (
             <Link
               href={task.linkHref}
@@ -317,6 +410,35 @@ function TimeGrid({
     return map
   }, [tasks])
 
+  // Semana: colunas estreitas → até 2 lado a lado. Dia: até 6.
+  const maxLanes = days.length === 1 ? 6 : 2
+  const layoutByDay = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof layoutDayTasks>>()
+    for (const [key, list] of byDay) map.set(key, layoutDayTasks(list, maxLanes))
+    return map
+  }, [byDay, maxLanes])
+
+  // Lista aberta pelo "+N": dia + grupo.
+  const [openOverflow, setOpenOverflow] = useState<{ day: string; clusterId: number } | null>(null)
+  const overflowRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!openOverflow) return
+    const onDown = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOpenOverflow(null)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenOverflow(null)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [openOverflow])
+
   return (
     <div
       className="grid min-w-[640px]"
@@ -360,9 +482,10 @@ function TimeGrid({
         ))}
       </div>
 
-      {days.map((day) => {
+      {days.map((day, dayIndex) => {
         const key = dateKey(day)
-        const dayTasks = byDay.get(key) ?? []
+        const alignRight = days.length > 1 && dayIndex >= days.length - 2
+        const layout = layoutByDay.get(key) ?? { placed: [], overflow: [] }
         const today = isSameDay(day, now)
         return (
           <div
@@ -394,20 +517,103 @@ function TimeGrid({
                 style={{ top: (hour - HOUR_START) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
               />
             ))}
-            {dayTasks.map((task) => {
-              const geo = blockGeometry(taskStart(task), task.durationMin)
-              if (!geo) return null
+            {layout.placed.map(({ task, top, height, lane, lanes }) => (
+              <div
+                key={task.id}
+                className="absolute z-[1] px-px"
+                style={{
+                  top,
+                  height,
+                  left: `calc(2px + (100% - 6px) * ${lane / lanes})`,
+                  width: `calc((100% - 6px) / ${lanes})`,
+                }}
+              >
+                <TaskBlock
+                  task={task}
+                  compact={lanes > 1 || height < 36}
+                  tiny={height < 34}
+                  draggable={Boolean(onReschedule)}
+                  onOpen={onOpen}
+                />
+              </div>
+            ))}
+            {layout.overflow.map((cluster) => {
+              const isOpen =
+                openOverflow?.day === key && openOverflow.clusterId === cluster.clusterId
               return (
-                <div
-                  key={task.id}
-                  className="absolute right-1 left-1 z-[1]"
-                  style={{ top: geo.top, height: geo.height }}
-                >
-                  <TaskBlock
-                    task={task}
-                    draggable={Boolean(onReschedule)}
-                    onOpen={onOpen}
-                  />
+                <div key={`more-${cluster.clusterId}`}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenOverflow(isOpen ? null : { day: key, clusterId: cluster.clusterId })
+                    }}
+                    className={cn(
+                      "absolute z-[2] flex flex-col overflow-hidden rounded-lg border px-1.5 py-1 text-left shadow-sm",
+                      CHIP_BLOCK.blue,
+                      isOpen && "ring-2 ring-primary/40",
+                    )}
+                    style={{ top: cluster.top, height: cluster.height, left: 3, right: 3 }}
+                    aria-label={`${cluster.all.length} tarefas entre ${formatTime(cluster.start)} e ${formatTime(cluster.end)}`}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="flex items-center gap-1 text-xs font-semibold">
+                      <Layers className="size-3 shrink-0" />
+                      {cluster.all.length} tarefas
+                    </span>
+                    <span className="truncate text-[10px] opacity-80">
+                      {formatTime(cluster.start)} – {formatTime(cluster.end)} · ver todas
+                    </span>
+                    {cluster.height >= 70 &&
+                      cluster.all.slice(0, Math.floor((cluster.height - 36) / 14)).map((t) => (
+                        <span key={t.id} className="truncate text-[10px] leading-[14px] opacity-90">
+                          {formatTime(taskStart(t))} {t.title}
+                        </span>
+                      ))}
+                  </button>
+                  {isOpen && (
+                    <div
+                      ref={overflowRef}
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        "absolute z-30 flex max-h-80 w-[min(260px,calc(100vw-2rem))] flex-col rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-xl",
+                        alignRight ? "right-1" : "left-1",
+                      )}
+                      style={
+                        cluster.top + cluster.height > GRID_HEIGHT - 330
+                          ? { bottom: GRID_HEIGHT - cluster.top + 4 }
+                          : { top: cluster.top + cluster.height + 4 }
+                      }
+                    >
+                      <div className="mb-1.5 flex items-center justify-between px-1">
+                        <p className="text-xs font-semibold">
+                          {cluster.all.length} tarefas neste horário
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setOpenOverflow(null)}
+                          className="rounded px-1 text-xs text-muted-foreground hover:text-foreground"
+                          aria-label="Fechar"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-1 overflow-y-auto">
+                        {cluster.all.map((task) => (
+                          <div key={task.id} className="h-11 shrink-0">
+                            <TaskBlock
+                              task={task}
+                              draggable={Boolean(onReschedule)}
+                              onOpen={(t) => {
+                                setOpenOverflow(null)
+                                onOpen?.(t)
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
