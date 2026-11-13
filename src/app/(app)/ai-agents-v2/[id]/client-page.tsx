@@ -105,6 +105,8 @@ import { ConfigReviewCard } from "./config-review";
 import { ConfigValidation, PublishBlockedDialog, RoutingMap, useConfigValidation } from "./config-validation";
 import type { ValidationFinding } from "./config-validation-target";
 import { ListenHomeCard, ListenTeam } from "./listen-team";
+import { ModelPicker } from "./model-picker";
+import { modelCostNotice, type CatalogModelOption } from "./model-catalog-ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -153,7 +155,8 @@ type Catalogs = {
   dealCustomFields: Array<{ id: string; name: string }>;
   products: Array<{ id: string; name: string }>;
   whatsappTemplates: Array<{ id: string; name: string }>;
-  models: Array<{ id: string; name: string; provider?: "openai" | "anthropic"; hint?: string; inputPer1M?: number; outputPer1M?: number }>;
+  /** Lista fixa do CRM + modelos descobertos em "Atualizar modelos". */
+  models: CatalogModelOption[];
   contacts: Array<{ id: string; name: string; phone?: string | null; email?: string | null }>;
   /** Papéis do CRM, para o repasse por leads. */
   roles?: Array<{ id: string; name: string }>;
@@ -1644,6 +1647,7 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "publicacao" && (
                   <StepStart
+                    agentId={id}
                     config={config}
                     catalogs={catalogs}
                     name={name}
@@ -2100,67 +2104,6 @@ function looksLikeAnthropicKey(raw: string): boolean {
   return /^sk-ant-[A-Za-z0-9_-]{10,}$/.test(raw.trim().replace(/^["']+|["']+$/g, ""));
 }
 
-function formatPrice(v?: number): string {
-  if (v === undefined) return "—";
-  return v.toLocaleString("pt-BR", { minimumFractionDigits: v < 1 ? 2 : 0, maximumFractionDigits: 2 });
-}
-
-/** Lista de modelos por fornecedor, com uso recomendado e preço. */
-function ModelPicker({ value, models, onChange }: { value: string; models: Catalogs["models"]; onChange: (id: string) => void }) {
-  const groups: Array<["openai" | "anthropic", string]> = [
-    ["openai", "OpenAI"],
-    ["anthropic", "Anthropic (Claude)"],
-  ];
-  return (
-    <div className="space-y-4">
-      {groups.map(([provider, label]) => {
-        const list = models.filter((m) => (m.provider ?? "openai") === provider);
-        if (list.length === 0) return null;
-        return (
-          <div key={provider} className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-            <div role="radiogroup" aria-label={`Modelos ${label}`} className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border">
-              {list.map((m) => {
-                const on = m.id === value;
-                return (
-                  <label
-                    key={m.id}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors",
-                      on ? "bg-blue-50/70 v2-dark:bg-primary/10" : "hover:bg-slate-50 v2-dark:hover:bg-muted/40",
-                    )}
-                  >
-                    <input type="radio" name="agent-model" checked={on} onChange={() => onChange(m.id)} className="peer sr-only" />
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded-full border-2 bg-white peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30 v2-dark:bg-card",
-                        on ? "border-primary" : "border-slate-300 v2-dark:border-border",
-                      )}
-                    >
-                      {on && <span className="size-2 rounded-full bg-primary" />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className={cn("text-sm", on ? "font-semibold" : "font-medium")}>{m.name}</span>
-                      {m.hint && <span className="block text-xs text-muted-foreground">{m.hint}</span>}
-                    </span>
-                    {m.inputPer1M !== undefined && (
-                      <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="US$ por 1 milhão de tokens: entrada / saída">
-                        US$ {formatPrice(m.inputPer1M)} / {formatPrice(m.outputPer1M)}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      <p className="text-xs text-muted-foreground">Preço em US$ por 1 milhão de tokens (entrada / saída).</p>
-    </div>
-  );
-}
-
 /** Chave da Anthropic do agente: salva mostra só o final. */
 function AnthropicKeyField({
   value,
@@ -2206,6 +2149,7 @@ function AnthropicKeyField({
 }
 
 function StepStart({
+  agentId,
   config,
   catalogs,
   name,
@@ -2228,6 +2172,8 @@ function StepStart({
   onChange,
   onValidateKey,
 }: {
+  /** Para "Atualizar modelos" usar a chave deste agente primeiro. */
+  agentId?: string;
   config: Record<string, unknown>;
   catalogs: Catalogs;
   name: string;
@@ -2352,7 +2298,7 @@ function StepStart({
         title="Modelo de IA"
         description="Quem escreve as respostas. Para comparar antes de trocar, teste outro modelo na Conversa de teste ou em Testes › Comparar com a equipe."
       >
-        <ModelPicker value={modelId} models={catalogs.models} onChange={(v) => onChange("model", v)} />
+        <ModelPicker value={modelId} models={catalogs.models} agentId={agentId} onChange={(v) => onChange("model", v)} />
         {!modelValid && modelId && (
           <p className="flex items-center gap-1 text-xs text-amber-600">
             <IconAlertCircle className="size-3" />
@@ -2361,7 +2307,7 @@ function StepStart({
         )}
       </SectionCard>
 
-      <SpendingCapCard config={config} onChange={onChange} />
+      <SpendingCapCard config={config} onChange={onChange} model={catalogs.models.find((m) => m.id === modelId)} />
 
       <SectionCard
         title="Contas dos modelos"
@@ -7092,7 +7038,17 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
  * (mensagem de transferência) até virar o dia/mês no fuso do horário de
  * atendimento. 0 ou vazio = sem teto.
  */
-function SpendingCapCard({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+function SpendingCapCard({
+  config,
+  onChange,
+  model,
+}: {
+  config: Record<string, unknown>;
+  onChange: (path: string, value: unknown) => void;
+  /** Modelo escolhido: avisa quando o preço é desconhecido ou informado pela organização. */
+  model?: CatalogModelOption;
+}) {
+  const costNotice = modelCostNotice(model);
   const cap = (getPath(config, "costCap", null) as { maxUsdPerDay?: number; maxUsdPerMonth?: number } | null) ?? null;
   const tokens = Number(getPath(config, "dailyTokenCap", 0) ?? 0);
   const setCap = (key: "maxUsdPerDay" | "maxUsdPerMonth", raw: string) => {
@@ -7121,6 +7077,12 @@ function SpendingCapCard({ config, onChange }: { config: Record<string, unknown>
           />
         </Field>
       </div>
+      {costNotice && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-600">
+          <IconAlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          {costNotice}
+        </p>
+      )}
     </SectionCard>
   );
 }
@@ -7273,6 +7235,7 @@ function StepTestPublish({
         {catalogs.models.map((m) => (
           <SelectItem key={m.id} value={m.id}>
             Testar com {m.name}
+            {m.priceSource === "unknown" ? " (preço desconhecido)" : ""}
           </SelectItem>
         ))}
       </SelectContent>
