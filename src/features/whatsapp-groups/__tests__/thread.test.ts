@@ -26,6 +26,9 @@ const msg = (id: string, over: Partial<WhatsAppGroupMessage> = {}): WhatsAppGrou
   mediaUrl: null,
   mimeType: null,
   fileName: null,
+  reactions: [],
+  replyTo: null,
+  canReact: true,
   createdAt: "2026-11-12T10:00:00.000Z",
   ...over,
 });
@@ -125,5 +128,29 @@ describe("grupos WhatsApp — mídia", () => {
       fileName: "foto.png",
     });
     expect(tmp).toMatchObject({ pending: true, messageType: "image", mediaUrl: null, fileName: "foto.png" });
+  });
+});
+
+describe("grupos WhatsApp — reação do número", () => {
+  it("troca a reação do número; mesmo emoji de novo remove; dos outros fica", async () => {
+    const { toggleMyReaction, patchMessageReactions } = await import("../thread");
+    const others = [{ emoji: "❤️", from: "77@lid", name: "Kleber" }];
+    const one = toggleMyReaction(others, "👍", "William");
+    expect(one).toEqual([...others, { emoji: "👍", from: "me", name: "William" }]);
+    expect(toggleMyReaction(one, "🙏", "Caio")).toEqual([...others, { emoji: "🙏", from: "me", name: "Caio" }]);
+    expect(toggleMyReaction(one, "👍", "William")).toEqual(others);
+    const cache = { messages: [msg("a"), msg("b")] };
+    expect(patchMessageReactions(cache, "b", one)?.messages[1].reactions).toEqual(one);
+    expect(patchMessageReactions(cache, "b", one)?.messages[0].reactions).toEqual([]);
+  });
+
+  it("bolha otimista da resposta já mostra a citação", () => {
+    const tmp = optimisticGroupMessage("certo", "tmp-r", new Date(), null, {
+      waId: "m1",
+      text: "folha assinada",
+      author: "Kleber Raia",
+    });
+    expect(tmp.replyTo).toEqual({ waId: "m1", text: "folha assinada", author: "Kleber Raia" });
+    expect(tmp.canReact).toBe(false);
   });
 });

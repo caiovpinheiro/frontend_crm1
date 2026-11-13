@@ -20,6 +20,10 @@ import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { MessageContent } from "@/components/crm/message-bubble/message-content";
+import { QuotedPreview, ReactionBadge } from "@/components/crm/message-bubble/bubble-parts";
+import { MessageActionsMenu } from "@/components/crm/message-bubble/message-actions-menu";
+import { EmojiButton, useEmojiPanel } from "@/features/inbox-v2/extras/composer/emoji-button";
+import { ReplyPreviewBar } from "@/features/inbox-v2/extras/composer/reply-preview-bar";
 import { formatWhatsapp } from "@/components/crm/message-bubble/media-helpers";
 import { SignatureControl } from "@/features/inbox-v2/extras/composer/signature-control";
 import { useComposerSignature } from "@/features/inbox-v2/extras/composer/use-composer-signature";
@@ -341,6 +345,9 @@ function GroupThread({
   const mut = useWhatsAppGroupMutations();
   const [draft, setDraft] = useState("");
   const [recState, setRecState] = useState<AudioRecordState>("idle");
+  // Responder: a mensagem citada fica na barra acima do campo até enviar.
+  const [replyTo, setReplyTo] = useState<GroupThreadMessage | null>(null);
+  const { emojiOpen, setEmojiOpen, emojiWrapRef } = useEmojiPanel();
   // Assinatura: mesma chave e nome do inbox; respeita Configurações → Conversas.
   const { data: session } = useSession();
   const agentName = (session?.user?.name ?? "").trim();
@@ -389,18 +396,36 @@ function GroupThread({
     if (!typed) return;
     // Mesma assinatura do inbox: "*William*: texto" (cada um no seu login).
     const text = signature.applySignature(typed);
+    const quoting = replyTo;
     setDraft("");
+    setReplyTo(null);
     mut.send.mutate(
-      { id: group.id, text },
+      { id: group.id, text, replyTo: quoting },
       {
         onError: (err) => {
           // Devolve o texto para o operador não perder o que escreveu.
           setDraft((cur) => cur || typed);
+          setReplyTo((cur) => cur ?? quoting);
           toast.error(errorText(err, "Falha no envio"));
         },
       },
     );
     inputRef.current?.focus();
+  };
+
+  // Emoji no cursor (mesmo seletor do inbox).
+  const insertEmoji = (emoji: string) => {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? draft.length;
+    setDraft(draft.slice(0, start) + emoji + draft.slice(end));
+    requestAnimationFrame(() => {
+      const node = inputRef.current;
+      if (!node) return;
+      node.focus();
+      const pos = start + emoji.length;
+      node.setSelectionRange(pos, pos);
+    });
   };
 
   // Áudio e anexo: mesmos botões do inbox, enviando para o grupo.
@@ -479,7 +504,21 @@ function GroupThread({
               </div>
               <ul className="flex flex-col">
                 {day.items.map((msg, i) => (
-                  <MessageBubble key={msg.id} msg={msg} first={isFirstOfRun(day.items, i)} />
+                  <MessageBubble
+                    key={msg.id}
+                    msg={msg}
+                    first={isFirstOfRun(day.items, i)}
+                    onReply={(m) => {
+                      setReplyTo(m);
+                      inputRef.current?.focus();
+                    }}
+                    onReact={(m, emoji) =>
+                      mut.react.mutate(
+                        { groupId: group.id, messageId: m.id, emoji, myName: agentName || null },
+                        { onError: (err) => toast.error(errorText(err, "Não foi possível reagir")) },
+                      )
+                    }
+                  />
                 ))}
               </ul>
             </div>
@@ -488,6 +527,16 @@ function GroupThread({
       </div>
 
       <div className="relative z-20 shrink-0 border-t border-border bg-[var(--orbita-block)] px-3 pb-3 pt-2 md:px-4">
+        {replyTo && !recording ? (
+          <ReplyPreviewBar
+            replyTo={{
+              id: replyTo.id,
+              preview: replyTo.text,
+              senderName: replyTo.fromMe ? "Você" : replyTo.fromName || replyTo.fromPhone,
+            }}
+            onCancelReply={() => setReplyTo(null)}
+          />
+        ) : null}
         {convFeatures.agentSignatureEnabled && !recording ? (
           <div className="mb-1.5 px-1">
             <SignatureControl
@@ -504,6 +553,16 @@ function GroupThread({
             send();
           }}
         >
+          {!recording ? (
+            <EmojiButton
+              emojiWrapRef={emojiWrapRef}
+              emojiOpen={emojiOpen}
+              setEmojiOpen={setEmojiOpen}
+              inputDisabled={false}
+              busy={false}
+              insertEmoji={insertEmoji}
+            />
+          ) : null}
           {!recording ? (
             <FilePickerButton
               conversationId={null}
@@ -558,46 +617,97 @@ function GroupThread({
   );
 }
 
-function MessageBubble({ msg, first }: { msg: GroupThreadMessage; first: boolean }) {
+function MessageBubble({
+  msg,
+  first,
+  onReply,
+  onReact,
+}: {
+  msg: GroupThreadMessage;
+  first: boolean;
+  onReply: (msg: GroupThreadMessage) => void;
+  onReact: (msg: GroupThreadMessage, emoji: string) => void;
+}) {
   const mine = msg.fromMe;
   const author = msg.fromName || msg.fromPhone || "Participante";
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Reagir/responder exige o id do WhatsApp (mensagens antigas do CRM não têm).
+  const actionable = msg.canReact && !msg.pending;
+  const bubble = toBubbleMessage(msg);
+  const hasReactions = msg.reactions.length > 0;
   return (
-    <li className={cn("flex w-full", mine ? "justify-end" : "justify-start", first ? "mt-2" : "mt-0.5")}>
-      <div
-        className={cn(
-          "max-w-[min(78%,36rem)] px-3 pb-1.5 pt-2",
-          mine ? "orbita-bubble-sent" : "orbita-bubble-received",
-          first && "orbita-bubble--tail",
-          msg.pending && "opacity-80",
-        )}
-      >
-        {!mine && first ? (
-          <p className="mb-0.5 truncate text-[13px] font-semibold" style={{ color: getOrbitaNameColor(msg.fromJid) }}>
-            {author}
-          </p>
-        ) : null}
-        {isGroupMediaMessage(msg) && !msg.pending ? (
-          <div className="text-[15px] leading-snug">
-            <MessageContent message={toBubbleMessage(msg)} isOutgoing={mine} />
-          </div>
-        ) : (
-          <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{formatWhatsapp(msg.text)}</p>
-        )}
+    <li
+      className={cn(
+        "flex w-full",
+        mine ? "justify-end" : "justify-start",
+        first ? "mt-2" : "mt-0.5",
+        hasReactions && "mb-3",
+      )}
+    >
+      <div className="group relative flex max-w-[min(78%,36rem)] overflow-visible">
         <div
           className={cn(
-            "mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums",
-            mine ? "text-[var(--orbita-bubble-sent-meta)]" : "text-[var(--orbita-text-tertiary)]",
+            "relative min-w-0 px-3 pb-1.5 pt-2",
+            mine ? "orbita-bubble-sent" : "orbita-bubble-received",
+            first && "orbita-bubble--tail",
+            msg.pending && "opacity-80",
           )}
         >
-          <span>{formatClock(msg.createdAt)}</span>
-          {mine ? (
-            msg.pending ? (
-              <Clock className="h-3 w-3" aria-label="Enviando" />
-            ) : (
-              <Check className="h-3.5 w-3.5" aria-label="Enviada" />
-            )
+          {!mine && first ? (
+            <p className="mb-0.5 truncate text-[13px] font-semibold" style={{ color: getOrbitaNameColor(msg.fromJid) }}>
+              {author}
+            </p>
+          ) : null}
+          {/* Resposta: quadro com a mensagem citada (como no WhatsApp). */}
+          {msg.replyTo ? (
+            <QuotedPreview
+              snippet={msg.replyTo.text || "Mensagem"}
+              direction={mine ? "out" : "in"}
+              senderName={msg.replyTo.author}
+              onLightBg={!mine}
+            />
+          ) : null}
+          {isGroupMediaMessage(msg) && !msg.pending ? (
+            <div className="text-[15px] leading-snug">
+              <MessageContent message={bubble} isOutgoing={mine} />
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{formatWhatsapp(msg.text)}</p>
+          )}
+          <div
+            className={cn(
+              "mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums",
+              mine ? "text-[var(--orbita-bubble-sent-meta)]" : "text-[var(--orbita-text-tertiary)]",
+            )}
+          >
+            <span>{formatClock(msg.createdAt)}</span>
+            {mine ? (
+              msg.pending ? (
+                <Clock className="h-3 w-3" aria-label="Enviando" />
+              ) : (
+                <Check className="h-3.5 w-3.5" aria-label="Enviada" />
+              )
+            ) : null}
+          </div>
+          {hasReactions ? (
+            <ReactionBadge
+              reactions={msg.reactions}
+              anchor={mine ? "left" : "right"}
+              onClick={actionable ? () => setMenuOpen(true) : undefined}
+            />
           ) : null}
         </div>
+        {actionable ? (
+          <MessageActionsMenu
+            message={bubble}
+            isOutgoing={mine}
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            onReply={() => onReply(msg)}
+            onReact={(_m, emoji) => onReact(msg, emoji ?? "")}
+            hideUnavailableActions
+          />
+        ) : null}
       </div>
     </li>
   );

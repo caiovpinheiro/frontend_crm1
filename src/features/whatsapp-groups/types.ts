@@ -52,8 +52,16 @@ export type WhatsAppGroupMessage = {
   mediaUrl: string | null;
   mimeType: string | null;
   fileName: string | null;
+  /** Uma por remetente ("me" = o próprio número). */
+  reactions: GroupReaction[];
+  /** Mensagem citada (resposta). */
+  replyTo: { waId: string; text: string; author: string | null } | null;
+  /** Tem id do WhatsApp: dá para reagir e responder. */
+  canReact: boolean;
   createdAt: string;
 };
+
+export type GroupReaction = { emoji: string; from: string; name: string | null };
 
 export type WhatsAppGroupMemberOpen = {
   contactId: string;
