@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { lastRefreshLabel, modelCostNotice, modelPriceLabel, refreshSummaryLines } from "../model-catalog-ui";
+import {
+  conversationCostLabel,
+  costPerConversation,
+  filterModels,
+  lastRefreshLabel,
+  modelCostNotice,
+  modelPriceLabel,
+  refreshSummaryLines,
+  usageBasisLabel,
+} from "../model-catalog-ui";
 
 describe("catálogo de modelos na tela", () => {
   it("preço conhecido, informado pela organização e desconhecido", () => {
@@ -36,5 +45,36 @@ describe("catálogo de modelos na tela", () => {
   it("quem atualizou e quando", () => {
     expect(lastRefreshLabel(null)).toContain("ainda não foi atualizada");
     expect(lastRefreshLabel({ at: "2026-11-13T15:00:00Z", userId: "u", userName: "Marcelo", result: null })).toMatch(/^Atualizada em .+ por Marcelo\.$/);
+  });
+});
+
+describe("seletor compacto", () => {
+  const usage = { days: 30, conversations: 120, avgInputTokens: 5_000, avgOutputTokens: 800, models: ["gpt-5.6-luna"] };
+
+  it("custo por conversa com a média de tokens do agente", () => {
+    const luna = { id: "gpt-5.6-luna", name: "GPT-5.6 Luna", estimateInputPer1M: 0.2, estimateOutputPer1M: 1.2, priceSource: "builtin" as const };
+    // 5.000 × 0,2 + 800 × 1,2 = 1.960 por milhão → US$ 0,00196
+    expect(costPerConversation(luna, usage)).toBeCloseTo(0.00196, 6);
+    expect(conversationCostLabel(luna, usage)).toBe("≈ US$ 0,0020 por conversa");
+    const terra = { id: "gpt-6.1-terra", name: "GPT-6.1 Terra", inputPer1M: null, outputPer1M: null, estimateInputPer1M: 4, estimateOutputPer1M: 20, priceSource: "unknown" as const };
+    expect(conversationCostLabel(terra, usage)).toBe("até US$ 0,036 por conversa");
+  });
+
+  it("sem histórico: só o preço", () => {
+    expect(conversationCostLabel({ id: "a", name: "A", estimateInputPer1M: 1, estimateOutputPer1M: 1 }, null)).toBe("");
+    expect(usageBasisLabel(null)).toContain("ao menos 5 conversas");
+    expect(usageBasisLabel(usage)).toContain("120 conversas");
+  });
+
+  it("busca por nome ou id, sem acento e em qualquer ordem", () => {
+    const list = [
+      { id: "gpt-6.1-terra", name: "GPT-6.1 Terra" },
+      { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+      { id: "gpt-4o-mini", name: "GPT-4o mini" },
+    ];
+    expect(filterModels(list, "terra").map((m) => m.id)).toEqual(["gpt-6.1-terra"]);
+    expect(filterModels(list, "sonnet claude").map((m) => m.id)).toEqual(["claude-sonnet-5-5"]);
+    expect(filterModels(list, "4O-MINI").map((m) => m.id)).toEqual(["gpt-4o-mini"]);
+    expect(filterModels(list, "  ")).toHaveLength(3);
   });
 });

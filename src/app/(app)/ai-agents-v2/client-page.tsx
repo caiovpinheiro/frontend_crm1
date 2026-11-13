@@ -24,6 +24,7 @@ import { SwitchGlass } from "@/components/crm/switch-glass";
 import { ListColumnLabel } from "@/components/crm/sortable-header";
 import { LIST_PAGE_PANE_CLASS } from "@/components/crm/pagination-glass";
 import { DataRow, DataView } from "@/components/automations/data-view";
+import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
 import { AppLoading } from "@/components/crm/app-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,11 @@ type V2AgentRow = {
   themeCount?: number;
   conversationsToday?: number;
   handoffsToday?: number;
+  /** Modelo em uso (id). */
+  model?: string;
+  /** Gasto estimado de hoje (US$) pelo preço do modelo; "unknown" = teto do provedor. */
+  costTodayUsd?: number;
+  costPriceSource?: "builtin" | "org" | "unknown";
 };
 
 type V2Preset = { key: string; label: string };
@@ -74,6 +80,24 @@ async function fetchAgents(): Promise<V2AgentRow[]> {
   const res = await apiFetch("/api/ai-agents-v2");
   const data = await parseApiResponse<{ agents: V2AgentRow[] }>(res, "Erro ao carregar agentes.");
   return data.agents;
+}
+
+/** Nome dos modelos (catálogo da organização) para a coluna "Modelo". */
+async function fetchModelNames(): Promise<Map<string, string>> {
+  const res = await apiFetch("/api/ai-agents-v2/models");
+  const data = await parseApiResponse<{ models: Array<{ id: string; name: string }> }>(res, "Erro ao carregar os modelos.");
+  return new Map(data.models.map((m) => [m.id, m.name]));
+}
+
+function formatUsdToday(v: number): string {
+  return `US$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: v > 0 && v < 0.01 ? 4 : 2 })}`;
+}
+
+/** % das conversas de hoje que passaram para a equipe (cada transferência conta uma vez por turno). */
+function handoffShare(a: { conversationsToday?: number; handoffsToday?: number }): number | null {
+  const c = a.conversationsToday ?? 0;
+  if (c <= 0) return null;
+  return Math.min(100, Math.round(((a.handoffsToday ?? 0) / c) * 100));
 }
 
 async function fetchPresets(): Promise<V2Preset[]> {
@@ -135,7 +159,7 @@ function relativeTime(iso: string): string {
 type Filter = "all" | "on" | "off";
 
 const columnClass =
-  "grid grid-cols-1 items-center gap-4 lg:grid-cols-[minmax(240px,1.5fr)_minmax(150px,1fr)_minmax(150px,1fr)_130px_120px_96px]";
+  "grid grid-cols-1 items-center gap-4 lg:grid-cols-[minmax(220px,1.5fr)_minmax(140px,1fr)_minmax(140px,1fr)_150px_110px_96px]";
 
 export default function AIAgentsV2ListClientPage() {
   const router = useRouter();
@@ -148,6 +172,8 @@ export default function AIAgentsV2ListClientPage() {
   const [filter, setFilter] = React.useState<Filter>("all");
 
   const agentsQuery = useQuery({ queryKey: ["ai-agents-v2"], queryFn: fetchAgents });
+  const [view, setView] = useCardsTableView();
+  const { data: modelNames } = useQuery({ queryKey: ["ai-agents-v2-model-names"], queryFn: fetchModelNames, staleTime: 5 * 60_000 });
   const agents = React.useMemo(() => agentsQuery.data ?? [], [agentsQuery.data]);
 
   const { data: presets = [] } = useQuery({
@@ -246,9 +272,12 @@ export default function AIAgentsV2ListClientPage() {
             withFilter={false}
             menu={false}
             actions={
-              <Button onClick={() => setCreating(true)} className="gap-1.5">
-                <IconPlus className="size-4" /> Novo agente
-              </Button>
+              <div className="flex items-center gap-2">
+                <ViewToggle value={view} onChange={setView} />
+                <Button onClick={() => setCreating(true)} className="gap-1.5">
+                  <IconPlus className="size-4" /> Novo agente
+                </Button>
+              </div>
             }
           />
         }
@@ -318,16 +347,16 @@ export default function AIAgentsV2ListClientPage() {
                 </div>
               ) : (
                 <DataView
-                  view="cards"
+                  view={view}
                   columnClass={columnClass}
                   fitViewport
                   header={
                     <>
                       <ListColumnLabel>Agente</ListColumnLabel>
                       <ListColumnLabel>Onde atende</ListColumnLabel>
-                      <ListColumnLabel>Versão</ListColumnLabel>
+                      <ListColumnLabel>Modelo</ListColumnLabel>
                       <ListColumnLabel>Hoje</ListColumnLabel>
-                      <ListColumnLabel>Alterado</ListColumnLabel>
+                      <ListColumnLabel>Para a equipe</ListColumnLabel>
                       <ListColumnLabel align="right">Status</ListColumnLabel>
                     </>
                   }
@@ -336,6 +365,8 @@ export default function AIAgentsV2ListClientPage() {
                     <AgentRow
                       key={a.id}
                       agent={a}
+                      compact={view === "tabela"}
+                      modelName={a.model ? modelNames?.get(a.model) ?? a.model : undefined}
                       onToggle={() => handleToggle(a)}
                       onDelete={() => handleDelete(a)}
                       toggling={toggleMutation.isPending && toggleMutation.variables?.id === a.id}
@@ -406,11 +437,16 @@ export default function AIAgentsV2ListClientPage() {
 
 function AgentRow({
   agent,
+  compact = false,
+  modelName,
   onToggle,
   onDelete,
   toggling,
 }: {
   agent: V2AgentRow;
+  /** Tabela: linha baixa, sem o avatar grande. */
+  compact?: boolean;
+  modelName?: string;
   onToggle: () => void;
   onDelete: () => void;
   toggling: boolean;
@@ -418,6 +454,7 @@ function AgentRow({
   const version = agent.lastVersionNumber ?? 0;
   const channels = agent.channelCount ?? 0;
   const testPhones = agent.testPhoneCount ?? 0;
+  const share = handoffShare(agent);
 
   return (
     <DataRow className="group relative cursor-pointer">
@@ -430,7 +467,12 @@ function AgentRow({
       </Link>
 
       <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
-        <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-chip-blue-soft text-sm font-bold text-chip-blue">
+        <span
+          className={cn(
+            "relative flex shrink-0 items-center justify-center rounded-full bg-chip-blue-soft font-bold text-chip-blue",
+            compact ? "size-7 text-[11px]" : "size-10 text-sm",
+          )}
+        >
           {initialsOf(agent.name)}
           <span
             className={cn(
@@ -441,10 +483,13 @@ function AgentRow({
           />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{agent.name || "Agente sem nome"}</p>
-          <p className="mt-0.5 truncate text-sm text-muted-foreground">
-            {agent.autonomyMode === "auto" ? "Responde sozinho" : "Sugere para a equipe aprovar"}
-            {agent.themeCount ? ` · ${agent.themeCount} assunto${agent.themeCount > 1 ? "s" : ""}` : ""}
+          <p className="truncate text-sm font-semibold" title={`Alterado ${relativeTime(agent.updatedAt)}`}>
+            {agent.name || "Agente sem nome"}
+          </p>
+          <p className={cn("mt-0.5 truncate text-muted-foreground", compact ? "text-xs" : "text-sm")}>
+            {version === 0 ? "Nunca publicado" : agent.hasUnpublishedChanges ? `v${version} · com alterações` : `v${version} publicada`}
+            {" · "}
+            {agent.autonomyMode === "auto" ? "Responde sozinho" : "Sugere para a equipe"}
           </p>
         </div>
       </div>
@@ -466,33 +511,32 @@ function AgentRow({
       </div>
 
       <div className="pointer-events-none relative z-10 min-w-0">
-        <span className="mb-1 block text-xs text-muted-foreground lg:hidden">Versão</span>
-        {version === 0 ? (
-          <span className="inline-flex rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-            Nunca publicado
-          </span>
-        ) : agent.hasUnpublishedChanges ? (
-          <span className="inline-flex rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-semibold text-warning">
-            v{version} · com alterações
-          </span>
-        ) : (
-          <span className="inline-flex rounded-full bg-success-soft px-2.5 py-0.5 text-xs font-semibold text-success">
-            v{version} publicada
-          </span>
-        )}
+        <span className="mb-1 block text-xs text-muted-foreground lg:hidden">Modelo</span>
+        <p className="truncate text-sm" title={agent.model}>
+          {modelName ?? <span className="text-muted-foreground">—</span>}
+        </p>
       </div>
 
       <div className="pointer-events-none relative z-10 flex items-center gap-2 lg:block">
         <span className="text-xs text-muted-foreground lg:hidden">Hoje</span>
         <p className="text-sm font-semibold tabular-nums">{(agent.conversationsToday ?? 0).toLocaleString("pt-BR")} conversas</p>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {(agent.handoffsToday ?? 0).toLocaleString("pt-BR")} para a equipe
+        <p
+          className="text-xs text-muted-foreground tabular-nums"
+          title={
+            agent.costPriceSource === "unknown"
+              ? "Modelo sem preço: estimado pelo preço mais caro do provedor até alguém preencher."
+              : "Gasto estimado pelo preço do modelo."
+          }
+        >
+          {agent.costPriceSource === "unknown" ? "até " : "≈ "}
+          {formatUsdToday(agent.costTodayUsd ?? 0)}
         </p>
       </div>
 
       <div className="pointer-events-none relative z-10 flex items-center gap-2 lg:block">
-        <span className="text-xs text-muted-foreground lg:hidden">Alterado</span>
-        <span className="text-sm text-muted-foreground">{relativeTime(agent.updatedAt)}</span>
+        <span className="text-xs text-muted-foreground lg:hidden">Para a equipe</span>
+        <p className="text-sm font-semibold tabular-nums">{share === null ? "—" : `${share}%`}</p>
+        <p className="text-xs text-muted-foreground tabular-nums">{(agent.handoffsToday ?? 0).toLocaleString("pt-BR")} transferências</p>
       </div>
 
       <div className="relative z-10 flex items-center gap-1 lg:justify-end">
