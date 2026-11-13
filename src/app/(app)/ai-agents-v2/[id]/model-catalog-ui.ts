@@ -76,6 +76,14 @@ export function lastRefreshLabel(last: LastRefresh | null | undefined): string {
   return `Atualizada em ${when}${last.userName ? ` por ${last.userName}` : ""}.`;
 }
 
+/** Até 8 nomes; o resto vira "e mais N". */
+const MAX_NAMES = 8;
+function listNames(ids: string[], names: Map<string, string>): string {
+  const shown = ids.slice(0, MAX_NAMES).map((id) => names.get(id) ?? id);
+  const rest = ids.length - shown.length;
+  return rest > 0 ? `${shown.join(", ")} e mais ${rest}` : shown.join(", ");
+}
+
 /** Uma linha por provedor: o que entrou, o que saiu, ou o erro. */
 export function refreshSummaryLines(result: RefreshResult | null | undefined, names: Map<string, string> = new Map()): Array<{ ok: boolean; text: string }> {
   if (!result) return [];
@@ -90,7 +98,7 @@ export function refreshSummaryLines(result: RefreshResult | null | undefined, na
     }
     const added = r.added ?? [];
     const parts = [
-      added.length ? `${added.length} novo${added.length > 1 ? "s" : ""} (${added.map((id) => names.get(id) ?? id).join(", ")})` : "nenhum modelo novo",
+      added.length ? `${added.length} novo${added.length > 1 ? "s" : ""} (${listNames(added, names)})` : "nenhum modelo novo",
     ];
     if (r.missing?.length) parts.push(`${r.missing.length} não aparece${r.missing.length > 1 ? "m" : ""} mais na lista do provedor`);
     out.push({ ok: true, text: `${label}: ${parts.join("; ")}.` });

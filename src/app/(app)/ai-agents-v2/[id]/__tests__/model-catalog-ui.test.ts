@@ -40,6 +40,10 @@ describe("catálogo de modelos na tela", () => {
       { ok: false, text: "Anthropic: Nenhum agente da organização tem chave Anthropic gravada." },
     ]);
     expect(refreshSummaryLines({ openai: { ok: true, added: [] } })[0].text).toBe("OpenAI: nenhum modelo novo.");
+    const many = Array.from({ length: 11 }, (_, i) => `gpt-x-${i}`);
+    expect(refreshSummaryLines({ openai: { ok: true, added: many } })[0].text).toBe(
+      "OpenAI: 11 novos (gpt-x-0, gpt-x-1, gpt-x-2, gpt-x-3, gpt-x-4, gpt-x-5, gpt-x-6, gpt-x-7 e mais 3).",
+    );
   });
 
   it("quem atualizou e quando", () => {
