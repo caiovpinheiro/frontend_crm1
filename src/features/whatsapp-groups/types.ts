@@ -26,8 +26,12 @@ export type WhatsAppGroupListItem = {
   unreadCount: number;
 };
 
+export type WhatsAppGroupCompanyRef = { id: string; number: number; name: string };
+
 export type WhatsAppGroupDetail = WhatsAppGroupListItem & {
   members: WhatsAppGroupMember[];
+  /** Empresa do CRM vinculada ao grupo. */
+  company: WhatsAppGroupCompanyRef | null;
 };
 
 export type WhatsAppGroupsListResponse = {

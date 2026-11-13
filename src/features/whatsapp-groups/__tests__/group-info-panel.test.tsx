@@ -40,13 +40,14 @@ vi.mock("../hooks", () => ({
 }));
 vi.mock("@/components/crm/image-lightbox", () => ({ ImageLightbox: () => null }));
 vi.mock("@/features/team-chat/avatar", () => ({ GroupGlyph: () => <span>#</span> }));
+vi.mock("../group-company", () => ({ GroupCompany: () => <span>vinculo-empresa</span> }));
 
 import { GroupInfoPanel } from "../group-info-panel";
 
 const group = {
   id: "g1", jid: "1@g.us", name: "Teste Grupo", description: null, ownerJid: null, participantCount: 3,
   syncedAt: "", lastMessageAt: null, lastMessagePreview: null, lastMessageAuthor: null, lastMessageFromMe: false,
-  unreadCount: 0, members: [],
+  unreadCount: 0, members: [], company: null,
 };
 
 afterEach(cleanup);
@@ -59,6 +60,7 @@ describe("Dados do grupo", () => {
     expect(screen.getByText("9")).toBeTruthy();
     expect(screen.getByText("+6")).toBeTruthy();
     expect(screen.getByText("caio")).toBeTruthy();
+    expect(screen.getByText("vinculo-empresa")).toBeTruthy();
   });
 
   it("abre Mídia, links e docs e troca de aba", () => {

@@ -4,6 +4,7 @@ import type {
   GroupLinkItem,
   GroupMediaItem,
   GroupMediaSummary,
+  WhatsAppGroupCompanyRef,
   WhatsAppGroupDetail,
   WhatsAppGroupMemberOpen,
   WhatsAppGroupMessage,
@@ -114,5 +115,17 @@ export function listWhatsAppGroupLinks(id: string, before?: string | null) {
   return json<{ links: GroupLinkItem[] }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/media?${qs}`),
     "Não foi possível carregar os links do grupo.",
+  );
+}
+
+/** Vincula, troca ou desvincula (null) a empresa do grupo. */
+export function setWhatsAppGroupCompany(id: string, companyId: string | null) {
+  return json<{ company: WhatsAppGroupCompanyRef | null }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/company`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId }),
+    }),
+    "Não foi possível vincular a empresa.",
   );
 }
