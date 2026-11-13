@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("../hooks", () => ({
+  useWhatsAppGroupMutations: () => ({ setCustomName: { mutate: vi.fn(), isPending: false } }),
   useWhatsAppGroupMediaSummary: () => h.summary,
   useWhatsAppGroupMediaTab: (_id: string, kind: string) => ({
     isLoading: false,

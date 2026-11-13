@@ -135,6 +135,18 @@ export function listWhatsAppGroupLinks(id: string, before?: string | null) {
 }
 
 /** Vincula, troca ou desvincula (null) a empresa do grupo. */
+/** Apelido só no CRM (vazio/null apaga). Nada muda no WhatsApp. */
+export function setWhatsAppGroupCustomName(id: string, customName: string | null) {
+  return json<{ customName: string | null }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/name`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customName }),
+    }),
+    "Não foi possível salvar o nome do grupo.",
+  );
+}
+
 export function setWhatsAppGroupCompany(id: string, companyId: string | null) {
   return json<{ company: WhatsAppGroupCompanyRef | null }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/company`, {

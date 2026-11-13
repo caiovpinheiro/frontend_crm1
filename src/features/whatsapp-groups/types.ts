@@ -10,7 +10,10 @@ export type WhatsAppGroupMember = {
 export type WhatsAppGroupListItem = {
   id: string;
   jid: string;
+  /** Nome no WhatsApp (a sincronização atualiza). */
   name: string;
+  /** Apelido só no CRM; quando existe, a tela mostra ele no lugar de `name`. */
+  customName?: string | null;
   description: string | null;
   ownerJid: string | null;
   participantCount: number;

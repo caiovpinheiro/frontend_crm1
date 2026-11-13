@@ -17,6 +17,7 @@ import {
   sendWhatsAppGroupAttachment,
   sendWhatsAppGroupMessage,
   setWhatsAppGroupCompany,
+  setWhatsAppGroupCustomName,
   syncWhatsAppGroups,
 } from "./api";
 import { clearGroupUnread } from "./list-preview";
@@ -205,6 +206,20 @@ export function useWhatsAppGroupMutations() {
       onSuccess: (data, vars) => {
         qc.setQueryData<{ group: WhatsAppGroupDetail }>([...whatsappGroupsKey, vars.id], (cur) =>
           cur ? { group: { ...cur.group, company: data.company } } : cur,
+        );
+      },
+    }),
+    setCustomName: useMutation({
+      mutationFn: ({ id, customName }: { id: string; customName: string | null }) =>
+        setWhatsAppGroupCustomName(id, customName),
+      onSuccess: (data, vars) => {
+        qc.setQueryData<{ group: WhatsAppGroupDetail }>([...whatsappGroupsKey, vars.id], (cur) =>
+          cur ? { group: { ...cur.group, customName: data.customName } } : cur,
+        );
+        qc.setQueryData<WhatsAppGroupsListResponse>(whatsappGroupsKey, (cur) =>
+          cur
+            ? { ...cur, groups: cur.groups.map((g) => (g.id === vars.id ? { ...g, customName: data.customName } : g)) }
+            : cur,
         );
       },
     }),
