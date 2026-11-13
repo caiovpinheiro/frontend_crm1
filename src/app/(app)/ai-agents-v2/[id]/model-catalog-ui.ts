@@ -97,3 +97,52 @@ export function refreshSummaryLines(result: RefreshResult | null | undefined, na
   }
   return out;
 }
+
+/** Média de tokens por conversa do agente (GET /api/ai-agents-v2/models?agentId=). */
+export type AgentTokenUsage = {
+  days: number;
+  conversations: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
+  models: string[];
+};
+
+/** US$ por conversa com os tokens médios do agente e o preço (ou teto) do modelo. */
+export function costPerConversation(m: CatalogModelOption, usage: AgentTokenUsage | null | undefined): number | null {
+  if (!usage || usage.conversations <= 0) return null;
+  const inP = m.estimateInputPer1M ?? m.inputPer1M;
+  const outP = m.estimateOutputPer1M ?? m.outputPer1M;
+  if (typeof inP !== "number" || typeof outP !== "number") return null;
+  return (usage.avgInputTokens * inP + usage.avgOutputTokens * outP) / 1_000_000;
+}
+
+export function formatUsd(v: number): string {
+  const digits = v < 0.01 ? 4 : v < 1 ? 3 : 2;
+  return `US$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
+/** "≈ US$ 0,0021 por conversa" (com "até" quando o preço é o teto do provedor). */
+export function conversationCostLabel(m: CatalogModelOption, usage: AgentTokenUsage | null | undefined): string {
+  const c = costPerConversation(m, usage);
+  if (c === null) return "";
+  return `${m.priceSource === "unknown" ? "até " : "≈ "}${formatUsd(c)} por conversa`;
+}
+
+export function usageBasisLabel(usage: AgentTokenUsage | null | undefined): string {
+  if (!usage) return "Custo por conversa aparece quando o agente tiver ao menos 5 conversas nos últimos 30 dias.";
+  return `Custo por conversa estimado com a média deste agente nos últimos ${usage.days} dias: ${usage.avgInputTokens.toLocaleString("pt-BR")} tokens de entrada e ${usage.avgOutputTokens.toLocaleString("pt-BR")} de saída em ${usage.conversations.toLocaleString("pt-BR")} conversas. Modelos que raciocinam costumam gastar mais saída.`;
+}
+
+function fold(v: string): string {
+  return v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+/** Busca por nome ou id ("terra", "gpt-6.1", "claude sonnet"). */
+export function filterModels<T extends Pick<CatalogModelOption, "id" | "name">>(models: T[], query: string): T[] {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return models;
+  return models.filter((m) => {
+    const hay = fold(`${m.name} ${m.id}`);
+    return words.every((w) => hay.includes(w));
+  });
+}
