@@ -7,6 +7,7 @@ import {
   lastRefreshLabel,
   modelCostNotice,
   modelPriceLabel,
+  priceSourceLabel,
   refreshSummaryLines,
   usageBasisLabel,
 } from "../model-catalog-ui";
@@ -40,6 +41,10 @@ describe("catálogo de modelos na tela", () => {
       { ok: false, text: "Anthropic: Nenhum agente da organização tem chave Anthropic gravada." },
     ]);
     expect(refreshSummaryLines({ openai: { ok: true, added: [] } })[0].text).toBe("OpenAI: nenhum modelo novo.");
+    const many = Array.from({ length: 11 }, (_, i) => `gpt-x-${i}`);
+    expect(refreshSummaryLines({ openai: { ok: true, added: many } })[0].text).toBe(
+      "OpenAI: 11 novos (gpt-x-0, gpt-x-1, gpt-x-2, gpt-x-3, gpt-x-4, gpt-x-5, gpt-x-6, gpt-x-7 e mais 3).",
+    );
   });
 
   it("quem atualizou e quando", () => {
@@ -76,5 +81,19 @@ describe("seletor compacto", () => {
     expect(filterModels(list, "sonnet claude").map((m) => m.id)).toEqual(["claude-sonnet-5-5"]);
     expect(filterModels(list, "4O-MINI").map((m) => m.id)).toEqual(["gpt-4o-mini"]);
     expect(filterModels(list, "  ")).toHaveLength(3);
+  });
+});
+
+describe("preço oficial", () => {
+  it("origem do preço e resumo da leitura da página oficial", () => {
+    expect(priceSourceLabel({ id: "a", name: "A", provider: "openai", priceSource: "official", officialPriceAt: "2026-11-13T15:00:00Z" })).toMatch(/^preço oficial da OpenAI em \d{2}\/\d{2}$/);
+    expect(priceSourceLabel({ id: "b", name: "B", priceSource: "org" })).toBe("informado pela organização");
+    expect(modelCostNotice({ id: "c", name: "C", priceSource: "official" })).toBe("");
+    const lines = refreshSummaryLines({
+      openai: { ok: true, added: [], prices: { ok: true, count: 27 } },
+      anthropic: { ok: false, code: "no_key", error: "Nenhum agente da organização tem chave Anthropic gravada.", prices: { ok: true, count: 21 } },
+    });
+    expect(lines[0]).toEqual({ ok: true, text: "OpenAI: nenhum modelo novo. Preços oficiais: 27 modelos." });
+    expect(lines[1].text).toBe("Anthropic: Nenhum agente da organização tem chave Anthropic gravada. Preços oficiais: 21 modelos.");
   });
 });
