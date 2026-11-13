@@ -2,6 +2,7 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 
 import type {
   GroupLinkItem,
+  GroupReaction,
   GroupMediaItem,
   GroupMediaSummary,
   WhatsAppGroupCompanyRef,
@@ -36,12 +37,12 @@ export function syncWhatsAppGroups() {
   );
 }
 
-export function sendWhatsAppGroupMessage(id: string, text: string) {
+export function sendWhatsAppGroupMessage(id: string, text: string, replyToMessageId?: string | null) {
   return json<{ ok: boolean; message?: WhatsAppGroupMessage | null }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(replyToMessageId ? { text, replyToMessageId } : { text }),
     }),
     "Não foi possível enviar a mensagem.",
   );
@@ -71,6 +72,21 @@ export function markWhatsAppGroupRead(id: string) {
   return json<{ ok: boolean }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/read`, { method: "POST" }),
     "Não foi possível marcar o grupo como visto.",
+  );
+}
+
+/** Reage pelo número (emoji vazio ou o mesmo de novo remove). */
+export function reactWhatsAppGroupMessage(groupId: string, messageId: string, emoji: string) {
+  return json<{ ok: boolean; reactions: GroupReaction[] }>(
+    apiFetch(
+      `/api/whatsapp-groups/${encodeURIComponent(groupId)}/messages/${encodeURIComponent(messageId)}/reaction`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      },
+    ),
+    "Não foi possível reagir à mensagem.",
   );
 }
 

@@ -14,7 +14,8 @@ export function optimisticGroupMessage(
   text: string,
   tempId: string,
   now = new Date(),
-  media?: { messageType: string; fileName: string },
+  media?: { messageType: string; fileName: string } | null,
+  replyTo?: GroupThreadMessage["replyTo"],
 ): GroupThreadMessage {
   return {
     id: tempId,
@@ -28,6 +29,9 @@ export function optimisticGroupMessage(
     mediaUrl: null,
     mimeType: null,
     fileName: media?.fileName ?? null,
+    reactions: [],
+    replyTo: replyTo ?? null,
+    canReact: false,
     createdAt: now.toISOString(),
     pending: true,
   };
@@ -142,4 +146,26 @@ export function toBubbleMessage(msg: GroupThreadMessage): Message {
     messageType: msg.messageType,
     mediaUrl: msg.mediaUrl,
   };
+}
+
+/** O número reage uma vez: troca a reação "me" (mesmo emoji de novo remove). */
+export function toggleMyReaction(
+  reactions: WhatsAppGroupMessage["reactions"],
+  emoji: string,
+  name: string | null,
+): WhatsAppGroupMessage["reactions"] {
+  const mine = reactions.find((r) => r.from === "me");
+  const rest = reactions.filter((r) => r.from !== "me");
+  if (!emoji || mine?.emoji === emoji) return rest;
+  return [...rest, { emoji, from: "me", name }];
+}
+
+/** Aplica reações numa mensagem do cache. */
+export function patchMessageReactions(
+  cache: GroupMessagesCache,
+  messageId: string,
+  reactions: WhatsAppGroupMessage["reactions"],
+): GroupMessagesCache {
+  if (!cache) return cache;
+  return { messages: cache.messages.map((m) => (m.id === messageId ? { ...m, reactions } : m)) };
 }

@@ -13,6 +13,7 @@ import {
   listWhatsAppGroups,
   markWhatsAppGroupRead,
   openWhatsAppGroupMember,
+  reactWhatsAppGroupMessage,
   sendWhatsAppGroupAttachment,
   sendWhatsAppGroupMessage,
   setWhatsAppGroupCompany,
@@ -25,6 +26,9 @@ import {
   dropPendingMessage,
   mergeServerMessages,
   optimisticGroupMessage,
+  patchMessageReactions,
+  toggleMyReaction,
+  type GroupThreadMessage,
   pendingAttachmentText,
   pendingAttachmentType,
   settlePendingMessage,
@@ -120,15 +124,22 @@ export function useWhatsAppGroupMutations() {
       onSuccess: refreshAfterSync,
     }),
     send: useMutation({
-      mutationFn: ({ id, text }: { id: string; text: string }) =>
-        sendWhatsAppGroupMessage(id, text),
+      mutationFn: ({ id, text, replyTo }: { id: string; text: string; replyTo?: GroupThreadMessage | null }) =>
+        sendWhatsAppGroupMessage(id, text, replyTo?.id ?? null),
       // A bolha aparece na hora; o POST só confirma (ou tira, se falhar).
-      onMutate: async ({ id, text }) => {
+      onMutate: async ({ id, text, replyTo }) => {
         const key = groupMessagesKey(id);
         await qc.cancelQueries({ queryKey: key });
         const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const quote = replyTo
+          ? {
+              waId: replyTo.id,
+              text: replyTo.text,
+              author: replyTo.fromMe ? "Você" : replyTo.fromName || replyTo.fromPhone || null,
+            }
+          : null;
         qc.setQueryData<GroupMessagesCache>(key, (cur) =>
-          appendPendingMessage(cur, optimisticGroupMessage(text, tempId)),
+          appendPendingMessage(cur, optimisticGroupMessage(text, tempId, new Date(), null, quote)),
         );
         return { tempId };
       },
@@ -195,6 +206,31 @@ export function useWhatsAppGroupMutations() {
         qc.setQueryData<{ group: WhatsAppGroupDetail }>([...whatsappGroupsKey, vars.id], (cur) =>
           cur ? { group: { ...cur.group, company: data.company } } : cur,
         );
+      },
+    }),
+    // Reação: aparece na hora; se o servidor recusar, volta como estava.
+    react: useMutation({
+      mutationFn: ({ groupId, messageId, emoji }: { groupId: string; messageId: string; emoji: string; myName: string | null }) =>
+        reactWhatsAppGroupMessage(groupId, messageId, emoji),
+      onMutate: async ({ groupId, messageId, emoji, myName }) => {
+        const key = groupMessagesKey(groupId);
+        await qc.cancelQueries({ queryKey: key });
+        const prev = qc.getQueryData<GroupMessagesCache>(key);
+        const msg = prev?.messages.find((m) => m.id === messageId);
+        if (msg) {
+          qc.setQueryData<GroupMessagesCache>(key, (cur) =>
+            patchMessageReactions(cur, messageId, toggleMyReaction(msg.reactions, emoji, myName)),
+          );
+        }
+        return { prev };
+      },
+      onSuccess: (data, vars) => {
+        qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.groupId), (cur) =>
+          patchMessageReactions(cur, vars.messageId, data.reactions),
+        );
+      },
+      onError: (_err, vars, ctx) => {
+        if (ctx?.prev) qc.setQueryData(groupMessagesKey(vars.groupId), ctx.prev);
       },
     }),
     openMember: useMutation({

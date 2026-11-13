@@ -49,6 +49,7 @@ export function MessageActionsMenu({
   onReact,
   onPin,
   onFavorite,
+  hideUnavailableActions = false,
 }: {
   message: Message
   /** Enviada: gatilho à esquerda da bolha (o avatar ocupa a direita). */
@@ -60,6 +61,8 @@ export function MessageActionsMenu({
   onReact?: (message: Message, emoji: string | null) => void
   onPin?: (message: Message) => void
   onFavorite?: (message: Message) => void
+  /** Esconde Fixar/Favoritar quando não há handler (grupos WhatsApp). O inbox não usa. */
+  hideUnavailableActions?: boolean
 }) {
   const setOpen = useCallback(
     (next: boolean | ((current: boolean) => boolean)) => {
@@ -296,42 +299,46 @@ export function MessageActionsMenu({
                     }}
                   />
                 ) : null}
-                <MenuItem
-                  icon={
-                    message.isPinnedMessage ? (
-                      <IconPinFilled size={15} className="text-[var(--brand-primary)]" />
-                    ) : (
-                      <IconPin size={15} />
-                    )
-                  }
-                  label={message.isPinnedMessage ? "Desafixar" : "Fixar"}
-                  onClick={() => {
-                    if (onPin) {
-                      onPin(message)
-                      setOpen(false)
-                    } else {
-                      stub("Fixar")
+                {hideUnavailableActions && !onPin ? null : (
+                  <>
+                  <MenuItem
+                    icon={
+                      message.isPinnedMessage ? (
+                        <IconPinFilled size={15} className="text-[var(--brand-primary)]" />
+                      ) : (
+                        <IconPin size={15} />
+                      )
                     }
-                  }}
-                />
-                <MenuItem
-                  icon={
-                    message.isFavorited ? (
-                      <IconStarFilled size={15} className="text-amber-500" />
-                    ) : (
-                      <IconStar size={15} />
-                    )
-                  }
-                  label={message.isFavorited ? "Desfavoritar" : "Favoritar"}
-                  onClick={() => {
-                    if (onFavorite) {
-                      onFavorite(message)
-                      setOpen(false)
-                    } else {
-                      stub("Favoritar")
+                    label={message.isPinnedMessage ? "Desafixar" : "Fixar"}
+                    onClick={() => {
+                      if (onPin) {
+                        onPin(message)
+                        setOpen(false)
+                      } else {
+                        stub("Fixar")
+                      }
+                    }}
+                  />
+                  <MenuItem
+                    icon={
+                      message.isFavorited ? (
+                        <IconStarFilled size={15} className="text-amber-500" />
+                      ) : (
+                        <IconStar size={15} />
+                      )
                     }
-                  }}
-                />
+                    label={message.isFavorited ? "Desfavoritar" : "Favoritar"}
+                    onClick={() => {
+                      if (onFavorite) {
+                        onFavorite(message)
+                        setOpen(false)
+                      } else {
+                        stub("Favoritar")
+                      }
+                    }}
+                  />
+                  </>
+                )}
                 {canCopy && (
                   <MenuItem
                     icon={<IconCopy size={15} />}
