@@ -54,6 +54,7 @@ import {
 } from "@/features/whatsapp-groups/thread";
 import { groupListPreview, unreadBadgeLabel } from "@/features/whatsapp-groups/list-preview";
 import { GroupInfoPanel } from "@/features/whatsapp-groups/group-info-panel";
+import { groupDisplayName, groupMatchesSearch } from "@/features/whatsapp-groups/group-name";
 import { AudioRecorderButton, FilePickerButton } from "@/features/inbox-v2/extras";
 import type { AudioRecordState } from "@/features/inbox-v2/extras/audio-recorder-button";
 import type { WhatsAppGroupDetail, WhatsAppGroupMember } from "@/features/whatsapp-groups/types";
@@ -86,7 +87,7 @@ export default function GruposWhatsAppClientPage() {
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return groups;
-    return groups.filter((g) => g.name.toLowerCase().includes(term));
+    return groups.filter((g) => groupMatchesSearch(g, term));
   }, [groups, q]);
 
   useEffect(() => {
@@ -203,7 +204,7 @@ export default function GruposWhatsAppClientPage() {
                           active ? "orbita-item-selected" : "hover:bg-[var(--orbita-field)]",
                         )}
                       >
-                        <GroupGlyph seed={g.id} size={48} name={g.name} />
+                        <GroupGlyph seed={g.id} size={48} name={groupDisplayName(g)} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-2">
                             <span
@@ -212,7 +213,7 @@ export default function GruposWhatsAppClientPage() {
                                 active ? "font-semibold" : "font-medium",
                               )}
                             >
-                              {g.name || "Grupo sem nome"}
+                              {groupDisplayName(g)}
                             </span>
                             <span
                               className={cn(
@@ -447,10 +448,10 @@ function GroupThread({
               title="Dados do grupo"
               className="flex min-w-0 items-center gap-3 rounded-[var(--orbita-radius-inner)] py-1 pr-2 text-left outline-none hover:bg-[var(--orbita-field)] focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              <GroupGlyph seed={group.id} size={40} name={group.name} />
+              <GroupGlyph seed={group.id} size={40} name={groupDisplayName(group)} />
               <span className="min-w-0">
                 <span className="block truncate text-[16px] font-semibold text-[var(--orbita-text)]">
-                  {group.name || "Grupo sem nome"}
+                  {groupDisplayName(group)}
                 </span>
                 <span className="block truncate text-[13px] text-[var(--orbita-text-secondary)]">
                   {group.description?.trim() ||

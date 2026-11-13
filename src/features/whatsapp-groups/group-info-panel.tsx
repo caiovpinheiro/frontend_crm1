@@ -23,6 +23,7 @@ import { GroupGlyph } from "@/features/team-chat/avatar";
 import { cn } from "@/lib/utils";
 
 import { GroupCompany } from "./group-company";
+import { GroupName, groupDisplayName } from "./group-name";
 import { docBadge, groupByMonth, mediaTotal, shortDate } from "./group-media";
 import {
   useWhatsAppGroupLinks,
@@ -124,10 +125,8 @@ function InfoView({
       <PanelHeader title="Dados do grupo" onClose={onClose} />
       <div className="chat-scroll min-h-0 flex-1 overflow-y-auto">
         <div className={cn("flex flex-col items-center px-5 pb-5 pt-6 text-center", SECTION)}>
-          <GroupGlyph seed={group.id} size={96} name={group.name} />
-          <h4 className="mt-3 text-[19px] font-semibold text-[var(--orbita-text)]">
-            {group.name || "Grupo sem nome"}
-          </h4>
+          <GroupGlyph seed={group.id} size={96} name={groupDisplayName(group)} />
+          <GroupName group={group} />
           <p className="mt-1 text-[13.5px] text-[var(--orbita-text-secondary)]">
             Grupo ·{" "}
             <span className="font-semibold text-[var(--orbita-selected)]">
