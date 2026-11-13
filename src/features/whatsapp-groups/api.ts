@@ -1,6 +1,9 @@
 import { apiFetch, parseApiResponse } from "@/lib/api";
 
 import type {
+  GroupLinkItem,
+  GroupMediaItem,
+  GroupMediaSummary,
   WhatsAppGroupDetail,
   WhatsAppGroupMemberOpen,
   WhatsAppGroupMessage,
@@ -84,5 +87,32 @@ export function openWhatsAppGroupMember(groupId: string, memberId: string) {
       { method: "POST" },
     ),
     "Não foi possível abrir este contato.",
+  );
+}
+
+/** Totais + 3 fotos/vídeos recentes (painel "Dados do grupo"). */
+export function getWhatsAppGroupMediaSummary(id: string) {
+  return json<GroupMediaSummary>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/media?kind=summary`),
+    "Não foi possível carregar as mídias do grupo.",
+  );
+}
+
+/** Uma página da aba (mais recentes primeiro). `before` = data do último item. */
+export function listWhatsAppGroupMedia(id: string, kind: "media" | "docs", before?: string | null) {
+  const qs = new URLSearchParams({ kind });
+  if (before) qs.set("before", before);
+  return json<{ items: GroupMediaItem[] }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/media?${qs}`),
+    "Não foi possível carregar as mídias do grupo.",
+  );
+}
+
+export function listWhatsAppGroupLinks(id: string, before?: string | null) {
+  const qs = new URLSearchParams({ kind: "links" });
+  if (before) qs.set("before", before);
+  return json<{ links: GroupLinkItem[] }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/media?${qs}`),
+    "Não foi possível carregar os links do grupo.",
   );
 }

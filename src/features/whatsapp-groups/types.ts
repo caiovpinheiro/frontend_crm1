@@ -56,3 +56,33 @@ export type WhatsAppGroupMemberOpen = {
   conversationId: string;
   dealId: string | null;
 };
+
+/** Foto, vídeo ou documento do grupo ("Mídia, links e docs"). */
+export type GroupMediaItem = {
+  id: string;
+  messageType: string;
+  mediaUrl: string | null;
+  mimeType: string | null;
+  fileName: string | null;
+  text: string;
+  /** "Você" quando foi o próprio número. */
+  author: string;
+  fromMe: boolean;
+  createdAt: string;
+};
+
+export type GroupLinkItem = {
+  id: string;
+  url: string;
+  domain: string;
+  snippet: string;
+  author: string;
+  fromMe: boolean;
+  createdAt: string;
+};
+
+export type GroupMediaCounts = { media: number; docs: number; links: number };
+
+export type GroupMediaSummary = { counts: GroupMediaCounts; recent: GroupMediaItem[] };
+
+export type GroupMediaTab = "media" | "docs" | "links";
