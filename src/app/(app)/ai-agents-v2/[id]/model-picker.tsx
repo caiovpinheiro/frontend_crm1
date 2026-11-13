@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import {
   PROVIDER_LABEL,
   conversationCostLabel,
+  priceSourceLabel,
   filterModels,
   formatPrice,
   lastRefreshLabel,
@@ -140,7 +141,7 @@ export function ModelPicker({
               </p>
               <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
                 {PROVIDER_LABEL[selected.provider ?? "openai"]} · {modelPriceLabel(selected) || "—"}
-                {selected.priceSource !== "unknown" && " por 1M tokens (entrada / saída)"}
+                {selected.priceSource !== "unknown" && ` por 1M tokens (entrada / saída), ${priceSourceLabel(selected)}`}
                 {selectedCost && ` · ${selectedCost}`}
               </p>
             </>
@@ -282,7 +283,12 @@ function ModelOption({
         <span className="block truncate font-mono text-[10px] text-muted-foreground">{m.id}</span>
       </span>
       <span className="shrink-0 text-right text-xs tabular-nums">
-        <span className={cn("block", m.priceSource === "unknown" ? WARN_TEXT : "text-muted-foreground")}>{modelPriceLabel(m) || "—"}</span>
+        <span
+          className={cn("block", m.priceSource === "unknown" ? WARN_TEXT : "text-muted-foreground")}
+          title={m.priceSource === "unknown" ? "A página de preços do provedor não lista este modelo." : priceSourceLabel(m)}
+        >
+          {modelPriceLabel(m) || "—"}
+        </span>
         {cost && <span className="block text-[11px] text-muted-foreground">{cost}</span>}
       </span>
       {canManage && (
@@ -336,7 +342,8 @@ function PriceDialog({ model, onClose, onSaved }: { model: CatalogModelOption; o
           <DialogTitle>Preço de {model.name}</DialogTitle>
           <DialogDescription>
             US$ por 1 milhão de tokens, como na página de preços da {provider}. Vale para a estimativa de gasto e o limite de gasto de todos os agentes da
-            organização. Deixe os dois vazios para voltar {model.source === "builtin" ? "ao preço da tabela do CRM" : "a “preço desconhecido”"}.
+            organização e vence o preço oficial. Deixe os dois vazios para voltar ao preço oficial lido no “Atualizar modelos”
+            {model.source === "builtin" ? " (ou à tabela do CRM)" : " (ou a “preço desconhecido”)"}.
           </DialogDescription>
         </DialogHeader>
         <form

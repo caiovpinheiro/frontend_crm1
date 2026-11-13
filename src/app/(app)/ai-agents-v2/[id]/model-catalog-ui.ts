@@ -4,7 +4,8 @@
  */
 
 export type ModelProvider = "openai" | "anthropic";
-export type ModelPriceSource = "builtin" | "org" | "unknown";
+/** org: informado pelo admin; official: página de preços do provedor; builtin: tabela do CRM. */
+export type ModelPriceSource = "org" | "official" | "builtin" | "unknown";
 
 export type CatalogModelOption = {
   id: string;
@@ -25,6 +26,8 @@ export type CatalogModelOption = {
   missing?: boolean;
   missingSince?: string | null;
   discoveredAt?: string | null;
+  /** Quando o preço oficial foi lido da página do provedor. */
+  officialPriceAt?: string | null;
 };
 
 export type ProviderRefreshResult = {
@@ -34,6 +37,8 @@ export type ProviderRefreshResult = {
   chatModels?: number;
   added?: string[];
   missing?: string[];
+  /** Leitura da página oficial de preços (independe da chave). */
+  prices?: { ok: boolean; count?: number; error?: string; url?: string };
 };
 
 export type RefreshResult = Partial<Record<ModelProvider, ProviderRefreshResult>>;
@@ -54,11 +59,23 @@ export function modelPriceLabel(m: CatalogModelOption): string {
   return `US$ ${formatPrice(m.inputPer1M)} / ${formatPrice(m.outputPer1M)}`;
 }
 
-/** Aviso sobre o custo do modelo escolhido; vazio quando o preço é o de tabela. */
+/** De onde vem o preço, para a dica e o subtítulo. */
+export function priceSourceLabel(m: CatalogModelOption): string {
+  if (m.priceSource === "official") {
+    const when = m.officialPriceAt ? new Date(m.officialPriceAt) : null;
+    const date = when && !Number.isNaN(when.getTime()) ? ` em ${when.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}` : "";
+    return `preço oficial da ${PROVIDER_LABEL[m.provider ?? "openai"]}${date}`;
+  }
+  if (m.priceSource === "org") return "informado pela organização";
+  if (m.priceSource === "builtin") return "tabela do CRM";
+  return "";
+}
+
+/** Aviso sobre o custo do modelo escolhido; vazio quando o preço é o oficial ou o de tabela. */
 export function modelCostNotice(m: CatalogModelOption | undefined): string {
   if (!m) return "";
   if (m.priceSource === "unknown") {
-    return `Preço desconhecido: a estimativa de gasto e o limite usam US$ ${formatPrice(m.estimateInputPer1M)} / ${formatPrice(m.estimateOutputPer1M)} por 1 milhão de tokens (o mais caro do provedor na lista) até alguém preencher o preço. O limite corta antes, nunca depois.`;
+    return `Preço desconhecido: a estimativa de gasto e o limite usam US$ ${formatPrice(m.estimateInputPer1M)} / ${formatPrice(m.estimateOutputPer1M)} por 1 milhão de tokens (o mais caro do provedor na lista): a página oficial de preços não lista este modelo. O admin pode preencher o preço. O limite corta antes, nunca depois.`;
   }
   if (m.priceSource === "org") return "Gasto estimado pelo preço que a organização informou para este modelo.";
   return "";
@@ -92,8 +109,13 @@ export function refreshSummaryLines(result: RefreshResult | null | undefined, na
     const r = result[provider];
     if (!r) continue;
     const label = PROVIDER_LABEL[provider];
+    const prices = r.prices
+      ? r.prices.ok
+        ? ` Preços oficiais: ${r.prices.count ?? 0} modelo${(r.prices.count ?? 0) === 1 ? "" : "s"}.`
+        : ` Preços oficiais: ${r.prices.error ?? "não foi possível ler a página."}`
+      : "";
     if (!r.ok) {
-      out.push({ ok: false, text: `${label}: ${r.error ?? "não foi possível consultar."}` });
+      out.push({ ok: Boolean(r.prices?.ok) && r.code === "no_key", text: `${label}: ${r.error ?? "não foi possível consultar."}${prices}` });
       continue;
     }
     const added = r.added ?? [];
@@ -101,7 +123,7 @@ export function refreshSummaryLines(result: RefreshResult | null | undefined, na
       added.length ? `${added.length} novo${added.length > 1 ? "s" : ""} (${listNames(added, names)})` : "nenhum modelo novo",
     ];
     if (r.missing?.length) parts.push(`${r.missing.length} não aparece${r.missing.length > 1 ? "m" : ""} mais na lista do provedor`);
-    out.push({ ok: true, text: `${label}: ${parts.join("; ")}.` });
+    out.push({ ok: r.prices ? r.prices.ok : true, text: `${label}: ${parts.join("; ")}.${prices}` });
   }
   return out;
 }
