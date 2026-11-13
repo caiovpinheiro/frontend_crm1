@@ -14,7 +14,6 @@ import {
   IconSend as Send,
   IconUsers as Users,
   IconUsersGroup as UsersRound,
-  IconX as X,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 
@@ -45,6 +44,7 @@ import {
   type GroupThreadMessage,
 } from "@/features/whatsapp-groups/thread";
 import { groupListPreview, unreadBadgeLabel } from "@/features/whatsapp-groups/list-preview";
+import { GroupInfoPanel } from "@/features/whatsapp-groups/group-info-panel";
 import { AudioRecorderButton, FilePickerButton } from "@/features/inbox-v2/extras";
 import type { AudioRecordState } from "@/features/inbox-v2/extras/audio-recorder-button";
 import type { WhatsAppGroupDetail, WhatsAppGroupMember } from "@/features/whatsapp-groups/types";
@@ -283,7 +283,21 @@ export default function GruposWhatsAppClientPage() {
             </section>
 
             {group && membersOpen ? (
-              <MembersPanel group={group} onClose={() => setMembersOpen(false)} />
+              <GroupInfoPanel
+                key={group.id}
+                group={group}
+                memberCount={Math.max(group.members.length, group.participantCount)}
+                onClose={() => setMembersOpen(false)}
+                members={
+                  group.members.length === 0 ? (
+                    <li className="px-4 py-6 text-center text-[13px] text-[var(--orbita-text-tertiary)]">
+                      Participantes ainda não sincronizados.
+                    </li>
+                  ) : (
+                    group.members.map((m) => <MemberRow key={m.id} groupId={group.id} member={m} />)
+                  )
+                }
+              />
             ) : null}
           </div>
         )}
@@ -386,22 +400,30 @@ function GroupThread({
             <button type="button" onClick={onBack} aria-label="Voltar" className={cn(ICON_BTN, "md:hidden")}>
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <GroupGlyph seed={group.id} size={40} name={group.name} />
-            <div className="min-w-0">
-              <h2 className="truncate text-[16px] font-semibold text-[var(--orbita-text)]">
-                {group.name || "Grupo sem nome"}
-              </h2>
-              <p className="truncate text-[13px] text-[var(--orbita-text-secondary)]">
-                {group.description?.trim() ||
-                  `${memberCount} participante${memberCount === 1 ? "" : "s"}`}
-              </p>
-            </div>
+            {/* Como no WhatsApp: clicar no grupo abre "Dados do grupo". */}
+            <button
+              type="button"
+              onClick={onToggleMembers}
+              title="Dados do grupo"
+              className="flex min-w-0 items-center gap-3 rounded-[var(--orbita-radius-inner)] py-1 pr-2 text-left outline-none hover:bg-[var(--orbita-field)] focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              <GroupGlyph seed={group.id} size={40} name={group.name} />
+              <span className="min-w-0">
+                <span className="block truncate text-[16px] font-semibold text-[var(--orbita-text)]">
+                  {group.name || "Grupo sem nome"}
+                </span>
+                <span className="block truncate text-[13px] text-[var(--orbita-text-secondary)]">
+                  {group.description?.trim() ||
+                    `${memberCount} participante${memberCount === 1 ? "" : "s"} · clique para ver dados do grupo`}
+                </span>
+              </span>
+            </button>
           </div>
           <button
             type="button"
             onClick={onToggleMembers}
-            aria-label="Participantes"
-            title="Participantes"
+            aria-label="Dados do grupo"
+            title="Dados do grupo"
             aria-pressed={membersOpen}
             className={cn(ICON_BTN, membersOpen && "bg-[var(--orbita-field)] text-[var(--orbita-selected)]")}
           >
@@ -554,38 +576,6 @@ function MessageBubble({ msg, first }: { msg: GroupThreadMessage; first: boolean
         </div>
       </div>
     </li>
-  );
-}
-
-function MembersPanel({ group, onClose }: { group: WhatsAppGroupDetail; onClose: () => void }) {
-  return (
-    <>
-      <button
-        type="button"
-        aria-label="Fechar participantes"
-        onClick={onClose}
-        className="fixed inset-0 z-30 bg-black/30 md:hidden"
-      />
-      <aside className="orbita-block fixed inset-y-0 right-0 z-40 flex w-[min(100%,340px)] flex-col border-l border-[var(--orbita-divider)] md:static md:z-auto md:h-full md:w-[320px] md:shrink-0">
-        <div className="flex h-[60px] shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-          <h3 className="text-[15px] font-semibold text-[var(--orbita-text)]">
-            Participantes ({group.members.length})
-          </h3>
-          <button type="button" onClick={onClose} aria-label="Fechar" className={ICON_BTN}>
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <ul className="chat-scroll min-h-0 flex-1 overflow-y-auto py-1">
-          {group.members.length === 0 ? (
-            <li className="px-4 py-8 text-center text-[13px] text-[var(--orbita-text-tertiary)]">
-              Participantes ainda não sincronizados.
-            </li>
-          ) : (
-            group.members.map((m) => <MemberRow key={m.id} groupId={group.id} member={m} />)
-          )}
-        </ul>
-      </aside>
-    </>
   );
 }
 

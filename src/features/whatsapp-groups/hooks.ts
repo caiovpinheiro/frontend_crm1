@@ -1,11 +1,14 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import {
   getWhatsAppGroup,
+  getWhatsAppGroupMediaSummary,
+  listWhatsAppGroupLinks,
+  listWhatsAppGroupMedia,
   listWhatsAppGroupMessages,
   listWhatsAppGroups,
   markWhatsAppGroupRead,
@@ -187,4 +190,41 @@ export function useWhatsAppGroupMutations() {
         openWhatsAppGroupMember(groupId, memberId),
     }),
   };
+}
+
+/** Página das abas de "Mídia, links e docs" (mesmo tamanho do backend). */
+export const GROUP_MEDIA_PAGE = 60;
+
+export function useWhatsAppGroupMediaSummary(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...whatsappGroupsKey, id, "media", "summary"],
+    queryFn: () => getWhatsAppGroupMediaSummary(id!),
+    enabled: Boolean(id) && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Aba de fotos/vídeos ou documentos, com "carregar mais" por data. */
+export function useWhatsAppGroupMediaTab(id: string | null, kind: "media" | "docs", enabled = true) {
+  return useInfiniteQuery({
+    queryKey: [...whatsappGroupsKey, id, "media", kind],
+    queryFn: ({ pageParam }) => listWhatsAppGroupMedia(id!, kind, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) =>
+      last.items.length >= GROUP_MEDIA_PAGE ? last.items[last.items.length - 1]!.createdAt : null,
+    enabled: Boolean(id) && enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useWhatsAppGroupLinks(id: string | null, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: [...whatsappGroupsKey, id, "media", "links"],
+    queryFn: ({ pageParam }) => listWhatsAppGroupLinks(id!, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) =>
+      last.links.length >= GROUP_MEDIA_PAGE ? last.links[last.links.length - 1]!.createdAt : null,
+    enabled: Boolean(id) && enabled,
+    staleTime: 30_000,
+  });
 }
