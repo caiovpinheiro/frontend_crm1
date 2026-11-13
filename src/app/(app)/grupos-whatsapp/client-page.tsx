@@ -44,6 +44,7 @@ import {
   toBubbleMessage,
   type GroupThreadMessage,
 } from "@/features/whatsapp-groups/thread";
+import { groupListPreview, unreadBadgeLabel } from "@/features/whatsapp-groups/list-preview";
 import { AudioRecorderButton, FilePickerButton } from "@/features/inbox-v2/extras";
 import type { AudioRecordState } from "@/features/inbox-v2/extras/audio-recorder-button";
 import type { WhatsAppGroupDetail, WhatsAppGroupMember } from "@/features/whatsapp-groups/types";
@@ -65,6 +66,10 @@ export default function GruposWhatsAppClientPage() {
   const [mobileThread, setMobileThread] = useState(false);
   const [autoSynced, setAutoSynced] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
+  // Grupo aberto pelo usuário (clique). A seleção automática ao entrar na
+  // página não conta como "visto" — senão o grupo do topo nunca mostraria
+  // as não lidas.
+  const [openedId, setOpenedId] = useState<string | null>(null);
 
   const groups = useMemo(() => list.data?.groups ?? [], [list.data?.groups]);
   const connected = list.data?.connected === true;
@@ -171,6 +176,9 @@ export default function GruposWhatsAppClientPage() {
                 ) : (
                   filtered.map((g) => {
                     const active = selectedId === g.id;
+                    const preview = groupListPreview(g);
+                    // Grupo aberto: o que chega já está sendo visto.
+                    const unread = active && openedId === g.id ? null : unreadBadgeLabel(g.unreadCount);
                     return (
                       <button
                         key={g.id}
@@ -178,6 +186,7 @@ export default function GruposWhatsAppClientPage() {
                         onClick={() => {
                           if (g.id !== selectedId) setMembersOpen(false);
                           setSelectedId(g.id);
+                          setOpenedId(g.id);
                           setMobileThread(true);
                         }}
                         className={cn(
@@ -196,13 +205,40 @@ export default function GruposWhatsAppClientPage() {
                             >
                               {g.name || "Grupo sem nome"}
                             </span>
-                            <span className="shrink-0 text-[12px] tabular-nums text-[var(--orbita-text-tertiary)]">
+                            <span
+                              className={cn(
+                                "shrink-0 text-[12px] tabular-nums",
+                                unread
+                                  ? "font-semibold text-[var(--orbita-selected)]"
+                                  : "text-[var(--orbita-text-tertiary)]",
+                              )}
+                            >
                               {g.lastMessageAt ? formatListTime(g.lastMessageAt) : ""}
                             </span>
                           </div>
-                          <p className="mt-1 truncate text-[13.5px] text-[var(--orbita-text-secondary)]">
-                            {g.participantCount} participante{g.participantCount === 1 ? "" : "s"}
-                          </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            {/* Uma linha só, cortada com "…" (como no WhatsApp). */}
+                            <p className="min-w-0 flex-1 truncate text-[13.5px] text-[var(--orbita-text-secondary)]">
+                              {preview ? (
+                                <>
+                                  {preview.author ? (
+                                    <span className="font-medium text-[var(--orbita-text)]">{preview.author}: </span>
+                                  ) : null}
+                                  {preview.text}
+                                </>
+                              ) : (
+                                `${g.participantCount} participante${g.participantCount === 1 ? "" : "s"}`
+                              )}
+                            </p>
+                            {unread ? (
+                              <span
+                                aria-label={`${unread} mensagens não lidas`}
+                                className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[var(--orbita-selected)] px-1.5 text-[11.5px] font-semibold tabular-nums text-white"
+                              >
+                                {unread}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </button>
                     );
@@ -239,6 +275,7 @@ export default function GruposWhatsAppClientPage() {
                   key={group.id}
                   group={group}
                   membersOpen={membersOpen}
+                  markReadOnView={openedId === group.id}
                   onBack={() => setMobileThread(false)}
                   onToggleMembers={() => setMembersOpen((v) => !v)}
                 />
@@ -270,11 +307,14 @@ function ThreadPlaceholder({ title, description }: { title: string; description:
 function GroupThread({
   group,
   membersOpen,
+  markReadOnView,
   onBack,
   onToggleMembers,
 }: {
   group: WhatsAppGroupDetail;
   membersOpen: boolean;
+  /** Aberto pelo usuário: marca como visto ao abrir e quando chega mensagem. */
+  markReadOnView: boolean;
   onBack: () => void;
   onToggleMembers: () => void;
 }) {
@@ -289,6 +329,21 @@ function GroupThread({
   const messages = useMemo(() => thread.data?.messages ?? [], [thread.data?.messages]);
   const days = useMemo(() => groupMessagesByDay(messages), [messages]);
   const memberCount = Math.max(group.members.length, group.participantCount);
+
+  // "Visto" compartilhado no número: ao abrir e a cada mensagem recebida
+  // com o grupo aberto (aba visível), o contador zera para todos.
+  const markRead = mut.markRead.mutate;
+  const lastIncomingId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (!messages[i].fromMe) return messages[i].id;
+    }
+    return null;
+  }, [messages]);
+  useEffect(() => {
+    if (!markReadOnView) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    markRead(group.id);
+  }, [markReadOnView, group.id, lastIncomingId, markRead]);
 
   useEffect(() => {
     const el = scrollRef.current;

@@ -17,6 +17,13 @@ export type WhatsAppGroupListItem = {
   syncedAt: string;
   /** Última mensagem recebida ou enviada (ordena a lista). */
   lastMessageAt: string | null;
+  /** Prévia da última mensagem (uma linha). */
+  lastMessagePreview: string | null;
+  /** Quem mandou a última; nulo quando foi o próprio número. */
+  lastMessageAuthor: string | null;
+  lastMessageFromMe: boolean;
+  /** Não lidas desde o último "visto" (compartilhado por todos do número). */
+  unreadCount: number;
 };
 
 export type WhatsAppGroupDetail = WhatsAppGroupListItem & {

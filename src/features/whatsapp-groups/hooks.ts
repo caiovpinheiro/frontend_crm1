@@ -8,11 +8,14 @@ import {
   getWhatsAppGroup,
   listWhatsAppGroupMessages,
   listWhatsAppGroups,
+  markWhatsAppGroupRead,
   openWhatsAppGroupMember,
   sendWhatsAppGroupAttachment,
   sendWhatsAppGroupMessage,
   syncWhatsAppGroups,
 } from "./api";
+import { clearGroupUnread } from "./list-preview";
+import type { WhatsAppGroupsListResponse } from "./types";
 import {
   appendPendingMessage,
   dropPendingMessage,
@@ -170,6 +173,13 @@ export function useWhatsAppGroupMutations() {
         qc.setQueryData<GroupMessagesCache>(groupMessagesKey(vars.id), (cur) =>
           dropPendingMessage(cur, ctx.tempId),
         );
+      },
+    }),
+    // Some na hora da lista; o POST grava o "visto" para todos do número.
+    markRead: useMutation({
+      mutationFn: (id: string) => markWhatsAppGroupRead(id),
+      onMutate: (id) => {
+        qc.setQueryData<WhatsAppGroupsListResponse>(whatsappGroupsKey, (cur) => clearGroupUnread(cur, id));
       },
     }),
     openMember: useMutation({
