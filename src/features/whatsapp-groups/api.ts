@@ -62,6 +62,14 @@ export function sendWhatsAppGroupAttachment(
   );
 }
 
+/** Abriu o grupo: zera as não lidas para todos que usam o número. */
+export function markWhatsAppGroupRead(id: string) {
+  return json<{ ok: boolean }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/read`, { method: "POST" }),
+    "Não foi possível marcar o grupo como visto.",
+  );
+}
+
 export function listWhatsAppGroupMessages(id: string) {
   return json<{ messages: WhatsAppGroupMessage[] }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/messages`),
