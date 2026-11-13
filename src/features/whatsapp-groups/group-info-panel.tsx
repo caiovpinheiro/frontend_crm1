@@ -22,6 +22,7 @@ import { resolveMediaUrl } from "@/components/crm/message-bubble/media-helpers";
 import { GroupGlyph } from "@/features/team-chat/avatar";
 import { cn } from "@/lib/utils";
 
+import { GroupCompany } from "./group-company";
 import { docBadge, groupByMonth, mediaTotal, shortDate } from "./group-media";
 import {
   useWhatsAppGroupLinks,
@@ -136,6 +137,7 @@ function InfoView({
           <p className="mt-2 whitespace-pre-wrap text-[13px] text-[var(--orbita-text-tertiary)]">
             {group.description?.trim() || "Sem descrição"}
           </p>
+          <GroupCompany group={group} />
         </div>
 
         <div className={cn("px-4 py-3.5", SECTION)}>

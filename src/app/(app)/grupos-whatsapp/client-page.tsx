@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   IconArrowLeft as ArrowLeft,
   IconCheck as Check,
@@ -19,6 +20,10 @@ import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { MessageContent } from "@/components/crm/message-bubble/message-content";
+import { formatWhatsapp } from "@/components/crm/message-bubble/media-helpers";
+import { SignatureControl } from "@/features/inbox-v2/extras/composer/signature-control";
+import { useComposerSignature } from "@/features/inbox-v2/extras/composer/use-composer-signature";
+import { useConversationFeatures } from "@/features/inbox-v2/hooks/use-conversation-features";
 import { EmptyState } from "@/components/crm/empty-state";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PagePrimaryButton } from "@/components/crm/page-toolbar";
@@ -224,7 +229,7 @@ export default function GruposWhatsAppClientPage() {
                                   {preview.author ? (
                                     <span className="font-medium text-[var(--orbita-text)]">{preview.author}: </span>
                                   ) : null}
-                                  {preview.text}
+                                  {formatWhatsapp(preview.text)}
                                 </>
                               ) : (
                                 `${g.participantCount} participante${g.participantCount === 1 ? "" : "s"}`
@@ -336,6 +341,14 @@ function GroupThread({
   const mut = useWhatsAppGroupMutations();
   const [draft, setDraft] = useState("");
   const [recState, setRecState] = useState<AudioRecordState>("idle");
+  // Assinatura: mesma chave e nome do inbox; respeita Configurações → Conversas.
+  const { data: session } = useSession();
+  const agentName = (session?.user?.name ?? "").trim();
+  const { features: convFeatures } = useConversationFeatures();
+  const signature = useComposerSignature({
+    agentName,
+    signatureAllowed: convFeatures.agentSignatureEnabled,
+  });
   const recording = recState !== "idle";
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -372,15 +385,17 @@ function GroupThread({
   }, [draft]);
 
   const send = () => {
-    const text = draft.trim();
-    if (!text) return;
+    const typed = draft.trim();
+    if (!typed) return;
+    // Mesma assinatura do inbox: "*William*: texto" (cada um no seu login).
+    const text = signature.applySignature(typed);
     setDraft("");
     mut.send.mutate(
       { id: group.id, text },
       {
         onError: (err) => {
           // Devolve o texto para o operador não perder o que escreveu.
-          setDraft((cur) => cur || text);
+          setDraft((cur) => cur || typed);
           toast.error(errorText(err, "Falha no envio"));
         },
       },
@@ -473,6 +488,15 @@ function GroupThread({
       </div>
 
       <div className="relative z-20 shrink-0 border-t border-border bg-[var(--orbita-block)] px-3 pb-3 pt-2 md:px-4">
+        {convFeatures.agentSignatureEnabled && !recording ? (
+          <div className="mb-1.5 px-1">
+            <SignatureControl
+              signature={signature}
+              agentName={agentName}
+              signatureEditable={convFeatures.agentSignatureEditable}
+            />
+          </div>
+        ) : null}
         <form
           className="flex w-full items-end gap-2 rounded-[16px] border border-border bg-[var(--orbita-block)] p-2 shadow-[0_8px_24px_rgba(91,111,245,0.08)]"
           onSubmit={(e) => {
@@ -557,7 +581,7 @@ function MessageBubble({ msg, first }: { msg: GroupThreadMessage; first: boolean
             <MessageContent message={toBubbleMessage(msg)} isOutgoing={mine} />
           </div>
         ) : (
-          <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{msg.text}</p>
+          <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{formatWhatsapp(msg.text)}</p>
         )}
         <div
           className={cn(

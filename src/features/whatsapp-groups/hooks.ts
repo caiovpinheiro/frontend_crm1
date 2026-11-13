@@ -15,10 +15,11 @@ import {
   openWhatsAppGroupMember,
   sendWhatsAppGroupAttachment,
   sendWhatsAppGroupMessage,
+  setWhatsAppGroupCompany,
   syncWhatsAppGroups,
 } from "./api";
 import { clearGroupUnread } from "./list-preview";
-import type { WhatsAppGroupsListResponse } from "./types";
+import type { WhatsAppGroupDetail, WhatsAppGroupsListResponse } from "./types";
 import {
   appendPendingMessage,
   dropPendingMessage,
@@ -183,6 +184,17 @@ export function useWhatsAppGroupMutations() {
       mutationFn: (id: string) => markWhatsAppGroupRead(id),
       onMutate: (id) => {
         qc.setQueryData<WhatsAppGroupsListResponse>(whatsappGroupsKey, (cur) => clearGroupUnread(cur, id));
+      },
+    }),
+    /** Recarrega o grupo aberto (ex.: nome da empresa editado). */
+    refreshGroup: (id: string) => qc.invalidateQueries({ queryKey: [...whatsappGroupsKey, id], exact: true }),
+    setCompany: useMutation({
+      mutationFn: ({ id, companyId }: { id: string; companyId: string | null }) =>
+        setWhatsAppGroupCompany(id, companyId),
+      onSuccess: (data, vars) => {
+        qc.setQueryData<{ group: WhatsAppGroupDetail }>([...whatsappGroupsKey, vars.id], (cur) =>
+          cur ? { group: { ...cur.group, company: data.company } } : cur,
+        );
       },
     }),
     openMember: useMutation({
