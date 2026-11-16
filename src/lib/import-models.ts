@@ -10,7 +10,7 @@ import type { CsvDelimiter } from "@/lib/csv-parse";
 
 const STORAGE_KEY = "crm_import_models_v1";
 
-export type ImportEntity = "contacts" | "deals";
+export type ImportEntity = "contacts" | "deals" | "companies";
 
 /**
  * Modo de importação (usado em deals):

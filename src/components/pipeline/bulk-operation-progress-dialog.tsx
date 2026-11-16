@@ -253,6 +253,20 @@ function useEtaSeconds(
   return Math.round(eta);
 }
 
+/** `payload.summary` = { created, updated, skipped } quando o worker grava. */
+function readImportSummary(
+  payload: unknown,
+): { created: number; updated: number; skipped: number } | null {
+  if (!payload || typeof payload !== "object") return null;
+  const sum = (payload as { summary?: unknown }).summary;
+  if (!sum || typeof sum !== "object") return null;
+  const { created, updated, skipped } = sum as Record<string, unknown>;
+  if (typeof created !== "number" || typeof updated !== "number" || typeof skipped !== "number") {
+    return null;
+  }
+  return { created, updated, skipped };
+}
+
 function formatEta(seconds: number): string {
   if (seconds <= 0) return "concluindo…";
   if (seconds < 60) return `~${seconds}s restantes`;
@@ -533,6 +547,16 @@ export function BulkOperationProgressDialog({
               />
             </div>
           )}
+
+          {/* Detalhe opcional do import (ex.: empresas grava `payload.summary`). */}
+          {data && readImportSummary(data.payload) && (() => {
+            const sum = readImportSummary(data.payload)!;
+            return (
+              <p className="text-center text-xs tabular-nums text-[var(--text-muted)]">
+                {sum.created} criada(s) · {sum.updated} atualizada(s) · {sum.skipped} ignorada(s)
+              </p>
+            );
+          })()}
 
           {/* Loading inicial com 3 dots */}
           {isLoading && !data && (

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Componentes de Importação e Exportação de dados (contatos e negócios).
+ * Componentes de Importação e Exportação de dados (contatos, negócios e empresas).
  *
  * ImportPanel: fluxo em 3 etapas estilo Kommo:
  *   1) Upload (CSV/XLSX/ODS) com detecção de delimitador
@@ -103,6 +103,34 @@ Campanha - Iota;"6.700,00";admin@empresa.com;Negociação;importacao;Marcos Roch
 Migração - Kappa;"32.000,00";admin@empresa.com;Fechamento;importacao,enterprise;Carla Mendes;Kappa Tech;carla@kappa.com.br;;;+55 41 3000-0010;
 Suporte Anual - Lambda;"9.800,00";admin@empresa.com;Novo;importacao;Rafael Santos;Lambda Cloud;rafael@lambda.com.br;;+55 51 98888-0011;;`;
 
+/**
+ * Modelo de empresas. "Número" é o ID público da empresa (o mesmo da URL
+ * `/companies/12` e da exportação): vazio → o CRM gera o próximo número;
+ * preenchido → usa esse número e identifica a empresa ao atualizar.
+ */
+const COMPANY_TEMPLATE = `Número,Nome,E-mail,Telefone,CNPJ,Setor,CEP,Cidade,Estado,Endereço,Notas
+,Acme Tecnologia,contato@acme.com.br,+551133330001,00.000.000/0001-00,Tecnologia,01310-100,São Paulo,SP,"Av. Paulista, 1000",
+,Beta Solutions,contato@beta.com.br,+552133330002,11.111.111/0001-11,Serviços,20040-020,Rio de Janeiro,RJ,"Rua da Assembleia, 10",
+1001,Gamma Group,contato@gamma.com.br,+553133330003,22.222.222/0001-22,Indústria,30130-010,Belo Horizonte,MG,"Av. Afonso Pena, 500",Número definido manualmente`;
+
+const TEMPLATES: Record<ImportEntity, { file: string; content: string }> = {
+  contacts: { file: "contatos-modelo.csv", content: CONTACT_TEMPLATE },
+  deals: { file: "negocios-modelo.csv", content: DEAL_TEMPLATE },
+  companies: { file: "empresas-modelo.csv", content: COMPANY_TEMPLATE },
+};
+
+const IMPORT_ENDPOINTS: Record<ImportEntity, string> = {
+  contacts: "/api/contacts/import",
+  deals: "/api/deals/import",
+  companies: "/api/companies/import",
+};
+
+const IMPORT_TITLES: Record<ImportEntity, string> = {
+  contacts: "Importação de contatos",
+  deals: "Importação de negócios",
+  companies: "Importação de empresas",
+};
+
 // ─── Campos do sistema (mapeamento) ──────────────────────────────────────────
 
 type SystemField = { key: string; label: string };
@@ -110,10 +138,14 @@ type SystemField = { key: string; label: string };
 /** Campo personalizado (entity contact/deal) usado no mapeamento de import. */
 type CustomFieldLite = { id: string; name: string; label: string };
 
-/** Mapeia a entidade do import para a entidade dos campos personalizados. */
-const CUSTOM_FIELD_ENTITY: Record<ImportEntity, string> = {
+/**
+ * Mapeia a entidade do import para a entidade dos campos personalizados.
+ * `null` = entidade sem campos personalizados no import (empresas).
+ */
+const CUSTOM_FIELD_ENTITY: Record<ImportEntity, string | null> = {
   contacts: "contact",
   deals: "deal",
+  companies: null,
 };
 
 const SYSTEM_FIELDS: Record<ImportEntity, SystemField[]> = {
@@ -160,6 +192,20 @@ const SYSTEM_FIELDS: Record<ImportEntity, SystemField[]> = {
     { key: "expected_close", label: "Previsão de fechamento" },
     { key: "tags", label: "Tags do negócio (separadas por , ou ;)" },
     { key: "lost_reason", label: "Motivo da perda" },
+  ],
+  // Rótulos iguais aos da tela de Empresas (domain = E-mail, size = CNPJ).
+  companies: [
+    { key: "number", label: "Número da empresa (chave de identificação)" },
+    { key: "name", label: "Nome" },
+    { key: "domain", label: "E-mail" },
+    { key: "phone", label: "Telefone" },
+    { key: "size", label: "CNPJ" },
+    { key: "industry", label: "Setor" },
+    { key: "cep", label: "CEP" },
+    { key: "city", label: "Cidade" },
+    { key: "state", label: "Estado" },
+    { key: "address", label: "Endereço" },
+    { key: "notes", label: "Notas" },
   ],
 };
 
@@ -221,6 +267,39 @@ const ALIAS_MAP: Record<string, string> = {
  */
 const ALIAS_OVERRIDES_BY_ENTITY: Record<ImportEntity, Record<string, string>> = {
   contacts: {},
+  // Inclui os headers da Exportação de empresas (Número, Domínio, Porte…)
+  // para que o CSV exportado volte pelo import sem remapear.
+  companies: {
+    numero: "number",
+    number: "number",
+    numero_da_empresa: "number",
+    numero_empresa: "number",
+    id_da_empresa: "number",
+    id_empresa: "number",
+    codigo: "number",
+    codigo_da_empresa: "number",
+    sku: "number",
+    nome: "name",
+    nome_da_empresa: "name",
+    empresa: "name",
+    razao_social: "name",
+    email: "domain",
+    e_mail: "domain",
+    dominio: "domain",
+    site: "domain",
+    website: "domain",
+    telefone: "phone",
+    cnpj: "size",
+    porte: "size",
+    setor: "industry",
+    industria: "industry",
+    cidade: "city",
+    estado: "state",
+    uf: "state",
+    endereco: "address",
+    notas: "notes",
+    observacoes: "notes",
+  },
   deals: {
     responsavel: "owner_name",
     nome_do_responsavel: "owner_name",
@@ -285,8 +364,9 @@ function autoMapColumns(headers: string[], entity: ImportEntity): Record<string,
       mapping[header] = overrides[normalized];
       continue;
     }
-    // 4) ALIAS_MAP global (sinônimos comuns)
-    if (ALIAS_MAP[normalized]) {
+    // 4) ALIAS_MAP global (sinônimos comuns de contatos/negócios — não se
+    //    aplica a empresas, cujos campos são outros)
+    if (entity !== "companies" && ALIAS_MAP[normalized]) {
       mapping[header] = ALIAS_MAP[normalized];
     }
   }
@@ -536,7 +616,8 @@ export function ImportPanel({
   const [allRows, setAllRows] = React.useState<Record<string, string>[]>([]);
   const [columnMapping, setColumnMapping] = React.useState<Record<string, string>>({});
   const [tag, setTag] = React.useState(`importar_${todayYmd()}`);
-  const [updateExisting, setUpdateExisting] = React.useState(true);
+  // Empresas: atualizar existentes só por escolha explícita (desligado).
+  const [updateExisting, setUpdateExisting] = React.useState(fixedEntity !== "companies");
   // Modo de importação (deals): "create" = só leads novos, "update" = só
   // atualizar existentes (casa por ID de origem/external_id). Default "create".
   const [importMode, setImportMode] = React.useState<ImportMode>("create");
@@ -592,11 +673,13 @@ export function ImportPanel({
   // de mapeamento e o auto-map. Falha silenciosa (ex.: sem permissão) cai
   // num array vazio, mantendo só os campos padrão.
   // Contatos e Negócios: ambos gravam campos personalizados no backend.
+  const customFieldEntity = CUSTOM_FIELD_ENTITY[entity];
   const { data: customFields = [] } = useQuery<CustomFieldLite[]>({
-    queryKey: ["custom-fields", CUSTOM_FIELD_ENTITY[entity]],
+    queryKey: ["custom-fields", customFieldEntity],
+    enabled: customFieldEntity !== null,
     queryFn: async () => {
       const res = await fetch(
-        apiUrl(`/api/custom-fields?entity=${CUSTOM_FIELD_ENTITY[entity]}`),
+        apiUrl(`/api/custom-fields?entity=${customFieldEntity}`),
       );
       if (!res.ok) return [];
       const data = (await res.json()) as unknown;
@@ -776,6 +859,17 @@ export function ImportPanel({
       toast.error("Mapeie ao menos uma coluna.");
       return;
     }
+    if (entity === "companies") {
+      const targets = usedColumns.map((h) => columnMapping[h]);
+      if (!targets.includes("name")) {
+        toast.error('Mapeie a coluna "Nome" — é obrigatória para importar empresas.');
+        return;
+      }
+      if (targets.filter((t) => t === "number").length > 1) {
+        toast.error('Mapeie só uma coluna como "Número da empresa".');
+        return;
+      }
+    }
 
     setBusy(true);
     try {
@@ -792,14 +886,13 @@ export function ImportPanel({
       const fd = new FormData();
       fd.append("file", new Blob([remapped], { type: "text/csv;charset=utf-8" }), "import.csv");
       fd.append("delimiter", ",");
-      if (tag.trim()) fd.append("tag", tag.trim());
+      if (entity !== "companies" && tag.trim()) fd.append("tag", tag.trim());
       fd.append("updateExisting", String(updateExisting));
       // Deals: modo explícito (novos vs atualizar). O backend usa importMode e,
       // na ausência dele, cai no updateExisting (compat).
       if (entity === "deals") fd.append("importMode", importMode);
 
-      const endpoint = entity === "contacts" ? "/api/contacts/import" : "/api/deals/import";
-      const res = await fetch(apiUrl(endpoint), { method: "POST", body: fd });
+      const res = await fetch(apiUrl(IMPORT_ENDPOINTS[entity]), { method: "POST", body: fd });
       const json = (await res.json().catch(() => ({}))) as
         | ImportResult
         | { operationId?: string; total?: number; message?: string };
@@ -952,15 +1045,15 @@ export function ImportPanel({
 
       <ImportFlow
         entity={entity}
-        template={entity === "contacts" ? CONTACT_TEMPLATE : DEAL_TEMPLATE}
+        template={TEMPLATES[entity].content}
         {...sharedFlowProps}
       />
 
-      {/* Progresso da importação assíncrona (ETL worker) — contatos e negócios. */}
+      {/* Progresso da importação assíncrona (ETL worker) — contatos, negócios e empresas. */}
       <BulkOperationProgressDialog
         operationId={etlOperationId}
         optimisticTotal={etlTotal}
-        title={entity === "contacts" ? "Importação de contatos" : "Importação de negócios"}
+        title={IMPORT_TITLES[entity]}
         onOpenChange={(open) => {
           if (!open) {
             setEtlOperationId(null);
@@ -1117,10 +1210,7 @@ function UploadStep({
         <ButtonGlass
           variant="glass"
           size="sm"
-          onClick={() => downloadCsv(
-            entity === "contacts" ? "contatos-modelo.csv" : "negocios-modelo.csv",
-            template,
-          )}
+          onClick={() => downloadCsv(TEMPLATES[entity].file, template)}
         >
           <Download size={14} />
           Baixar modelo CSV
@@ -1344,6 +1434,8 @@ function MappingStep({
 
       {/* ── Tag + salvar modelo ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:gap-6">
+        {/* Empresas não têm tags. */}
+        {entity !== "companies" && (
         <div className="flex flex-col gap-2">
           <label className="font-display text-[12px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Criar tag
@@ -1355,6 +1447,7 @@ function MappingStep({
             className="h-10 text-[13px]"
           />
         </div>
+        )}
         <div className="flex flex-col gap-2">
           <label className="font-display text-[12px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
             Salvar modelo
@@ -1449,6 +1542,15 @@ function MappingStep({
             onChange={onUpdateExistingChange}
             aria-label="Atualizar dados existentes"
           />
+          {entity === "companies" ? (
+          <span className="font-body text-[14px] leading-relaxed text-[var(--text-primary)]">
+            Atualizar empresas existentes{" "}
+            <span className="text-[var(--text-muted)]">
+              (identifica pelo <span className="font-medium">Número da empresa</span>; sem número, pelo nome
+              só quando houver uma única empresa com ele). Desmarcado: empresas já cadastradas são ignoradas.
+            </span>
+          </span>
+          ) : (
           <span className="font-body text-[14px] leading-relaxed text-[var(--text-primary)]">
             Atualizar dados existentes{" "}
             <span className="text-[var(--text-muted)]">
@@ -1458,6 +1560,7 @@ function MappingStep({
               <code className="rounded bg-[var(--glass-bg-strong)] px-1.5 py-0.5 font-mono text-[12px] text-[var(--text-primary)]">external_id</code>)
             </span>
           </span>
+          )}
         </label>
       )}
 

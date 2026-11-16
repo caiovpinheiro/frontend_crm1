@@ -46,6 +46,7 @@ import {
   type ActivityListItemDto,
   type ActivityListPage,
   type ActivityTypeDto,
+  type CompanyCreateBody,
   type CompanyDetailDto,
   type CompanyFacetsDto,
   type CompanyListPage,
@@ -334,7 +335,7 @@ function invalidateCompanies(qc: ReturnType<typeof useQueryClient>, id?: string)
 
 export function useCreateCompany() {
   const qc = useQueryClient();
-  return useMutation<CompanyDetailDto, Error, CompanyWriteBody>({
+  return useMutation<CompanyDetailDto, Error, CompanyCreateBody>({
     mutationFn: createCompany,
     onSuccess: () => invalidateCompanies(qc),
   });
