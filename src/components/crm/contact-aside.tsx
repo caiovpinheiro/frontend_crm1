@@ -49,6 +49,7 @@ import { InlineNativeEditor } from "@/components/crm/fields/inline-native-editor
 import { TrackedInfoSection } from "@/components/crm/tracked-info-section"
 import { formatPhoneDisplay } from "@/lib/phone"
 import { DealProductsSection } from "@/components/pipeline/deal-detail/sidebar"
+import { DealCompaniesSection } from "@/components/pipeline/deal-detail/deal-companies-section"
 import { useSectionOrder } from "@/hooks/use-section-order"
 import { useFieldLayout } from "@/hooks/use-field-layout"
 import { useIdleEnabled } from "@/hooks/use-idle-enabled"
@@ -1289,6 +1290,9 @@ export function ContactAside({
                                       acima; DealProductsSection so renderiza os
                                       items + botao adicionar + count. */}
                                   <DealProductsSection dealId={activeDeal.id} compact hideTitle />
+                                  <div className="mt-3">
+                                    <DealCompaniesSection dealId={activeDeal.id} compact />
+                                  </div>
                                 </div>
                               )}
                             </div>

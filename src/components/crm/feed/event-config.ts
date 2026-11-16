@@ -10,7 +10,7 @@
  * Tipos nao mapeados caem em FALLBACK_CONFIG e geram descricao vazia.
  */
 
-import { IconAlertTriangle as AlertTriangle, IconArrowRight as ArrowRight, IconRobot as Bot, IconCalendarCheck as CalendarCheck, IconCircleCheck as CheckCircle2, IconClock as Clock, IconEdit as Edit3, IconMessage as MessageSquare, IconMessagePlus as MessageSquarePlus, IconPackage as Package, IconPhone as Phone, IconPhoneEnd as PhoneMissed, IconSend as Send, IconNote as StickyNote, IconTag as Tag, IconTrash as Trash2, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserCog as UserCog, IconUserMinus as UserMinus, IconUserPlus as UserPlus, IconUsers as Users, IconHierarchy as Workflow, IconCircleX as XCircle, IconRefresh as RefreshCw, IconRotate2 as RotateCcw } from "@tabler/icons-react"
+import { IconAlertTriangle as AlertTriangle, IconArrowRight as ArrowRight, IconRobot as Bot, IconCalendarCheck as CalendarCheck, IconCircleCheck as CheckCircle2, IconClock as Clock, IconEdit as Edit3, IconMessage as MessageSquare, IconMessagePlus as MessageSquarePlus, IconBuildingSkyscraper as Building, IconPackage as Package, IconPhone as Phone, IconPhoneEnd as PhoneMissed, IconSend as Send, IconNote as StickyNote, IconTag as Tag, IconTrash as Trash2, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserCog as UserCog, IconUserMinus as UserMinus, IconUserPlus as UserPlus, IconUsers as Users, IconHierarchy as Workflow, IconCircleX as XCircle, IconRefresh as RefreshCw, IconRotate2 as RotateCcw } from "@tabler/icons-react"
 import type { Icon as LucideIcon } from "@tabler/icons-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -80,6 +80,24 @@ export const EVENT_CONFIG: Record<string, EventVisualConfig> = {
     ring: "ring-destructive/30 text-destructive",
     bg: "bg-destructive-soft",
     label: "Tag removida",
+  },
+  COMPANY_LINKED: {
+    Icon: Building,
+    ring: "ring-success/30 text-success",
+    bg: "bg-success-soft",
+    label: "Empresa vinculada",
+  },
+  COMPANY_UNLINKED: {
+    Icon: Building,
+    ring: "ring-warning/30 text-warning",
+    bg: "bg-warning-soft",
+    label: "Empresa removida",
+  },
+  COMPANY_PRIMARY: {
+    Icon: Building,
+    ring: "ring-primary/30 text-primary",
+    bg: "bg-primary/10",
+    label: "Empresa principal",
   },
   PRODUCT_ADDED: {
     Icon: Package,
@@ -498,6 +516,10 @@ export function eventDescription(ev: FeedEvent): string {
     case "PRODUCT_REMOVED":
     case "PRODUCT_UPDATED":
       return String(m.productName ?? "");
+    case "COMPANY_LINKED":
+    case "COMPANY_UNLINKED":
+    case "COMPANY_PRIMARY":
+      return String(m.companyName ?? "");
     case "NOTE_ADDED":
     case "NOTE_UPDATED":
     case "NOTE_DELETED":
