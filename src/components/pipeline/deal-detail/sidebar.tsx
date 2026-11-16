@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
 import { CustomFieldsSection } from "@/components/contacts/custom-fields-section";
 import { DealCustomFieldsSection } from "@/components/pipeline/deal-custom-fields-section";
+import { DealCompaniesSection } from "@/components/pipeline/deal-detail/deal-companies-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,6 +163,7 @@ export function DealSidebar({
       <DealOrgUnitSection dealId={deal.id} currentUnitId={deal.orgUnitId ?? null} />
       <DealProductsSection dealId={deal.id} compact />
       <DealQuotasSection dealId={deal.id} />
+      <DealCompaniesSection dealId={deal.id} />
       <DealCustomFieldsSection dealId={deal.id} layoutContext="deal_panel_v2" />
       <CustomFieldsSection contactId={contact.id} layoutContext="inbox_lead_v2" />
 

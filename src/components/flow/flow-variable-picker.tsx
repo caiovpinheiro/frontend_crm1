@@ -21,6 +21,7 @@ const GROUP_ORDER = [
   "Contato",
   "Negócio",
   "Produto",
+  "Empresa",
   "Conversa",
   "Responsável",
   "Fluxo",
@@ -39,6 +40,15 @@ const EXTRA_OPTIONS: FlowVarOpt[] = [
   { group: "Produto", token: "{{produto.sku}}", label: "SKU do produto" },
   { group: "Produto", token: "{{produto.descricao}}", label: "Descrição do produto" },
   { group: "Produto", token: "{{produto.unidade}}", label: "Unidade do produto" },
+  // Empresa principal vinculada ao negócio (bloco Empresas do lead).
+  { group: "Empresa", token: "{{empresa.nome}}", label: "Nome da empresa", hint: "Empresa principal do negócio" },
+  { group: "Empresa", token: "{{empresa.cnpj}}", label: "CNPJ da empresa" },
+  { group: "Empresa", token: "{{empresa.telefone}}", label: "Telefone da empresa" },
+  { group: "Empresa", token: "{{empresa.email}}", label: "E-mail da empresa" },
+  { group: "Empresa", token: "{{empresa.endereco}}", label: "Endereço da empresa" },
+  { group: "Empresa", token: "{{empresa.cidade}}", label: "Cidade da empresa" },
+  { group: "Empresa", token: "{{empresa.estado}}", label: "Estado (UF) da empresa" },
+  { group: "Empresa", token: "{{empresa.cep}}", label: "CEP da empresa" },
   {
     group: "Responsável",
     token: "{{assignee.name}}",

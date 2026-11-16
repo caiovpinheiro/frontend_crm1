@@ -48,6 +48,7 @@ import { DealDetailPanel, type DealDetail } from "@/components/crm/deal-detail-p
 import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
 import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { DealProductsSection, DealQuotasSection } from "@/components/pipeline/deal-detail/sidebar";
+import { DealCompaniesSection } from "@/components/pipeline/deal-detail/deal-companies-section";
 import { CallHistoryList } from "@/features/softphone/components/call-history-list";
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
 import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton";
@@ -1611,6 +1612,7 @@ export default function KanbanV2ClientPage({
             <div className="flex flex-col gap-3">
               <DealProductsSection dealId={activeDealId} compact />
               <DealQuotasSection dealId={activeDealId} />
+              <DealCompaniesSection dealId={activeDealId} />
             </div>
           ) : null
         }

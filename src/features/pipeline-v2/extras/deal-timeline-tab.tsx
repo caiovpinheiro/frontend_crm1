@@ -15,6 +15,7 @@ import {
   IconMessage,
   IconMessagePlus,
   IconNote,
+  IconBuildingSkyscraper,
   IconPackage,
   IconPlus,
   IconRefresh,
@@ -73,6 +74,9 @@ const TYPE_META: Record<
   CONTACT_TAG_REMOVED: { label: "Tag removida do contato", icon: IconTagOff, color: "var(--color-danger)" },
   CONTACT_FIELD_CHANGED: { label: "Campo do contato alterado", icon: IconEdit, color: "var(--text-muted)" },
   // Produtos do negócio — antes caíam no fallback (relógio). Ícone de pacote.
+  COMPANY_LINKED: { label: "Empresa vinculada", icon: IconBuildingSkyscraper, color: "var(--color-success)" },
+  COMPANY_UNLINKED: { label: "Empresa removida", icon: IconBuildingSkyscraper, color: "var(--color-warning)" },
+  COMPANY_PRIMARY: { label: "Empresa principal", icon: IconBuildingSkyscraper, color: "var(--brand-primary)" },
   PRODUCT_ADDED: { label: "Produto adicionado", icon: IconPackage, color: "var(--color-success)" },
   PRODUCT_REMOVED: { label: "Produto removido", icon: IconPackage, color: "var(--color-warning)" },
   PRODUCT_UPDATED: { label: "Produto atualizado", icon: IconPackage, color: "var(--color-info)" },
