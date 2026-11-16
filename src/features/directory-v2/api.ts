@@ -395,7 +395,7 @@ export interface CompanyListPage {
 
 export type CompanySegment = "todos" | "com-contatos" | "sem-email" | "sem-telefone";
 
-export type CompanySortField = "name" | "createdAt" | "updatedAt";
+export type CompanySortField = "number" | "name" | "createdAt" | "updatedAt";
 
 export interface FetchCompaniesParams {
   search?: string;
@@ -519,7 +519,15 @@ export interface CompanyWriteBody {
   state?: string | null;
 }
 
-export function createCompany(body: CompanyWriteBody): Promise<CompanyDetailDto> {
+/**
+ * Criação: `number` ausente/null → o backend gera o próximo número da org.
+ * Informado → usado como está (inteiro positivo); conflito volta 409.
+ */
+export interface CompanyCreateBody extends CompanyWriteBody {
+  number?: number | null;
+}
+
+export function createCompany(body: CompanyCreateBody): Promise<CompanyDetailDto> {
   return sendJson<CompanyDetailDto>(
     "/api/companies",
     "POST",

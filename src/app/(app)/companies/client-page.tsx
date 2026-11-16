@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   IconBuilding,
@@ -20,10 +21,17 @@ import {
   IconPhoneOff,
   IconSearch,
   IconAdjustmentsHorizontal,
+  IconDownload,
+  IconFileImport,
 } from "@tabler/icons-react";
 import { Building2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useCan } from "@/hooks/use-my-permissions";
+import { ImportPanel, downloadFromApi } from "@/features/pipeline-v2/import-export";
+import { apiUrl } from "@/lib/api";
+import { InputGlass } from "@/components/crm/input-glass";
+import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { DataView, DataRow } from "@/components/automations/data-view";
@@ -149,6 +157,13 @@ function txtCell(v: React.ReactNode) {
 }
 
 const NATIVE_COLUMNS: ColumnDef[] = [
+  {
+    key: "number",
+    label: "Número",
+    width: "w-[100px]",
+    sortField: "number",
+    cell: (c) => txtCell(c.number != null ? <span className="tabular-nums">#{c.number}</span> : "—"),
+  },
   { key: "phone", label: "Telefone", width: "w-[160px]", cell: (c) => txtCell(c.phone ? formatPhoneDisplay(c.phone) : "—") },
   { key: "domain", label: "E-mail", width: "w-[180px]", cell: (c) => txtCell(c.domain ?? "—") },
   { key: "size", label: "CNPJ", width: "w-[150px]", cell: (c) => txtCell(c.size ?? "—") },
@@ -166,7 +181,7 @@ const NATIVE_COLUMNS: ColumnDef[] = [
   { key: "createdAt", label: "Criado em", width: "w-[130px]", sortField: "createdAt", cell: (c) => txtCell(fmtDateBR(c.createdAt)) },
 ];
 
-const DEFAULT_COLUMN_KEYS = ["phone", "domain", "city", "state", "contacts", "createdAt"];
+const DEFAULT_COLUMN_KEYS = ["number", "phone", "domain", "city", "state", "contacts", "createdAt"];
 const COLUMNS_STORAGE_KEY = "v2:companies:columns:v1";
 const WIDTHS_STORAGE_KEY = "v2:companies:col-widths:v1";
 const NAME_COL_KEY = "__name__";
@@ -182,6 +197,8 @@ const COLUMN_WIDTH_DEFAULTS: Record<string, number> = {
 const SORT_OPTIONS = [
   { value: "name:asc", label: "Nome (A–Z)" },
   { value: "name:desc", label: "Nome (Z–A)" },
+  { value: "number:asc", label: "Número (crescente)" },
+  { value: "number:desc", label: "Número (decrescente)" },
   { value: "createdAt:desc", label: "Mais recentes" },
   { value: "createdAt:asc", label: "Mais antigas" },
   { value: "updatedAt:desc", label: "Modificadas recentemente" },
@@ -204,8 +221,17 @@ function fmtDateBR(iso: string | null | undefined): string {
 }
 
 export default function V2CompaniesClientPage() {
-  const { status } = useSession();
+  const { status, data: sessionData } = useSession();
   const canFetch = status !== "unauthenticated";
+  // Import/export no backend exigem ADMIN/MANAGER + a permissão da ação.
+  const sessionRole = (sessionData?.user as { role?: string } | undefined)?.role;
+  const isAdminOrManager = sessionRole === "ADMIN" || sessionRole === "MANAGER";
+  const canViewCompany = useCan("company:view");
+  const canCreateCompany = useCan("company:create");
+  const canExportCompany = isAdminOrManager && canViewCompany;
+  const canImportCompany = isAdminOrManager && canCreateCompany;
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [view, setView] = useCardsTableView();
   const [search, setSearch] = useState("");
@@ -422,6 +448,17 @@ export default function V2CompaniesClientPage() {
             <ActionsMenu
               onAdd={() => setCreateOpen(true)}
               onColumns={() => setColumnsOpen(true)}
+              canImport={canImportCompany}
+              canExport={canExportCompany}
+              onImport={() => setImportOpen(true)}
+              onExport={() => {
+                if (exporting) return;
+                setExporting(true);
+                void downloadFromApi(apiUrl("/api/companies/export"), "empresas.csv")
+                  .then(() => toast.success("Exportação concluída. Verifique seus downloads."))
+                  .catch((e) => toast.error(e instanceof Error ? e.message : "Erro ao exportar."))
+                  .finally(() => setExporting(false));
+              }}
             />
           }
         />
@@ -550,6 +587,7 @@ export default function V2CompaniesClientPage() {
       </PageChrome>
 
       <CreateCompanyDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <ImportCompaniesSheet open={importOpen} onOpenChange={setImportOpen} />
       <EditCompanyDialog company={editing} onClose={() => setEditing(null)} />
       <ColumnsDialog
         open={columnsOpen}
@@ -807,18 +845,45 @@ function CompaniesSearchFilterBar({
 // ── Menu de ações (hambúrguer — espelha Contatos) ────────────────────────────
 
 function ActionsMenu({
-  onAdd, onColumns,
+  onAdd, onColumns, onImport, onExport,
+  canImport = false, canExport = false,
 }: {
   onAdd: () => void;
   onColumns: () => void;
+  onImport: () => void;
+  onExport: () => void;
+  canImport?: boolean;
+  canExport?: boolean;
 }) {
+  const items = [
+    { icon: <IconPlus size={14} stroke={2.6} />, label: "Adicionar empresa", onClick: onAdd, primary: true as const },
+    canExport
+      ? { icon: <IconDownload size={13} />, label: "Exportar empresas", onClick: onExport }
+      : null,
+    canImport
+      ? { icon: <IconFileImport size={13} />, label: "Importar empresas", onClick: onImport }
+      : null,
+    { icon: <IconSettings size={13} />, label: "Configurações da lista", onClick: onColumns, divider: true as const },
+  ].filter((x): x is NonNullable<typeof x> => x !== null);
+
+  return <PageActionsMenu items={items} />;
+}
+
+// ── Importação (mesmo ImportPanel de Contatos) ───────────────────────────────
+
+function ImportCompaniesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const qc = useQueryClient();
   return (
-    <PageActionsMenu
-      items={[
-        { icon: <IconPlus size={14} stroke={2.6} />, label: "Adicionar empresa", onClick: onAdd, primary: true },
-        { icon: <IconSettings size={13} />, label: "Configurações da lista", onClick: onColumns, divider: true },
-      ]}
-    />
+    <FormDialog open={open} onOpenChange={onOpenChange} title="Importar empresas" size="lg">
+      <ImportPanel
+        fixedEntity="companies"
+        onDone={() => {
+          qc.invalidateQueries({ queryKey: ["v2-companies"], exact: false });
+          qc.invalidateQueries({ queryKey: ["v2-company-stats"] });
+          qc.invalidateQueries({ queryKey: ["v2-company-facets"] });
+        }}
+      />
+    </FormDialog>
   );
 }
 
@@ -992,7 +1057,10 @@ function CardsView({
                 >
                   {c.name}
                 </button>
-                <div className="truncate font-body text-[12px] text-[var(--text-muted)]">{c.domain ?? "—"}</div>
+                <div className="truncate font-body text-[12px] text-[var(--text-muted)]">
+                  {c.number != null && <span className="tabular-nums">#{c.number} · </span>}
+                  {c.domain ?? "—"}
+                </div>
               </div>
             </div>
 
@@ -1027,6 +1095,14 @@ function CardsView({
 }
 
 // ── Dialogs ──────────────────────────────────────────────────────────────────
+
+/** "1001" / "#1001" → 1001; vazio, zero, decimal ou texto → null. */
+export function parseManualCompanyNumber(raw: string): number | null {
+  const t = raw.trim().replace(/^#/, "").trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isSafeInteger(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
+}
 
 export function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
   open: boolean; count: number; pending: boolean; onCancel: () => void; onConfirm: () => void;
@@ -1065,18 +1141,34 @@ export function CreateCompanyDialog({ open, onOpenChange }: { open: boolean; onO
   const [city, setCity] = useState("");
   const [uf, setUf] = useState("");
   const [address, setAddress] = useState("");
+  const [numberMode, setNumberMode] = useState<"auto" | "manual">("auto");
+  const [manualNumber, setManualNumber] = useState("");
   const createMut = useCreateCompany();
 
   useEffect(() => {
-    if (!open) { setName(""); setCnpj(""); setPhone(""); setEmail(""); setCep(""); setCity(""); setUf(""); setAddress(""); createMut.reset(); }
+    if (!open) {
+      setName(""); setCnpj(""); setPhone(""); setEmail(""); setCep(""); setCity(""); setUf(""); setAddress("");
+      setNumberMode("auto"); setManualNumber("");
+      createMut.reset();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const manualNumberValue = numberMode === "manual" ? parseManualCompanyNumber(manualNumber) : null;
+  const manualNumberError =
+    numberMode === "manual" && manualNumber.trim() !== "" && manualNumberValue == null
+      ? "Informe um número inteiro positivo."
+      : null;
+  const numberReady = numberMode === "auto" || manualNumberValue != null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const n = name.trim();
-    if (!n) return;
+    if (!n || !numberReady) return;
     createMut.mutate({
+      // Manual: o número vai exatamente como digitado; conflito volta 409
+      // e a mensagem aparece abaixo (nada é trocado por outro número).
+      ...(numberMode === "manual" && manualNumberValue != null ? { number: manualNumberValue } : {}),
       name: n,
       size: cnpj.trim() || null,
       phone: normalizePhone(phone) ?? (phone.trim() || null),
@@ -1107,12 +1199,44 @@ export function CreateCompanyDialog({ open, onOpenChange }: { open: boolean; onO
       footer={
         <>
           <ButtonGlass variant="glass" size="sm" type="button" onClick={() => onOpenChange(false)} className={formDialogCancelClass}>Cancelar</ButtonGlass>
-          <ButtonGlass variant="primary" size="sm" type="submit" form="new-company-form" disabled={!name.trim() || createMut.isPending} className={formDialogPrimaryClass}>{createMut.isPending ? "Criando..." : "Criar"}</ButtonGlass>
+          <ButtonGlass variant="primary" size="sm" type="submit" form="new-company-form" disabled={!name.trim() || !numberReady || createMut.isPending} className={formDialogPrimaryClass}>{createMut.isPending ? "Criando..." : "Criar"}</ButtonGlass>
         </>
       }
     >
       <form id="new-company-form" onSubmit={handleSubmit} className="flex flex-col">
         <FieldInput label="Nome da empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
+        <div className="mb-3">
+          <span className={formLabelClass}>Número da empresa</span>
+          <div className="grid gap-2 sm:grid-cols-[auto_1fr] sm:items-center">
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Como definir o número da empresa">
+              <FilterChip tone="fill" selected={numberMode === "auto"} onClick={() => setNumberMode("auto")}>
+                Gerar automaticamente
+              </FilterChip>
+              <FilterChip tone="fill" selected={numberMode === "manual"} onClick={() => setNumberMode("manual")}>
+                Definir manualmente
+              </FilterChip>
+            </div>
+            {numberMode === "manual" ? (
+              <InputGlass
+                type="text"
+                inputMode="numeric"
+                aria-label="Número da empresa"
+                aria-invalid={manualNumberError ? true : undefined}
+                value={manualNumber}
+                onChange={(e) => setManualNumber(e.target.value)}
+                placeholder="Ex.: 1001"
+                className={formControlClass}
+              />
+            ) : (
+              <span className="font-body text-[12px] text-[var(--text-muted)]">
+                O próximo número disponível é atribuído ao salvar.
+              </span>
+            )}
+          </div>
+          {manualNumberError && (
+            <p className="mt-1 text-[12px] text-[var(--color-danger-text)]">{manualNumberError}</p>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <FieldInput label="CNPJ" type="text" value={cnpj} onChange={setCnpj} placeholder="00.000.000/0000-00" />
           <FieldInput label="Telefone" type="tel" value={phone} onChange={setPhone} placeholder="(11) 3333-4444" />
