@@ -52,6 +52,8 @@ export type EditorField =
   | { kind: "webhookConfig" }
   /** Seletor de produto (+ preço/canal) do passo send_product. */
   | { kind: "sendProductConfig" }
+  /** Empresa, grupo(s), conteúdo e assinatura do passo send_company_group. */
+  | { kind: "companyGroupConfig" }
   /** Departamento + motivo (folha) do passo tabulate_conversation. */
   | { kind: "tabulationPicker" }
   // `Common` e não `{ key: string }`: todas as entradas passam `label`, e o
@@ -119,6 +121,8 @@ const META_FAILURE_FIELDS: EditorField[] = [
 ]
 
 export const STEP_FIELDS: Record<string, EditorField[]> = {
+  // Saídas "Próximo passo" / "Caso ocorrer erro no envio" ficam no card.
+  send_company_group: [{ kind: "companyGroupConfig" }],
   send_email: [
     { kind: "channelPicker" },
     {

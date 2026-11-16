@@ -27,6 +27,7 @@ const MESSAGE_TYPES = new Set<ActionStepType>([
   "send_whatsapp_flow",
   "send_product",
   "send_email",
+  "send_company_group",
 ])
 
 const FINISH_TYPES = new Set<ActionStepType>([
@@ -124,7 +125,7 @@ export function stepTypeToNodeKind(type: ActionStepType): NodeKind {
   if (type === "send_whatsapp_template") return "template"
   if (type === "send_whatsapp_media") return "media"
   if (INTERACTIVE_TYPES.has(type)) return "interactive"
-  if (type === "send_whatsapp_message" || type === "send_product" || type === "send_email" || type === "wait_for_reply" || type === "wait_for_document" || type === "closing_protocol") {
+  if (type === "send_whatsapp_message" || type === "send_product" || type === "send_email" || type === "send_company_group" || type === "wait_for_reply" || type === "wait_for_document" || type === "closing_protocol") {
     return "message"
   }
   if (type === "execute_distribution") return "distribution"
@@ -146,6 +147,7 @@ const META_FAILURE_TYPES = new Set<string>([
   "question",
   "send_product",
   "send_email",
+  "send_company_group",
 ])
 
 function choiceKey(type: string): "buttons" | "rows" {
@@ -262,7 +264,7 @@ export function outputsFromStepConfig(
   if (type === "goto") {
     return [{ key: "next", label: "Ir para", kind: "navigation", target: t("next", cfg.targetStepId) }]
   }
-  if (type === "send_whatsapp_media" || type === "send_email" || type === "send_product") {
+  if (type === "send_whatsapp_media" || type === "send_email" || type === "send_product" || type === "send_company_group") {
     const outs: Output[] = [
       { key: "next", label: "Próximo passo", kind: "navigation", target: t("next", cfg.nextStepId) },
     ]

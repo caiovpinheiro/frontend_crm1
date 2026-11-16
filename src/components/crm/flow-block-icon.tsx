@@ -1,5 +1,6 @@
 import {
   IconBolt,
+  IconBuildingSkyscraper,
   IconMail,
   IconArrowsExchange2,
   IconUserPlus,
@@ -124,6 +125,7 @@ export const blockMeta: Record<string, BlockMeta> = {
   "wa-media": def("Mídia WhatsApp", IconPhoto, "green", "whatsapp"),
   "wa-buttons": def("Botões WhatsApp", IconClick, "violet", "whatsapp"),
   "wa-flow": def("Formulário FLOW", IconClipboardList, "violet", "whatsapp"),
+  "company-group": def("Enviar para empresa", IconBuildingSkyscraper, "green", "whatsapp"),
 
   // Integrações
   webhook: def("Webhook", IconWorld, "slate", "integration"),
@@ -152,6 +154,7 @@ export const blockMeta: Record<string, BlockMeta> = {
  */
 const apiTypeToBlockKey: Record<string, string> = {
   send_email: "send-email",
+  send_company_group: "company-group",
   move_stage: "move-stage",
   assign_owner: "assign",
   transfer_department: "transfer-department",

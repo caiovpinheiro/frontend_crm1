@@ -473,6 +473,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
       >
         {isTriggerCard ||
         stepType === "send_product" ||
+        stepType === "send_company_group" ||
         stepType === "assign_owner" ||
         stepType === "transfer_automation" ||
         stepType === "condition" ||
