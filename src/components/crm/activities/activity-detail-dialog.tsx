@@ -368,6 +368,16 @@ export function ActivityDetailDialog({
                         </dd>
                       </div>
                     )}
+                    {activity.companyName && (
+                      <div>
+                        <dt className={formLabelClass}>
+                          Empresa
+                        </dt>
+                        <dd className="mt-0.5 text-[var(--text-primary)]">
+                          {activity.companyName}
+                        </dd>
+                      </div>
+                    )}
                     {activity.startedBy && activity.status !== "concluida" && (
                       <div className="sm:col-span-2 flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-warn-border)] bg-[var(--color-warn-bg)] px-2.5 py-2">
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-warn)] font-display text-[11px] font-bold text-white">

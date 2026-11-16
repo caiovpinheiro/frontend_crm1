@@ -30,6 +30,9 @@ export interface Activity {
   /** Negócio vinculado, quando a tarefa nasce no pipeline. */
   dealId?: string | null
   dealTitle?: string | null
+  /** Empresa vinculada (/companies). */
+  companyId?: string | null
+  companyName?: string | null
   /** Quem criou (pode diferir do responsável). Null = Sistema. */
   createdBy?: { id: string; name: string; avatarUrl?: string | null } | null
   /** Responsável: usuário específico, departamento (compartilhada) ou todos da organização. */

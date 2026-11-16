@@ -172,6 +172,7 @@ export default function V2ActivitiesClientPage() {
         userId: a.assigneeType === "department" ? null : a.assigneeUserId ?? undefined,
         departmentId: a.assigneeType === "department" ? a.departmentId ?? null : null,
         visibleToAll: a.assigneeType === "all",
+        companyId: a.companyId ?? null,
       },
       {
         onSuccess: () => toast.success("Tarefa criada."),

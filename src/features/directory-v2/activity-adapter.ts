@@ -68,6 +68,8 @@ export function dtoToActivity(dto: ActivityListItemDto): Activity {
     contactName: dto.contact?.name ?? null,
     dealId: dto.deal?.id ?? null,
     dealTitle: dto.deal?.title ?? null,
+    companyId: dto.company?.id ?? null,
+    companyName: dto.company?.name ?? null,
     createdBy: dto.createdBy
       ? { id: dto.createdBy.id, name: dto.createdBy.name, avatarUrl: dto.createdBy.avatarUrl }
       : null,

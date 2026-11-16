@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckSquare, Clock } from "lucide-react"
-import { IconSearch, IconX } from "@tabler/icons-react"
+import { IconBuildingSkyscraper, IconSearch, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { InputGlass } from "@/components/crm/input-glass"
 import { ButtonGlass } from "@/components/crm/button-glass"
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/form-dialog"
 import { useTeamUsers } from "@/features/pipeline-v2/hooks/use-deal-mutations"
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments"
-import { useContact, useContacts } from "@/features/directory-v2/hooks"
+import { useCompanies, useContact, useContacts } from "@/features/directory-v2/hooks"
 import {
   ACTIVITY_KINDS,
   ACTIVITY_KIND_ORDER,
@@ -48,6 +48,11 @@ interface ActivityComposerProps {
   availableDeals?: ActivityDealOption[]
   /** Impede trocar o contato (contexto com contato fixo). */
   lockContact?: boolean
+  /** Empresa pré-selecionada (página da empresa). */
+  presetCompanyId?: string | null
+  presetCompanyName?: string | null
+  /** Impede trocar a empresa (contexto com empresa fixa). */
+  lockCompany?: boolean
 }
 
 const pillOff =
@@ -73,6 +78,9 @@ export function ActivityComposer({
   presetDealTitle = null,
   availableDeals,
   lockContact = false,
+  presetCompanyId = null,
+  presetCompanyName = null,
+  lockCompany = false,
 }: ActivityComposerProps) {
   const [kind, setKind] = useState<ActivityKind>("tarefa")
   const [title, setTitle] = useState("")
@@ -83,6 +91,10 @@ export function ActivityComposer({
   const [contactName, setContactName] = useState<string | null>(null)
   const [dealId, setDealId] = useState<string | null>(null)
   const [dealTitle, setDealTitle] = useState<string | null>(null)
+  const [companyId, setCompanyId] = useState<string | null>(null)
+  const [companyName, setCompanyName] = useState<string | null>(null)
+  const [companySearch, setCompanySearch] = useState("")
+  const [debouncedCompanySearch, setDebouncedCompanySearch] = useState("")
   const [contactSearch, setContactSearch] = useState("")
   const [debouncedContactSearch, setDebouncedContactSearch] = useState("")
   const [location, setLocation] = useState("")
@@ -102,6 +114,13 @@ export function ActivityComposer({
     enabled: open && !contactId && !lockContact && debouncedContactSearch.length >= 1,
   })
   const contactHits = contactsQuery.data?.items ?? []
+
+  const companiesQuery = useCompanies({
+    search: debouncedCompanySearch || undefined,
+    perPage: 12,
+    enabled: open && !companyId && !lockCompany && debouncedCompanySearch.length >= 1,
+  })
+  const companyHits = companiesQuery.data?.items ?? []
 
   const shouldFetchContactDeals =
     open && Boolean(contactId) && availableDeals === undefined
@@ -125,6 +144,8 @@ export function ActivityComposer({
     presetContactName,
     presetDealId,
     presetDealTitle,
+    presetCompanyId,
+    presetCompanyName,
   })
   seedRef.current = {
     defaultDate,
@@ -132,6 +153,8 @@ export function ActivityComposer({
     presetContactName,
     presetDealId,
     presetDealTitle,
+    presetCompanyId,
+    presetCompanyName,
   }
 
   useEffect(() => {
@@ -155,12 +178,24 @@ export function ActivityComposer({
     setDealTitle(seed.presetDealTitle)
     setContactSearch("")
     setDebouncedContactSearch("")
+    setCompanyId(seed.presetCompanyId)
+    setCompanyName(seed.presetCompanyName)
+    setCompanySearch("")
+    setDebouncedCompanySearch("")
     setLocation("")
     setNotes("")
     setAssignKind("user")
     setAssigneeUserId("")
     setDepartmentId("")
   }, [open])
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedCompanySearch(companySearch.trim()),
+      250,
+    )
+    return () => window.clearTimeout(timer)
+  }, [companySearch])
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -222,6 +257,8 @@ export function ActivityComposer({
       contactName: contactName,
       dealId: dealId,
       dealTitle: dealTitle,
+      companyId: companyId,
+      companyName: companyName,
       location: usesLocation ? location.trim() || undefined : undefined,
       notes: notes.trim() || undefined,
       assigneeType: assignKind,
@@ -404,6 +441,10 @@ export function ActivityComposer({
                         onClick={() => {
                           setContactId(c.id)
                           setContactName(c.name)
+                          if (!companyId && !lockCompany && c.company) {
+                            setCompanyId(c.company.id)
+                            setCompanyName(c.company.name)
+                          }
                           setDealId(null)
                           setDealTitle(null)
                           setContactSearch("")
@@ -462,6 +503,86 @@ export function ActivityComposer({
           </select>
         </div>
       )}
+
+      <div className="relative">
+        <label htmlFor="ac-company" className={formLabelClass}>
+          Empresa{" "}
+          {!lockCompany && <span className="normal-case tracking-normal">(opcional)</span>}
+        </label>
+        {companyId ? (
+          <div className={cn(formControlClass, "flex items-center gap-2 px-3.5")}>
+            <IconBuildingSkyscraper size={15} className="shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+              {companyName || "Empresa selecionada"}
+            </span>
+            {!lockCompany && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCompanyId(null)
+                  setCompanyName(null)
+                  setCompanySearch("")
+                  setDebouncedCompanySearch("")
+                }}
+                aria-label="Limpar empresa"
+                className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <IconX size={14} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="relative">
+            <IconSearch
+              size={15}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <InputGlass
+              id="ac-company"
+              className={cn(formControlClass, "pl-9")}
+              placeholder="Buscar empresa…"
+              value={companySearch}
+              onChange={(e) => setCompanySearch(e.target.value)}
+              autoComplete="off"
+            />
+            {companySearch.trim().length >= 1 && (
+              <div className="absolute z-20 mt-1 max-h-44 w-full overflow-y-auto rounded-xl border border-border bg-card shadow-lg">
+                {companiesQuery.isLoading ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Buscando…</p>
+                ) : companyHits.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                    Nenhuma empresa encontrada.
+                  </p>
+                ) : (
+                  companyHits.map((co) => (
+                    <button
+                      key={co.id}
+                      type="button"
+                      onClick={() => {
+                        setCompanyId(co.id)
+                        setCompanyName(co.name)
+                        setCompanySearch("")
+                      }}
+                      className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-secondary"
+                    >
+                      <span className="truncate text-sm font-semibold text-foreground">
+                        {co.name}
+                      </span>
+                      {(co.city || co.state || co.domain) && (
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {[[co.city, co.state].filter(Boolean).join("/"), co.domain]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col gap-1.5">
         <span className={formLabelClass}>Responsável</span>
