@@ -220,6 +220,11 @@ export function getStepOutgoing(step: StepLike): StepOutgoing {
       if (tid) cross.push({ label: "transfer_automation", targetAutomationId: tid });
       break;
     }
+    case "send_company_group": {
+      push("linear", c.nextStepId);
+      if (c.failureAction === "goto") push("falha ao enviar", c.failureGotoStepId);
+      break;
+    }
     default: {
       push("linear", c.nextStepId);
       break;

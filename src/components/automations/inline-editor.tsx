@@ -62,6 +62,7 @@ import {
 import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components"
 import { WebhookStepConfig } from "./webhook-step-config"
 import { SendProductInlineConfig } from "./send-product-config"
+import { CompanyGroupInlineConfig } from "./send-company-group-config"
 import { TabulationStepConfig } from "./tabulation-step-config"
 import {
   inferUpdateFieldDateMode,
@@ -460,6 +461,25 @@ function Field({
     case "sendProductConfig":
       return <SendProductInlineConfig config={config} onChange={onChange} />
 
+    case "companyGroupConfig":
+      return (
+        <CompanyGroupInlineConfig
+          config={config}
+          onChange={onChange}
+          textEditor={
+            <VariableTextarea
+              value={str(config.content)}
+              placeholder="Olá, equipe {{empresa.nome}}!"
+              onChange={(v) => set("content", v)}
+            />
+          }
+          mediaEditor={<MediaField label="Arquivo" config={config} onChange={onChange} />}
+          captionEditor={
+            <VariableTextarea value={str(config.caption)} onChange={(v) => set("caption", v)} />
+          }
+        />
+      )
+
     case "tabulationPicker":
       return <TabulationStepConfig config={config} onChange={onChange} />
 
@@ -572,6 +592,12 @@ function useMessageVariables(): VarOpt[] {
       { token: "{{assignee.name}}", label: "Responsável do lead", hint: "Consultor da conversa; sem ele, o dono do negócio" },
       { token: "{{assignee.name|first_name}}", label: "Primeiro nome do responsável" },
       { token: "{{lastResponse}}", label: "Mensagem do cliente (passo anterior)" },
+      { token: "{{empresa.nome}}", label: "Nome da empresa", hint: "Empresa principal do negócio (no Enviar para empresa, a do passo)" },
+      { token: "{{empresa.cnpj}}", label: "CNPJ da empresa" },
+      { token: "{{empresa.telefone}}", label: "Telefone da empresa" },
+      { token: "{{empresa.email}}", label: "E-mail da empresa" },
+      { token: "{{empresa.endereco}}", label: "Endereço da empresa" },
+      { token: "{{empresa.cidade}}", label: "Cidade da empresa" },
     ]
     for (const c of contact) {
       if (!c.name) continue

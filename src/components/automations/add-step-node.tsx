@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { Position, type Node, type NodeProps } from "@xyflow/react";
 import { CustomHandle } from "./custom-handle";
-import { IconArrowsLeftRight as ArrowRightLeft, IconArrowBackUp as ArrowBackUp, IconRobot as Bot, IconRobotFace as BotMessageSquare, IconBriefcase as Briefcase, IconCalendarPlus as CalendarPlus, IconCircleCheck as CheckCircle2, IconChecklist as Checklist, IconClipboardList as ClipboardList, IconCircleX as CircleX, IconClock as Clock, IconCornerDownRight as CornerDownRight, IconFileText as FileText, IconGitBranch as GitBranch, IconGlobe as Globe, IconHourglass as Hourglass, IconPhoto as Image, IconListDetails as ListDetails, IconMail as Mail, IconMessageQuestion as MessageCircleQuestion, IconMessage as MessageSquare, IconNote as NoteIcon, IconClick as MousePointerClick, IconPackageOff as PackageMinus, IconPlayerPause as Pause, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCw, IconRepeat as Repeat, IconRoute as Route, IconShoppingBag as ShoppingBag, IconSquare as Square, IconPlayerStop as StopCircle, IconTag as Tag, IconClock as Timer, IconTrendingUp as TrendingUp, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserPlus as UserPlus, IconUsersGroup as UsersGroup, IconVariable as Variable } from "@tabler/icons-react";
+import { IconArrowsLeftRight as ArrowRightLeft, IconArrowBackUp as ArrowBackUp, IconRobot as Bot, IconRobotFace as BotMessageSquare, IconBriefcase as Briefcase, IconBuildingSkyscraper as BuildingSkyscraper, IconCalendarPlus as CalendarPlus, IconCircleCheck as CheckCircle2, IconChecklist as Checklist, IconClipboardList as ClipboardList, IconCircleX as CircleX, IconClock as Clock, IconCornerDownRight as CornerDownRight, IconFileText as FileText, IconGitBranch as GitBranch, IconGlobe as Globe, IconHourglass as Hourglass, IconPhoto as Image, IconListDetails as ListDetails, IconMail as Mail, IconMessageQuestion as MessageCircleQuestion, IconMessage as MessageSquare, IconNote as NoteIcon, IconClick as MousePointerClick, IconPackageOff as PackageMinus, IconPlayerPause as Pause, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCw, IconRepeat as Repeat, IconRoute as Route, IconShoppingBag as ShoppingBag, IconSquare as Square, IconPlayerStop as StopCircle, IconTag as Tag, IconClock as Timer, IconTrendingUp as TrendingUp, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserPlus as UserPlus, IconUsersGroup as UsersGroup, IconVariable as Variable } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { StepPickerModal } from "./step-picker-modal";
 
 export const stepIcon: Record<string, ComponentType<{ className?: string; strokeWidth?: number }>> = {
   send_email: Mail,
+  send_company_group: BuildingSkyscraper,
   move_stage: ArrowRightLeft,
   mark_deal_won: Trophy,
   mark_deal_lost: CircleX,
@@ -60,6 +61,7 @@ export const stepIcon: Record<string, ComponentType<{ className?: string; stroke
 // Mantida em pt-BR direta, sem jargao.
 export const stepDescription: Record<string, string> = {
   send_email: "Envia um e-mail para o contato.",
+  send_company_group: "Envia no grupo de WhatsApp da empresa (numero QR do grupo).",
   move_stage: "Move o negocio para outra etapa do funil.",
   mark_deal_won: "Marca o negocio como ganho no funil escolhido.",
   mark_deal_lost: "Marca o negocio como perdido, com motivo do funil escolhido.",
@@ -112,6 +114,7 @@ export const stepDescription: Record<string, string> = {
 
 export const stepColor: Record<string, string> = {
   send_email: "text-[var(--color-info)]",
+  send_company_group: "text-[var(--color-success)]",
   move_stage: "text-[var(--brand-primary)]",
   mark_deal_won: "text-[var(--color-success)]",
   mark_deal_lost: "text-[var(--color-danger)]",
@@ -181,6 +184,7 @@ export const STEP_GROUPS: StepGroup[] = [
       "send_whatsapp_flow",
       "send_product",
       "send_email",
+      "send_company_group",
     ],
   },
   {

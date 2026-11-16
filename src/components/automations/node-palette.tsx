@@ -108,6 +108,7 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
       { type: "send_whatsapp_list" },
       { type: "send_whatsapp_flow" },
       { type: "send_product" },
+      { type: "send_company_group" },
     ],
   },
   {
