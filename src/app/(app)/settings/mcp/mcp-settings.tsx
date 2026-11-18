@@ -38,7 +38,9 @@ type McpSettingsResponse = {
   canManage: boolean;
   canConnect: boolean;
   cannotConnectReason: string | null;
-  connectionUrl: string;
+  /** `null` quando o servidor MCP ainda não tem URL pública configurada. */
+  connectionUrl: string | null;
+  configError?: string | null;
   scopes: ScopeInfo[];
   status: {
     activeConnections: number;
@@ -256,6 +258,31 @@ const CLIENT_GUIDES: { id: string; label: string; steps: (url: string) => React.
 function ConnectSection({ data }: { data: McpSettingsResponse }) {
   const [guide, setGuide] = useState(CLIENT_GUIDES[0].id);
   const current = CLIENT_GUIDES.find((g) => g.id === guide) ?? CLIENT_GUIDES[0];
+  if (!data.connectionUrl) {
+    return (
+      <section>
+        <SectionTitle icon={<IconPlugConnected className="size-5" />} title="Como conectar" />
+        <div className={cn(CARD_SURFACE_CLASS, "flex gap-3 p-4 text-sm text-foreground")}>
+          <IconAlertTriangle className="size-5 shrink-0 text-destructive" />
+          <div className="space-y-1">
+            <p className="font-medium">O endereço do servidor MCP ainda não foi configurado.</p>
+            <p className="text-muted-foreground">
+              {data.canManage ? (
+                <>
+                  Defina a variável <code className="rounded bg-muted px-1">MCP_PUBLIC_URL</code> (ex.:{" "}
+                  <code className="rounded bg-muted px-1">https://mcp.seudominio.com</code>) no serviço da API e no
+                  serviço MCP, e reinicie-os. Sem ela, os assistentes não conseguem se conectar.
+                </>
+              ) : (
+                "Peça a um administrador para concluir a configuração da integração."
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+  const connectionUrl = data.connectionUrl;
   return (
     <section>
       <SectionTitle
@@ -268,12 +295,12 @@ function ConnectSection({ data }: { data: McpSettingsResponse }) {
           <span className="text-xs font-medium text-muted-foreground">URL de conexão</span>
           <div className="mt-1 flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-lg border border-border bg-muted px-3 py-2 text-sm">
-              {data.connectionUrl}
+              {connectionUrl}
             </code>
             <ButtonGlass
               variant="glass"
               onClick={() =>
-                void navigator.clipboard.writeText(data.connectionUrl).then(
+                void navigator.clipboard.writeText(connectionUrl).then(
                   () => toast.success("URL copiada"),
                   () => toast.error("Falha ao copiar"),
                 )
@@ -310,7 +337,7 @@ function ConnectSection({ data }: { data: McpSettingsResponse }) {
           ))}
         </div>
         <ol className="list-decimal space-y-2 pl-5 text-sm text-foreground">
-          {current.steps(data.connectionUrl).map((s, i) => (
+          {current.steps(connectionUrl).map((s, i) => (
             <li key={i}>{s}</li>
           ))}
         </ol>
