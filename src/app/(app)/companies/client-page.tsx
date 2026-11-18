@@ -23,12 +23,17 @@ import {
   IconAdjustmentsHorizontal,
   IconDownload,
   IconFileImport,
+  IconFileSpreadsheet,
 } from "@tabler/icons-react";
 import { Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useCan } from "@/hooks/use-my-permissions";
-import { ImportPanel, downloadFromApi } from "@/features/pipeline-v2/import-export";
+import {
+  ImportPanel,
+  downloadCompanyTemplateXlsx,
+  downloadFromApi,
+} from "@/features/pipeline-v2/import-export";
 import { apiUrl } from "@/lib/api";
 import { InputGlass } from "@/components/crm/input-glass";
 import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
@@ -862,6 +867,17 @@ function ActionsMenu({
       : null,
     canImport
       ? { icon: <IconFileImport size={13} />, label: "Importar empresas", onClick: onImport }
+      : null,
+    canImport
+      ? {
+          icon: <IconFileSpreadsheet size={13} />,
+          label: "Baixar modelo de importação",
+          onClick: () => {
+            void downloadCompanyTemplateXlsx().catch(() =>
+              toast.error("Não foi possível gerar o modelo."),
+            );
+          },
+        }
       : null,
     { icon: <IconSettings size={13} />, label: "Configurações da lista", onClick: onColumns, divider: true as const },
   ].filter((x): x is NonNullable<typeof x> => x !== null);
