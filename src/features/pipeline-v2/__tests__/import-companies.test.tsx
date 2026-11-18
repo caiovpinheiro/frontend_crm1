@@ -18,7 +18,7 @@ vi.mock("@/components/pipeline/bulk-operation-progress-dialog", () => ({
     operationId ? <div>progresso:{title}:{operationId}</div> : null,
 }));
 
-import { ImportPanel } from "../import-export";
+import { ImportPanel, buildCompanyTemplateXlsx } from "../import-export";
 
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -29,11 +29,12 @@ function renderPanel() {
   );
 }
 
-async function upload(csv: string) {
+async function upload(csv: string | ArrayBuffer, name = "empresas.csv") {
   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-  const file = new File([csv], "empresas.csv", { type: "text/csv" });
-  // jsdom não implementa File.text() em todas as versões.
-  Object.defineProperty(file, "text", { value: async () => csv });
+  const file = new File([csv], name);
+  // jsdom não implementa File.text()/arrayBuffer() em todas as versões.
+  if (typeof csv === "string") Object.defineProperty(file, "text", { value: async () => csv });
+  else Object.defineProperty(file, "arrayBuffer", { value: async () => csv });
   fireEvent.change(input, { target: { files: [file] } });
   await screen.findByText("Configurações de Importação");
 }
@@ -95,5 +96,60 @@ describe("ImportPanel — empresas", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
     expect(h.toastError.mock.calls[0]![0]).toMatch(/Nome/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  const EXPECTED_HEADER = "number,name,domain,phone,size,industry,cep,city,state,address,notes";
+
+  async function sentCsv(): Promise<string[]> {
+    fireEvent.click(screen.getByRole("button", { name: /Importar agora/ }));
+    await screen.findByText("progresso:Importação de empresas:op1");
+    const fd = fetchMock.mock.calls[0]![1].body as FormData;
+    return (await (fd.get("file") as Blob).text()).split("\n");
+  }
+
+  it("modelo XLSX: células em formato texto e sobe sem remapear nenhuma coluna", async () => {
+    const buf = await buildCompanyTemplateXlsx();
+    const XLSX = await import("xlsx");
+    const ws = XLSX.read(buf, { type: "array", cellNF: true }).Sheets["Empresas"]!;
+    expect(ws["D2"]?.v).toBe("(11) 3333-0001");
+    expect(ws["G2"]?.v).toBe("01310-100");
+    expect(ws["A2"]?.z).toBe("@"); // Número em branco já como texto
+    expect(ws["D100"]?.z).toBe("@"); // linhas vazias para preencher também
+
+    renderPanel();
+    await upload(buf, "empresas-modelo.xlsx");
+    const selects = Array.from(document.querySelectorAll("select")) as HTMLSelectElement[];
+    expect(selects.every((s) => s.value !== "")).toBe(true);
+
+    const lines = await sentCsv();
+    expect(lines[0]).toBe(EXPECTED_HEADER);
+    expect(lines).toHaveLength(4); // cabeçalho + 3 exemplos (linhas vazias descartadas)
+    expect(lines[1]).toBe(
+      ',Acme Tecnologia,contato@acme.com.br,(11) 3333-0001,00.000.000/0001-00,Tecnologia,01310-100,São Paulo,SP,"Av. Paulista, 1000",',
+    );
+  });
+
+  it("modelo CSV (separador ;) baixado pelo botão sobe sem remapear nenhuma coluna", async () => {
+    let downloaded: Blob | null = null;
+    vi.stubGlobal("URL", Object.assign(Object.create(URL), {
+      createObjectURL: (b: Blob) => { downloaded = b; return "blob:x"; },
+      revokeObjectURL: () => {},
+    }));
+    renderPanel();
+    expect(screen.getByRole("button", { name: /Baixar modelo XLSX/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Baixar modelo CSV/ }));
+    expect(downloaded).not.toBeNull();
+    const csv = await downloaded!.text();
+    expect(csv.replace(/^\ufeff/, "").split("\n")[0]).toBe(
+      "Número;Nome;E-mail;Telefone;CNPJ;Setor;CEP;Cidade;Estado;Endereço;Notas",
+    );
+
+    await upload(csv, "empresas-modelo.csv");
+    const selects = Array.from(document.querySelectorAll("select")) as HTMLSelectElement[];
+    expect(selects.every((s) => s.value !== "")).toBe(true);
+    const lines = await sentCsv();
+    expect(lines[0]).toBe(EXPECTED_HEADER);
+    expect(lines).toHaveLength(4);
+    expect(lines[3]).toContain(",Gamma Group,");
   });
 });

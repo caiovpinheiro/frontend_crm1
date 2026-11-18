@@ -21,7 +21,7 @@ import { normalizePhone } from "@/lib/phone";
 /** Campos da empresa que o popup edita (lista da tela Empresas ou detalhe). */
 export type EditableCompany = Pick<
   CompanyListItemDto,
-  "id" | "name" | "size" | "phone" | "domain" | "cep" | "city" | "state" | "address"
+  "id" | "number" | "name" | "size" | "phone" | "domain" | "cep" | "city" | "state" | "address"
 >;
 
 /**
@@ -105,7 +105,27 @@ export function EditCompanyDialog({
       }
     >
       <form id="edit-company-form" onSubmit={handleSubmit} className="flex flex-col">
-        <FieldInput label="Nome da empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
+        {company?.number != null ? (
+          // ID público da empresa (o mesmo da URL, da busca e da planilha de
+          // importação/exportação). Só leitura: é a chave que identifica a
+          // empresa ao reimportar.
+          <div className="grid grid-cols-[120px_1fr] gap-3">
+            <label className="mb-3 block">
+              <span className={formLabelClass}>Número (ID)</span>
+              <InputGlass
+                type="text"
+                readOnly
+                aria-readonly="true"
+                value={`#${company.number}`}
+                title="Identificador da empresa — usado na busca e na importação por planilha"
+                className={`${formControlClass} cursor-default tabular-nums text-[var(--text-muted)]`}
+              />
+            </label>
+            <FieldInput label="Nome da empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
+          </div>
+        ) : (
+          <FieldInput label="Nome da empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
+        )}
         <div className="grid grid-cols-2 gap-3">
           <FieldInput label="CNPJ" type="text" value={cnpj} onChange={setCnpj} placeholder="00.000.000/0000-00" />
           <FieldInput label="Telefone" type="tel" value={phone} onChange={setPhone} placeholder="(11) 3333-4444" />
