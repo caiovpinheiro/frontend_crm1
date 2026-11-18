@@ -47,6 +47,9 @@ export function SessionInspectionModal({
     const next: { key: string; label: string; data: unknown }[] = [
       { key: "summary", label: "Resumo", data: entry.summary },
     ]
+    if (entry.tracking) {
+      next.push({ key: "tracking", label: "Rastreio", data: entry.tracking })
+    }
     if (entry.payload && Object.keys(entry.payload).length > 0) {
       next.push({ key: "event", label: "Evento", data: entry.payload })
     }

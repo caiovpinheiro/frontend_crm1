@@ -74,3 +74,40 @@ describe("automationLogToEntry conversa", () => {
     expect(canOpenAttendance(entry)).toBe(true)
   })
 })
+
+describe("automationLogToEntry rastreio", () => {
+  it("agrupa Meta, UTM e Google só com campos preenchidos", () => {
+    const entry = automationLogToEntry(
+      row({
+        contactAdTracking: {
+          adCtwaClid: "AfhYx",
+          adResolvedId: "1202",
+          adResolvedCampaignName: "cs.grad.whats",
+          adResolveStatus: "ok",
+          adUtmSource: "Meta",
+          adUtmMedium: "whatsapp_ads",
+          adUtmTerm: "  ",
+          gclid: "EAIaIQ",
+          referrer: null,
+        },
+      }),
+    )
+    expect(entry.tracking).toEqual({
+      "Meta (CTWA)": {
+        ctwa_clid: "AfhYx",
+        ad_id: "1202",
+        ad_campaign: "cs.grad.whats",
+        resolve_status: "ok",
+      },
+      UTM: { utm_source: "Meta", utm_medium: "whatsapp_ads" },
+      Google: { gclid: "EAIaIQ" },
+    })
+  })
+
+  it("sem rastreio não cria a seção", () => {
+    expect(automationLogToEntry(row()).tracking).toBeNull()
+    expect(
+      automationLogToEntry(row({ contactAdTracking: { gclid: "" } })).tracking,
+    ).toBeNull()
+  })
+})
