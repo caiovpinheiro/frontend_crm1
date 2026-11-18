@@ -5,7 +5,7 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { IconAlertTriangle as AlertTriangle, IconArrowRight as ArrowRight, IconRobot as Bot, IconCalendarCheck as CalendarCheck, IconCircleCheck as CheckCircle2, IconClock as Clock, IconEdit as Edit3, IconPackage as Package, IconSend as Send, IconNote as StickyNote, IconTag as Tag, IconTrash as Trash2, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserCog as UserCog, IconUserMinus as UserMinus, IconUserPlus as UserPlus, IconHierarchy as Workflow, IconCircleX as XCircle, IconRefresh as RefreshCw, IconRotate2 as RotateCcw } from "@tabler/icons-react"
+import { IconAlertTriangle as AlertTriangle, IconArrowRight as ArrowRight, IconRobot as Bot, IconCalendarCheck as CalendarCheck, IconCircleCheck as CheckCircle2, IconClock as Clock, IconEdit as Edit3, IconBuildingSkyscraper as Building, IconPackage as Package, IconSend as Send, IconNote as StickyNote, IconTag as Tag, IconTrash as Trash2, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserCog as UserCog, IconUserMinus as UserMinus, IconUserPlus as UserPlus, IconHierarchy as Workflow, IconCircleX as XCircle, IconRefresh as RefreshCw, IconRotate2 as RotateCcw } from "@tabler/icons-react"
 import type { Icon as LucideIcon } from "@tabler/icons-react";
 
 import Link from "next/link";
@@ -60,6 +60,24 @@ const EVENT_CONFIG: Record<
     ring: "ring-destructive/30 text-destructive",
     bg: "bg-destructive-soft",
     label: "Tag removida",
+  },
+  COMPANY_LINKED: {
+    Icon: Building,
+    ring: "ring-success/30 text-success",
+    bg: "bg-success-soft",
+    label: "Empresa vinculada",
+  },
+  COMPANY_UNLINKED: {
+    Icon: Building,
+    ring: "ring-warning/30 text-warning",
+    bg: "bg-warning-soft",
+    label: "Empresa removida",
+  },
+  COMPANY_PRIMARY: {
+    Icon: Building,
+    ring: "ring-primary/30 text-primary",
+    bg: "bg-primary/10",
+    label: "Empresa principal",
   },
   PRODUCT_ADDED: {
     Icon: Package,
@@ -266,6 +284,10 @@ function eventDescription(ev: DealTimelineEvent): string {
     case "PRODUCT_REMOVED":
     case "PRODUCT_UPDATED":
       return String(m.productName ?? "");
+    case "COMPANY_LINKED":
+    case "COMPANY_UNLINKED":
+    case "COMPANY_PRIMARY":
+      return String(m.companyName ?? "");
     case "CUSTOM_FIELD_UPDATED": {
       const label = String(m.fieldLabel ?? "?");
       const from = m.from ? String(m.from) : "vazio";

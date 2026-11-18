@@ -8,6 +8,7 @@ import {
   IconBuilding,
   IconDeviceFloppy,
   IconHandStop,
+  IconListCheck,
   IconTrash,
   IconUsers,
 } from "@tabler/icons-react";
@@ -18,6 +19,7 @@ import { GlassCard } from "@/components/crm/glass-card";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { InputGlass } from "@/components/crm/input-glass";
 import { EmptyState } from "@/components/crm/empty-state";
+import { CompanyTasks } from "@/components/companies/company-tasks";
 import {
   useCompany,
   useDeleteCompany,
@@ -250,6 +252,21 @@ export default function CompanyDetailClientPage({ id }: { id: string }) {
                     ))}
                   </ul>
                 )}
+              </GlassCard>
+
+              <GlassCard className="p-5">
+                <CompanyTasks
+                  companyId={query.data.id}
+                  companyName={query.data.name}
+                  title={(count) => (
+                    <h2 className="font-display text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                      <span className="inline-flex items-center gap-2">
+                        <IconListCheck size={14} />
+                        Tarefas ({count})
+                      </span>
+                    </h2>
+                  )}
+                />
               </GlassCard>
             </>
           )}

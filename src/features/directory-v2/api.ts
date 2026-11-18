@@ -582,6 +582,8 @@ export interface ActivityListItemDto {
   visibleToAll?: boolean;
   contact: { id: string; name: string; email: string | null } | null;
   deal: { id: string; title: string; stageId: string } | null;
+  /** Empresa vinculada (/companies). */
+  company?: { id: string; name: string; number?: number } | null;
   /** Quem criou a tarefa (pode diferir do responsável `user`). */
   createdBy?: { id: string; name: string; email: string; avatarUrl: string | null } | null;
 }
@@ -605,6 +607,8 @@ export interface FetchActivitiesParams {
   dealId?: string;
   /** Filtra atividades vinculadas a um contato. */
   contactId?: string;
+  /** Filtra atividades vinculadas a uma empresa. */
+  companyId?: string;
 }
 
 export function fetchActivities(
@@ -618,6 +622,7 @@ export function fetchActivities(
   if (params.scope) sp.set("scope", params.scope);
   if (params.dealId) sp.set("dealId", params.dealId);
   if (params.contactId) sp.set("contactId", params.contactId);
+  if (params.companyId) sp.set("companyId", params.companyId);
   const qs = sp.toString();
   return getJson<ActivityListPage>(
     `/api/activities${qs ? `?${qs}` : ""}`,
@@ -653,6 +658,8 @@ export interface CreateActivityPayload {
   scheduledAt?: string | null;
   contactId?: string | null;
   dealId?: string | null;
+  /** Empresa vinculada (/companies). */
+  companyId?: string | null;
   /** Responsável usuário (opcional se atribuída a departamento). */
   userId?: string | null;
   /** Responsável departamento (tarefa compartilhada). */
@@ -679,6 +686,7 @@ export interface UpdateActivityPayload {
   completedAt?: string | null;
   contactId?: string | null;
   dealId?: string | null;
+  companyId?: string | null;
   userId?: string | null;
   departmentId?: string | null;
   visibleToAll?: boolean;

@@ -368,6 +368,7 @@ export type UseActivitiesParams = {
   scope?: "mine" | "department" | "all";
   dealId?: string;
   contactId?: string;
+  companyId?: string;
   enabled?: boolean;
 };
 
@@ -377,6 +378,7 @@ export function activitiesQueryKey(params: {
   scope?: "mine" | "department" | "all";
   dealId?: string;
   contactId?: string;
+  companyId?: string;
   page?: number;
   perPage?: number;
 }) {
@@ -389,6 +391,7 @@ export function activitiesQueryKey(params: {
     params.contactId ?? "__any__",
     params.page ?? 1,
     params.perPage ?? 30,
+    params.companyId ?? "__any__",
   ] as const;
 }
 
@@ -433,6 +436,7 @@ export function useActivities(params: UseActivitiesParams = {}) {
       scope: params.scope,
       dealId: params.dealId,
       contactId: params.contactId,
+      companyId: params.companyId,
       page,
       perPage,
     }),
@@ -443,6 +447,7 @@ export function useActivities(params: UseActivitiesParams = {}) {
         scope: params.scope,
         dealId: params.dealId,
         contactId: params.contactId,
+        companyId: params.companyId,
         page,
         perPage,
       }),
@@ -464,6 +469,7 @@ export function useAllActivities(
         scope: params.scope,
         dealId: params.dealId,
         contactId: params.contactId,
+        companyId: params.companyId,
         page: 1,
         perPage: 0,
       }),
@@ -476,6 +482,7 @@ export function useAllActivities(
         scope: params.scope,
         dealId: params.dealId,
         contactId: params.contactId,
+        companyId: params.companyId,
       }),
     enabled: resolveEnabled(params.enabled),
     staleTime: 10_000,

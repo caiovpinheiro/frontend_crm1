@@ -46,6 +46,7 @@ import {
 } from "@/components/sales-hub/deal-queue";
 import { SalesHubChat } from "@/components/sales-hub/sales-hub-chat";
 import { HubStageDropdown } from "@/components/sales-hub/deal-actions";
+import { DealCompaniesSection } from "@/components/pipeline/deal-detail/deal-companies-section";
 import {
   DealProductsSection,
   DealQuotasSection,
@@ -1184,6 +1185,7 @@ export function SalesHubView({
                   <div className="flex flex-col gap-3">
                     <DealProductsSection dealId={activeDeal.id} compact />
                     <DealQuotasSection dealId={activeDeal.id} />
+                    <DealCompaniesSection dealId={activeDeal.id} />
                   </div>
                 }
                 // Paridade com o aside do Kanban: chips + "+" no canto
