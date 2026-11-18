@@ -105,13 +105,74 @@ Suporte Anual - Lambda;"9.800,00";admin@empresa.com;Novo;importacao;Rafael Santo
 
 /**
  * Modelo de empresas. "Número" é o ID público da empresa (o mesmo da URL
- * `/companies/12` e da exportação): vazio → o CRM gera o próximo número;
- * preenchido → usa esse número e identifica a empresa ao atualizar.
+ * `/companies/12`, da busca e da exportação): em branco → o CRM gera o
+ * próximo número; preenchido → usa esse número e é por ele que a empresa
+ * existente é identificada ao atualizar. Os exemplos deixam o Número em
+ * branco de propósito: um número fixo no modelo poderia casar com uma
+ * empresa real da organização.
  */
-const COMPANY_TEMPLATE = `Número,Nome,E-mail,Telefone,CNPJ,Setor,CEP,Cidade,Estado,Endereço,Notas
-,Acme Tecnologia,contato@acme.com.br,+551133330001,00.000.000/0001-00,Tecnologia,01310-100,São Paulo,SP,"Av. Paulista, 1000",
-,Beta Solutions,contato@beta.com.br,+552133330002,11.111.111/0001-11,Serviços,20040-020,Rio de Janeiro,RJ,"Rua da Assembleia, 10",
-1001,Gamma Group,contato@gamma.com.br,+553133330003,22.222.222/0001-22,Indústria,30130-010,Belo Horizonte,MG,"Av. Afonso Pena, 500",Número definido manualmente`;
+const COMPANY_TEMPLATE_HEADERS = [
+  "Número", "Nome", "E-mail", "Telefone", "CNPJ", "Setor", "CEP", "Cidade", "Estado", "Endereço", "Notas",
+];
+const COMPANY_TEMPLATE_ROWS: string[][] = [
+  ["", "Acme Tecnologia", "contato@acme.com.br", "(11) 3333-0001", "00.000.000/0001-00", "Tecnologia", "01310-100", "São Paulo", "SP", "Av. Paulista, 1000", ""],
+  ["", "Beta Solutions", "contato@beta.com.br", "(21) 3333-0002", "11.111.111/0001-11", "Serviços", "20040-020", "Rio de Janeiro", "RJ", "Rua da Assembleia, 10", ""],
+  ["", "Gamma Group", "contato@gamma.com.br", "(31) 3333-0003", "22.222.222/0001-22", "Indústria", "30130-010", "Belo Horizonte", "MG", "Av. Afonso Pena, 500", "Exemplo de observação"],
+];
+
+/** `;` é o separador que o Excel em português abre em colunas. */
+const COMPANY_TEMPLATE = [COMPANY_TEMPLATE_HEADERS, ...COMPANY_TEMPLATE_ROWS]
+  .map((r) => r.map((v) => (/[;"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(";"))
+  .join("\n");
+
+/** Linhas em branco já formatadas como texto no modelo XLSX. */
+const XLSX_TEMPLATE_BLANK_ROWS = 500;
+
+/**
+ * Modelo XLSX de empresas: todas as células (inclusive as em branco abaixo
+ * dos exemplos) com formato Texto (`@`). Assim o Excel não converte telefone
+ * em notação científica nem tira zero à esquerda de CEP/CNPJ/Número.
+ */
+export async function buildCompanyTemplateXlsx(): Promise<ArrayBuffer> {
+  const XLSX = await import("xlsx");
+  const aoa: string[][] = [
+    COMPANY_TEMPLATE_HEADERS,
+    ...COMPANY_TEMPLATE_ROWS,
+    ...Array.from({ length: XLSX_TEMPLATE_BLANK_ROWS }, () => COMPANY_TEMPLATE_HEADERS.map(() => "")),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  aoa.forEach((row, r) =>
+    row.forEach((v, c) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      ws[ref] = { t: "s", v, z: "@" };
+    }),
+  );
+  ws["!ref"] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: aoa.length - 1, c: COMPANY_TEMPLATE_HEADERS.length - 1 },
+  });
+  ws["!cols"] = COMPANY_TEMPLATE_HEADERS.map((h) => ({
+    wch: h === "Endereço" || h === "Nome" || h === "E-mail" ? 28 : 16,
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Empresas");
+  return XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+}
+
+export async function downloadCompanyTemplateXlsx(filename = "empresas-modelo.xlsx") {
+  const buf = await buildCompanyTemplateXlsx();
+  const blob = new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 const TEMPLATES: Record<ImportEntity, { file: string; content: string }> = {
   contacts: { file: "contatos-modelo.csv", content: CONTACT_TEMPLATE },
@@ -1207,15 +1268,41 @@ function UploadStep({
           ))}
           <span className="font-body text-[12px] text-[var(--text-muted)]">· Até 10 MB</span>
         </div>
-        <ButtonGlass
-          variant="glass"
-          size="sm"
-          onClick={() => downloadCsv(TEMPLATES[entity].file, template)}
-        >
-          <Download size={14} />
-          Baixar modelo CSV
-        </ButtonGlass>
+        <div className="flex flex-wrap gap-2">
+          {entity === "companies" && (
+            <ButtonGlass
+              variant="glass"
+              size="sm"
+              onClick={() => {
+                void downloadCompanyTemplateXlsx().catch(() =>
+                  toast.error("Não foi possível gerar o modelo XLSX."),
+                );
+              }}
+            >
+              <Download size={14} />
+              Baixar modelo XLSX
+            </ButtonGlass>
+          )}
+          <ButtonGlass
+            variant="glass"
+            size="sm"
+            onClick={() => downloadCsv(TEMPLATES[entity].file, template)}
+          >
+            <Download size={14} />
+            Baixar modelo CSV
+          </ButtonGlass>
+        </div>
       </div>
+
+      {entity === "companies" && (
+        <p className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-4 py-3 font-body text-[13px] leading-relaxed text-[var(--text-muted)]">
+          Preencha a partir da linha 2 do modelo, mantendo o cabeçalho. Só{" "}
+          <span className="font-medium text-[var(--text-secondary)]">Nome</span> é obrigatório.{" "}
+          <span className="font-medium text-[var(--text-secondary)]">Número</span> em branco gera o ID
+          automaticamente; preenchido, define o ID da empresa nova ou indica qual empresa atualizar.
+          O modelo XLSX já vem com as células em formato texto (telefone, CEP e CNPJ não são alterados pelo Excel).
+        </p>
+      )}
 
       {/* Dica */}
       <p className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-4 py-3 font-body text-[13px] leading-relaxed text-[var(--text-muted)]">
