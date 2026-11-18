@@ -1,4 +1,4 @@
-import { IconBell as Bell, IconBroadcast as Broadcast, IconCalendarTime as CalendarTime, IconDatabase as Database, IconForms as Forms, IconHeadphones as Headphones, IconLifebuoy as LifeBuoy, IconListTree as ListTree, IconLock as Lock, IconMail as Mail, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPackage as Package, IconAdjustments as Settings2, IconDeviceMobile as Smartphone, IconSparkles as Sparkles, IconTag as Tag, IconTemplate as Template, IconUsers as Users } from "@tabler/icons-react";
+import { IconBell as Bell, IconBroadcast as Broadcast, IconCalendarTime as CalendarTime, IconDatabase as Database, IconForms as Forms, IconHeadphones as Headphones, IconLifebuoy as LifeBuoy, IconListTree as ListTree, IconLock as Lock, IconMail as Mail, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPackage as Package, IconPlugConnected as PlugConnected, IconAdjustments as Settings2, IconDeviceMobile as Smartphone, IconSparkles as Sparkles, IconTag as Tag, IconTemplate as Template, IconUsers as Users } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 import { UserRole } from "@/lib/prisma-enum-types";
 
@@ -208,6 +208,16 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
         href: "/settings/ai",
         allowedRoles: SO_ADMIN,
         requiredPermission: "settings:ai",
+      },
+      {
+        // Sem gate: cada usuário conecta/revoga as próprias conexões; a
+        // configuração da org só aparece para `mcp:manage` (a API decide).
+        id: "mcp",
+        label: "Assistentes de IA (MCP)",
+        description: "ChatGPT, Claude e outros",
+        icon: PlugConnected,
+        href: "/settings/mcp",
+        eyebrow: "Novo",
       },
     ],
   },
