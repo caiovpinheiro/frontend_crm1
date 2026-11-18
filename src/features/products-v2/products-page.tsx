@@ -9,6 +9,8 @@ import {
   IconPackage,
   IconDownload,
   IconPencil,
+  IconPlayerPause,
+  IconPlayerPlay,
   IconPlus,
   IconSchool,
   IconTool,
@@ -117,6 +119,16 @@ async function fetchProducts(search: string): Promise<ProductRow[]> {
   return all;
 }
 
+/** Ativa/desativa sem mexer no resto do cadastro (PUT parcial). */
+export async function setProductActiveRequest(id: string, isActive: boolean) {
+  const res = await apiFetch(`/api/products/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isActive }),
+  });
+  await parseApiResponse(res, isActive ? "Erro ao ativar produto" : "Erro ao desativar produto");
+}
+
 async function deleteProductRequest(id: string) {
   const res = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
   await parseApiResponse(res, "Erro ao excluir produto");
@@ -162,6 +174,53 @@ export function ProductsV2Page({
       setDeleting(null);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao excluir produto."),
+  });
+
+  // Liga/desliga direto na lista. Otimista: o selo troca na hora e volta
+  // se o servidor recusar.
+  const toggleActiveMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      setProductActiveRequest(id, isActive),
+    onMutate: async ({ id, isActive }) => {
+      await queryClient.cancelQueries({ queryKey: ["products", search] });
+      const prev = queryClient.getQueryData<ProductRow[]>(["products", search]);
+      queryClient.setQueryData<ProductRow[]>(["products", search], (rows) =>
+        rows?.map((r) => (r.id === id ? { ...r, isActive } : r)),
+      );
+      return { prev };
+    },
+    onError: (e, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["products", search], ctx.prev);
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar produto.");
+    },
+    onSuccess: (_d, { isActive }) => {
+      toast.success(isActive ? "Produto ativado." : "Produto desativado.");
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+
+  const bulkActiveMut = useMutation({
+    mutationFn: async ({ ids, isActive }: { ids: string[]; isActive: boolean }) => {
+      let fail = 0;
+      for (const id of ids) {
+        try {
+          await setProductActiveRequest(id, isActive);
+        } catch {
+          fail += 1;
+        }
+      }
+      return { ok: ids.length - fail, fail, isActive };
+    },
+    onSuccess: ({ ok, fail, isActive }) => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setSelected(new Set());
+      const verb = isActive ? "ativado" : "desativado";
+      if (fail === 0) toast.success(ok === 1 ? `Produto ${verb}.` : `${ok} produtos ${verb}s.`);
+      else if (ok === 0) toast.error("Não foi possível atualizar os produtos selecionados.");
+      else toast.error(`${ok} ${verb}(s), ${fail} falharam.`);
+    },
   });
 
   const bulkDeleteMut = useMutation({
@@ -378,6 +437,24 @@ export function ProductsV2Page({
             >
               Limpar
             </ButtonGlass>
+            <ButtonGlass
+              variant="glass"
+              size="sm"
+              type="button"
+              disabled={bulkActiveMut.isPending}
+              onClick={() => bulkActiveMut.mutate({ ids: [...selected], isActive: true })}
+            >
+              <IconPlayerPlay size={14} /> Ativar
+            </ButtonGlass>
+            <ButtonGlass
+              variant="glass"
+              size="sm"
+              type="button"
+              disabled={bulkActiveMut.isPending}
+              onClick={() => bulkActiveMut.mutate({ ids: [...selected], isActive: false })}
+            >
+              <IconPlayerPause size={14} /> Desativar
+            </ButtonGlass>
             <ButtonGlass variant="danger" size="sm" type="button" onClick={() => setConfirmBulk(true)}>
               <IconTrash size={14} /> Excluir
             </ButtonGlass>
@@ -483,16 +560,37 @@ export function ProductsV2Page({
               </span>
 
               <span>
-                <span
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={p.isActive}
+                  aria-label={`${p.isActive ? "Desativar" : "Ativar"} ${p.name}`}
+                  title={p.isActive ? "Clique para desativar" : "Clique para ativar"}
+                  disabled={toggleActiveMut.isPending && toggleActiveMut.variables?.id === p.id}
+                  onClick={() => toggleActiveMut.mutate({ id: p.id, isActive: !p.isActive })}
                   className={cn(
-                    "inline-flex items-center rounded-full px-2 py-0.5 font-display text-[11px] font-bold",
+                    "group/status inline-flex items-center gap-1.5 rounded-full py-0.5 pl-1 pr-2 font-display text-[11px] font-bold transition-colors disabled:opacity-60",
                     p.isActive
-                      ? "bg-[var(--color-success-bg)] text-[var(--color-success)]"
-                      : "bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]",
+                      ? "bg-[var(--color-success-bg)] text-[var(--color-success)] hover:brightness-95"
+                      : "bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
                   )}
                 >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "relative inline-flex h-3.5 w-6 shrink-0 items-center rounded-full transition-colors",
+                      p.isActive ? "bg-[var(--color-success)]" : "bg-[var(--text-muted)]/40",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "inline-block size-2.5 rounded-full bg-white shadow transition-transform",
+                        p.isActive ? "translate-x-[12px]" : "translate-x-[2px]",
+                      )}
+                    />
+                  </span>
                   {p.isActive ? "Ativo" : "Inativo"}
-                </span>
+                </button>
               </span>
 
               <div className={LIST_ACTIONS_CELL_CLASS}>
