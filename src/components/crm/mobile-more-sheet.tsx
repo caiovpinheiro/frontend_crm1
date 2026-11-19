@@ -2,13 +2,14 @@
 
 /**
  * MobileMoreSheet — bottom sheet com módulos secundários (enabled − bottomNav),
- * status, tema, perfil e sair. Acionado pelo botão "Mais" da MobileBottomNav.
+ * status, tema, perfil, trocar de organização e sair. Acionado pelo botão "Mais" da MobileBottomNav.
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import {
+  IconArrowsLeftRight,
   IconLogout,
   IconMoon,
   IconSun,
@@ -46,6 +47,7 @@ export function MobileMoreSheet({
   open,
   onClose,
   onStatusClick,
+  onSwitchOrgClick,
   agentStatus,
   displayName,
   email,
@@ -54,6 +56,8 @@ export function MobileMoreSheet({
   open: boolean;
   onClose: () => void;
   onStatusClick: () => void;
+  /** Abre o seletor "Trocar de organização" (hospedado fora do sheet). */
+  onSwitchOrgClick?: () => void;
   agentStatus: AgentOnlineStatus;
   displayName: string;
   email: string | null;
@@ -251,6 +255,19 @@ export function MobileMoreSheet({
               <IconUserCircle size={16} className="shrink-0" />
               <span className="flex-1 text-sm font-semibold">Meu perfil</span>
             </Link>
+            {onSwitchOrgClick && !isSuperAdmin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onSwitchOrgClick();
+                }}
+                className="flex items-center gap-2.5 rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-card)] px-3 py-3 text-[var(--text-primary)] active:bg-[var(--glass-bg-subtle)]"
+              >
+                <IconArrowsLeftRight size={16} className="shrink-0" />
+                <span className="flex-1 text-left text-sm font-semibold">Trocar de organização</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => {
