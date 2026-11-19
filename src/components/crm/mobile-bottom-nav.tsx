@@ -22,6 +22,7 @@ import {
 } from "@/components/crm/agent-status";
 import { useSharedAgentStatus } from "@/components/crm/agent-status-context";
 import { MobileMoreSheet } from "@/components/crm/mobile-more-sheet";
+import { OrgSwitcherDialog } from "@/components/crm/org-switcher-dialog";
 import { NavUnreadBadge } from "@/components/crm/nav-unread-badge";
 import {
   navAlertForHref,
@@ -83,6 +84,7 @@ function MobileBottomNavClassic() {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(
     () =>
       typeof document !== "undefined" &&
@@ -323,6 +325,7 @@ function MobileBottomNavClassic() {
         open={moreOpen}
         onClose={() => setMoreOpen(false)}
         onStatusClick={() => setStatusPopupOpen(true)}
+        onSwitchOrgClick={() => setOrgSwitcherOpen(true)}
         agentStatus={agentStatus.status}
         displayName={displayName}
         email={email}
@@ -335,6 +338,8 @@ function MobileBottomNavClassic() {
         onClose={() => setStatusPopupOpen(false)}
         onSelect={(s) => agentStatus.setStatus(s)}
       />
+
+      <OrgSwitcherDialog open={orgSwitcherOpen} onOpenChange={setOrgSwitcherOpen} />
     </>
   );
 }

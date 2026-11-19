@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
+  ArrowLeftRight,
   ChevronDown,
   ChevronsLeft,
   ChevronsRight,
@@ -32,6 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DockButton, DockProvider } from "@/components/crm/floating-dock";
 import { UserAvatar } from "@/components/crm/user-avatar";
+import { OrgSwitcherDialog } from "@/components/crm/org-switcher-dialog";
+import { watchOrgSwitchInOtherTabs } from "@/lib/org-switch";
 import { AgentStatusDot } from "@/components/crm/agent-status-dot";
 import {
   AGENT_STATUS_META,
@@ -205,6 +208,17 @@ export function NavRailV2({ className }: { className?: string }) {
         toast.error(err instanceof Error ? err.message : "Erro ao remover o ícone"),
     });
   }
+
+  // Trocar de organização: seletor + aviso entre abas (o NavRailV2 vive uma
+  // vez no layout `(app)`, inclusive no mobile, onde só fica oculto).
+  const [orgSwitcherOpen, setOrgSwitcherOpen] = useState(false);
+  const sessionOrgId =
+    (session?.user as { organizationId?: string | null } | undefined)?.organizationId ?? null;
+  const sessionOrgIdRef = useRef<string | null>(sessionOrgId);
+  useEffect(() => {
+    sessionOrgIdRef.current = sessionOrgId;
+  }, [sessionOrgId]);
+  useEffect(() => watchOrgSwitchInOtherTabs(() => sessionOrgIdRef.current), []);
 
   const agentStatus = useSharedAgentStatus();
   const [statusPopupOpen, setStatusPopupOpen] = useState(false);
@@ -810,6 +824,16 @@ export function NavRailV2({ className }: { className?: string }) {
 
           <DropdownMenuSeparator />
 
+          {!isSuperAdmin && (
+            <DropdownMenuItem
+              className={ACCOUNT_MENU_ITEM}
+              onClick={() => setOrgSwitcherOpen(true)}
+            >
+              <ArrowLeftRight size={16} className="shrink-0" />
+              <span className="font-medium">Trocar de organização</span>
+            </DropdownMenuItem>
+          )}
+
           <DropdownMenuItem
             onClick={() => void signOutToLogin()}
             className={cn(
@@ -831,6 +855,8 @@ export function NavRailV2({ className }: { className?: string }) {
         onClose={() => setStatusPopupOpen(false)}
         onSelect={(s) => agentStatus.setStatus(s)}
       />
+
+      <OrgSwitcherDialog open={orgSwitcherOpen} onOpenChange={setOrgSwitcherOpen} />
     </DockProvider>
   );
 }
