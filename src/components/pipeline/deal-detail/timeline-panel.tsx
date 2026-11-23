@@ -10,7 +10,7 @@ import type { Icon as LucideIcon } from "@tabler/icons-react";
 
 import Link from "next/link";
 
-import { automationOrigin } from "@/components/crm/feed/event-config";
+import { automationOrigin, productUpdatedDescription } from "@/components/crm/feed/event-config";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { DealTimelineEvent } from "./shared";
@@ -280,9 +280,10 @@ function eventDescription(ev: DealTimelineEvent): string {
     case "TAG_ADDED":
     case "TAG_REMOVED":
       return String(m.tagName ?? "");
+    case "PRODUCT_UPDATED":
+      return productUpdatedDescription(m);
     case "PRODUCT_ADDED":
     case "PRODUCT_REMOVED":
-    case "PRODUCT_UPDATED":
       return String(m.productName ?? "");
     case "COMPANY_LINKED":
     case "COMPANY_UNLINKED":
