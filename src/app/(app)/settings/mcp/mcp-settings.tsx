@@ -34,7 +34,16 @@ import { cn } from "@/lib/utils";
 type ScopeInfo = { id: string; label: string; description: string };
 
 type McpSettingsResponse = {
-  config: { enabled: boolean; allowedScopes: string[]; allowAllUsers: boolean; exposeContactPii: boolean };
+  config: {
+    enabled: boolean;
+    allowedScopes: string[];
+    allowAllUsers: boolean;
+    exposeContactPii: boolean;
+    /** Campos personalizados liberados ao MCP (vazio = nenhum). */
+    customFieldIds?: string[];
+  };
+  /** Opções da lista de campos (só para quem configura). */
+  customFields?: { id: string; name: string; label: string; entity: string }[];
   canManage: boolean;
   canConnect: boolean;
   cannotConnectReason: string | null;
@@ -89,6 +98,8 @@ const TOOL_LABEL: Record<string, string> = {
   get_pipeline_metrics: "Métricas do funil",
   "oauth.consent": "Conexão autorizada",
   "oauth.revoke": "Conexão revogada",
+  get_conversation_events: "Linha do tempo da conversa",
+  get_queue_status: "Situação das filas",
 };
 
 const STATUS_BADGE: Record<string, { label: string; variant: "success" | "destructive" | "warning" | "muted" }> = {
@@ -464,8 +475,73 @@ function AdminSection({
             onChange={(next) => onSave({ allowedScopes: next })}
           />
         </div>
+        <CustomFieldsAllowList
+          fields={data.customFields ?? []}
+          value={cfg.customFieldIds ?? []}
+          scopeOn={cfg.allowedScopes.includes("custom_fields:read")}
+          disabled={saving}
+          onChange={(next) => onSave({ customFieldIds: next })}
+        />
       </div>
     </section>
+  );
+}
+
+const ENTITY_LABEL: Record<string, string> = { deal: "Negócio", contact: "Contato" };
+
+/** Lista de campos personalizados que o MCP pode ler (vazia por padrão). */
+function CustomFieldsAllowList({
+  fields,
+  value,
+  scopeOn,
+  disabled,
+  onChange,
+}: {
+  fields: { id: string; name: string; label: string; entity: string }[];
+  value: string[];
+  scopeOn: boolean;
+  disabled?: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  return (
+    <div className="py-3">
+      <p className="text-sm font-medium text-foreground">Campos personalizados liberados</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        {scopeOn
+          ? "Só os campos marcados aparecem nos leads consultados pelos assistentes. Nenhum marcado = nenhum campo sai."
+          : "Ligue “Campos personalizados” acima para os assistentes lerem os campos marcados aqui."}
+      </p>
+      {fields.length === 0 ? (
+        <p className="text-xs text-muted-foreground">A organização ainda não tem campos personalizados.</p>
+      ) : (
+        <ul className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
+          {fields.map((f) => {
+            const checked = value.includes(f.id);
+            return (
+              <li key={f.id}>
+                <label
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm",
+                    checked && "border-primary/40 bg-primary/5",
+                    disabled && "cursor-not-allowed opacity-60",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--brand-primary)]"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => onChange(checked ? value.filter((v) => v !== f.id) : [...value, f.id])}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-foreground">{f.label || f.name}</span>
+                  <Badge variant="secondary">{ENTITY_LABEL[f.entity] ?? f.entity}</Badge>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
