@@ -46,6 +46,8 @@ export interface LogEntry {
   reason: string | null
   payload: Record<string, unknown> | null
   webhook: LogWebhookEvent | null
+  /** Rastreio do lead (Meta CTWA, UTMs, Google…) agrupado; só campos preenchidos. */
+  tracking: LogTracking | null
   summary: Record<string, string | number | boolean>
   params: Record<string, string | number | boolean>
 }
@@ -100,6 +102,107 @@ export interface AutomationLogRow {
   dealName?: string | null
   dealNumber?: number | null
   metaWebhookEvent?: LogWebhookEvent | null
+  /** Rastreio atual do contato (enriquecido por `getAutomationLogs`). */
+  contactAdTracking?: LogContactTracking | null
+}
+
+/** Campos de rastreio do contato como vêm da API de logs. */
+export type LogContactTracking = Partial<
+  Record<
+    | "adCtwaClid"
+    | "adSourceId"
+    | "adSourceType"
+    | "adHeadline"
+    | "adResolvedId"
+    | "adResolvedName"
+    | "adResolvedAdsetName"
+    | "adResolvedCampaignName"
+    | "adResolveStatus"
+    | "adResolveError"
+    | "adUtmSource"
+    | "adUtmMedium"
+    | "adUtmCampaign"
+    | "adUtmContent"
+    | "adUtmTerm"
+    | "utmId"
+    | "utmReferrer"
+    | "referrer"
+    | "gclid"
+    | "fbclid"
+    | "googleClientId"
+    | "ttadId"
+    | "ttadName",
+    string | null
+  >
+>
+
+/** Grupo → campo (rótulo estilo parâmetro) → valor. */
+export type LogTracking = Record<string, Record<string, string>>
+
+const TRACKING_GROUPS: Array<{
+  group: string
+  fields: Array<[label: string, key: keyof LogContactTracking]>
+}> = [
+  {
+    group: "Meta (CTWA)",
+    fields: [
+      ["ctwa_clid", "adCtwaClid"],
+      ["ad_id", "adResolvedId"],
+      ["ad_source_id", "adSourceId"],
+      ["ad_source_type", "adSourceType"],
+      ["ad_name", "adResolvedName"],
+      ["ad_headline", "adHeadline"],
+      ["ad_adset", "adResolvedAdsetName"],
+      ["ad_campaign", "adResolvedCampaignName"],
+      ["resolve_status", "adResolveStatus"],
+      ["resolve_error", "adResolveError"],
+    ],
+  },
+  {
+    group: "UTM",
+    fields: [
+      ["utm_source", "adUtmSource"],
+      ["utm_medium", "adUtmMedium"],
+      ["utm_campaign", "adUtmCampaign"],
+      ["utm_content", "adUtmContent"],
+      ["utm_term", "adUtmTerm"],
+      ["utm_id", "utmId"],
+      ["utm_referrer", "utmReferrer"],
+    ],
+  },
+  {
+    group: "Google",
+    fields: [
+      ["gclid", "gclid"],
+      ["gclientid", "googleClientId"],
+    ],
+  },
+  {
+    group: "Outros",
+    fields: [
+      ["fbclid", "fbclid"],
+      ["referrer", "referrer"],
+      ["ttad_id", "ttadId"],
+      ["ttad_name", "ttadName"],
+    ],
+  },
+]
+
+/** Agrupa o rastreio do contato; `null` quando nada está preenchido. */
+export function trackingFromRow(
+  tracking: LogContactTracking | null | undefined,
+): LogTracking | null {
+  if (!tracking) return null
+  const out: LogTracking = {}
+  for (const { group, fields } of TRACKING_GROUPS) {
+    const values: Record<string, string> = {}
+    for (const [label, key] of fields) {
+      const v = tracking[key]
+      if (typeof v === "string" && v.trim() !== "") values[label] = v.trim()
+    }
+    if (Object.keys(values).length > 0) out[group] = values
+  }
+  return Object.keys(out).length > 0 ? out : null
 }
 
 /**
@@ -474,6 +577,7 @@ export function automationLogToEntry(row: AutomationLogRow): LogEntry {
     reason,
     payload,
     webhook,
+    tracking: trackingFromRow(row.contactAdTracking),
     summary,
     params: {
       ...(status !== "success" ? { motivo: reason ?? MISSING_REASON } : {}),

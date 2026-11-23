@@ -197,6 +197,7 @@ const MOCK_LOG: LogEntry = {
   reason: null,
   payload: null,
   webhook: null,
+  tracking: null,
   summary: {},
   params: {},
 };

@@ -49,6 +49,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useCan } from "@/hooks/use-my-permissions";
 
 import { ProductDialog } from "./product-dialog";
 import { WhatsAppCatalogDialog } from "./whatsapp-catalog-dialog";
@@ -142,6 +143,11 @@ export function ProductsV2Page({
   const slots = useSettingsHeaderSlots();
   const { role } = useUserRole();
   const canIo = role === "ADMIN" || role === "MANAGER";
+  // Cadastro de produtos: só quem tem a permissão (Administrador e Gestor).
+  // O servidor já recusa; aqui os botões somem para não levar a um erro.
+  const canCreate = useCan("product:create");
+  const canEdit = useCan("product:edit");
+  const canDelete = useCan("product:delete");
   const [ioMode, setIoMode] = React.useState<"import" | "export" | null>(null);
   const [whatsappOpen, setWhatsappOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
@@ -343,18 +349,26 @@ export function ProductsV2Page({
     () => (
       <PageActionsMenu
         items={[
-          {
-            icon: <IconPlus size={16} />,
-            label: "Novo produto",
-            onClick: openCreate,
-            primary: true,
-          },
-          {
-            icon: <IconBrandWhatsapp size={16} />,
-            label: "Envio WhatsApp / Meta",
-            onClick: () => setWhatsappOpen(true),
-            divider: true,
-          },
+          ...(canCreate
+            ? [
+                {
+                  icon: <IconPlus size={16} />,
+                  label: "Novo produto",
+                  onClick: openCreate,
+                  primary: true,
+                },
+              ]
+            : []),
+          ...(canEdit
+            ? [
+                {
+                  icon: <IconBrandWhatsapp size={16} />,
+                  label: "Envio WhatsApp / Meta",
+                  onClick: () => setWhatsappOpen(true),
+                  divider: true,
+                },
+              ]
+            : []),
           ...(canIo
             ? [
                 {
@@ -372,7 +386,7 @@ export function ProductsV2Page({
         ]}
       />
     ),
-    [openCreate, canIo],
+    [openCreate, canIo, canCreate, canEdit],
   );
 
   /* Injeta busca (center) + ações (actions) no PageHeader do
@@ -437,27 +451,33 @@ export function ProductsV2Page({
             >
               Limpar
             </ButtonGlass>
-            <ButtonGlass
-              variant="glass"
-              size="sm"
-              type="button"
-              disabled={bulkActiveMut.isPending}
-              onClick={() => bulkActiveMut.mutate({ ids: [...selected], isActive: true })}
-            >
-              <IconPlayerPlay size={14} /> Ativar
-            </ButtonGlass>
-            <ButtonGlass
-              variant="glass"
-              size="sm"
-              type="button"
-              disabled={bulkActiveMut.isPending}
-              onClick={() => bulkActiveMut.mutate({ ids: [...selected], isActive: false })}
-            >
-              <IconPlayerPause size={14} /> Desativar
-            </ButtonGlass>
-            <ButtonGlass variant="danger" size="sm" type="button" onClick={() => setConfirmBulk(true)}>
-              <IconTrash size={14} /> Excluir
-            </ButtonGlass>
+            {canEdit && (
+              <>
+                <ButtonGlass
+                  variant="glass"
+                  size="sm"
+                  type="button"
+                  disabled={bulkActiveMut.isPending}
+                  onClick={() => bulkActiveMut.mutate({ ids: [...selected], isActive: true })}
+                >
+                  <IconPlayerPlay size={14} /> Ativar
+                </ButtonGlass>
+                <ButtonGlass
+                  variant="glass"
+                  size="sm"
+                  type="button"
+                  disabled={bulkActiveMut.isPending}
+                  onClick={() => bulkActiveMut.mutate({ ids: [...selected], isActive: false })}
+                >
+                  <IconPlayerPause size={14} /> Desativar
+                </ButtonGlass>
+              </>
+            )}
+            {canDelete && (
+              <ButtonGlass variant="danger" size="sm" type="button" onClick={() => setConfirmBulk(true)}>
+                <IconTrash size={14} /> Excluir
+              </ButtonGlass>
+            )}
           </div>
         </div>
       )}
@@ -485,9 +505,11 @@ export function ProductsV2Page({
         <div className={cn(CARD_SURFACE_CLASS, "flex flex-col items-center justify-center gap-3 border-dashed py-16")}>
           <IconPackage size={40} className="text-muted-foreground opacity-40" />
           <p className="text-sm text-muted-foreground">Nenhum produto encontrado.</p>
-          <ButtonGlass variant="glass" size="sm" onClick={openCreate}>
-            <IconPlus size={14} /> Criar primeiro
-          </ButtonGlass>
+          {canCreate && (
+            <ButtonGlass variant="glass" size="sm" onClick={openCreate}>
+              <IconPlus size={14} /> Criar primeiro
+            </ButtonGlass>
+          )}
         </div>
       ) : (
         <MobileTableScroll minWidth={720}>
@@ -540,8 +562,9 @@ export function ProductsV2Page({
                 <div className="min-w-0 leading-tight">
                   <button
                     type="button"
+                    disabled={!canEdit}
                     onClick={() => openEdit(p.id)}
-                    className="block max-w-full truncate text-left font-display text-[14px] font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--brand-primary)]"
+                    className="block max-w-full truncate text-left disabled:cursor-default font-display text-[14px] font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--brand-primary)]"
                   >
                     {p.name}
                   </button>
@@ -565,8 +588,13 @@ export function ProductsV2Page({
                   role="switch"
                   aria-checked={p.isActive}
                   aria-label={`${p.isActive ? "Desativar" : "Ativar"} ${p.name}`}
-                  title={p.isActive ? "Clique para desativar" : "Clique para ativar"}
-                  disabled={toggleActiveMut.isPending && toggleActiveMut.variables?.id === p.id}
+                  title={
+                    !canEdit ? undefined : p.isActive ? "Clique para desativar" : "Clique para ativar"
+                  }
+                  disabled={
+                    !canEdit ||
+                    (toggleActiveMut.isPending && toggleActiveMut.variables?.id === p.id)
+                  }
                   onClick={() => toggleActiveMut.mutate({ id: p.id, isActive: !p.isActive })}
                   className={cn(
                     "group/status inline-flex items-center gap-1.5 rounded-full py-0.5 pl-1 pr-2 font-display text-[11px] font-bold transition-colors disabled:opacity-60",
@@ -594,6 +622,7 @@ export function ProductsV2Page({
               </span>
 
               <div className={LIST_ACTIONS_CELL_CLASS}>
+                {canEdit && (
                 <button
                   type="button"
                   onClick={() => openEdit(p.id)}
@@ -602,6 +631,8 @@ export function ProductsV2Page({
                 >
                   <IconPencil size={15} />
                 </button>
+                )}
+                {canDelete && (
                 <button
                   type="button"
                   onClick={() => setDeleting(p)}
@@ -610,6 +641,7 @@ export function ProductsV2Page({
                 >
                   <IconTrash size={15} />
                 </button>
+                )}
               </div>
             </div>
             );
