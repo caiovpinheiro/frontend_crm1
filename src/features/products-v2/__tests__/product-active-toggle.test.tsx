@@ -8,7 +8,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ fetch: vi.fn() }));
+const h = vi.hoisted(() => ({ fetch: vi.fn(), perms: new Set<string>() }));
+vi.mock("@/hooks/use-my-permissions", () => ({ useCan: (key: string) => h.perms.has(key) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/app/(app)/settings/_v2-shell", () => ({ useSettingsHeaderSlots: () => null }));
 vi.mock("@/hooks/use-user-role", () => ({ useUserRole: () => ({ role: "ADMIN" }) }));
@@ -34,6 +35,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.perms = new Set(["product:create", "product:edit", "product:delete"]);
   h.fetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (init?.method === "PUT") return new Response(JSON.stringify({ product: {} }), { status: 200, headers: { "content-type": "application/json" } });
@@ -78,5 +80,18 @@ describe("ativar/desativar produto", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Ativar/ }));
     await waitFor(() => expect(puts()).toHaveLength(2));
     expect(puts().every(([, b]) => b.isActive === true)).toBe(true);
+  });
+});
+
+describe("sem permissão de cadastro (Operador)", () => {
+  it("selo fica só informativo e editar/excluir somem", async () => {
+    h.perms = new Set(["product:view"]);
+    renderPage();
+    const sw = await screen.findByRole("switch", { name: "Ativar Educação Física" });
+    expect((sw as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(sw);
+    expect(puts()).toEqual([]);
+    expect(screen.queryByRole("button", { name: "Editar Educação Física" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Excluir Educação Física" })).toBeNull();
   });
 });

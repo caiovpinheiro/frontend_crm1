@@ -10,6 +10,7 @@ import { IconCheck as Check, IconChevronDown as ChevronDown, IconPackage as Pack
 import { toast } from "sonner";
 
 import { useConfirm } from "@/hooks/use-confirm";
+import { useCan } from "@/hooks/use-my-permissions";
 import { CustomFieldsSection } from "@/components/contacts/custom-fields-section";
 import { DealCustomFieldsSection } from "@/components/pipeline/deal-custom-fields-section";
 import { DealCompaniesSection } from "@/components/pipeline/deal-detail/deal-companies-section";
@@ -441,6 +442,9 @@ export function DealProductsSection({
   const [editingItem, setEditingItem] = React.useState<string | null>(null);
   const [editQty, setEditQty] = React.useState("");
   const [editDiscount, setEditDiscount] = React.useState("");
+  // Preço/desconto/quantidade livres no card: só com esta permissão
+  // (Administrador e Gestor). Sem ela, o lápis só troca entre as cotas.
+  const canEditDealPrice = useCan("product:edit_deal_price");
   const [pendingPricing, setPendingPricing] = React.useState<{
     productId: string;
     productName: string;
@@ -618,6 +622,10 @@ export function DealProductsSection({
     items.length > 1 || items.some((i) => i.quantity !== 1 || i.discount > 0);
 
   const startQtyDiscountEdit = (item: DealProductItem) => {
+    if (!canEditDealPrice) {
+      toast.info("Só Administrador e Gestor podem alterar preço, desconto ou quantidade.");
+      return;
+    }
     setEditPricing(null);
     setEditingItem(item.id);
     setEditQty(String(item.quantity));

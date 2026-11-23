@@ -512,9 +512,10 @@ export function eventDescription(ev: FeedEvent): string {
     case "CONTACT_TAG_ADDED":
     case "CONTACT_TAG_REMOVED":
       return String(m.tagName ?? ev.newValue ?? ev.oldValue ?? "");
+    case "PRODUCT_UPDATED":
+      return productUpdatedDescription(m);
     case "PRODUCT_ADDED":
     case "PRODUCT_REMOVED":
-    case "PRODUCT_UPDATED":
       return String(m.productName ?? "");
     case "COMPANY_LINKED":
     case "COMPANY_UNLINKED":
@@ -813,4 +814,16 @@ export function actorDisplay(ev: FeedEvent): {
             ? "Sistema"
             : "Usuário");
   return { label, sublabel: ev.actorSublabel ?? null, type };
+}
+
+/**
+ * "Produto atualizado". Quando veio da atualização de preço do cadastro
+ * (`reason: "price_sync"`), mostra o preço antigo → novo.
+ */
+export function productUpdatedDescription(m: Record<string, unknown>): string {
+  const name = String(m.productName ?? "");
+  if (m.reason !== "price_sync") return name;
+  const brl = (v: unknown) =>
+    Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return `${name}: preço atualizado de ${brl(m.fromUnitPrice)} para ${brl(m.unitPrice)}`;
 }
