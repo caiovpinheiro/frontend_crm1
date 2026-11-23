@@ -443,7 +443,7 @@ function AdminSection({
         />
         <SwitchRow
           title="Todos os usuários podem conectar"
-          description="Desligado: só quem tem a permissão “Conectar assistentes de IA” (Permissões e funções)."
+          description="Desligado: só quem tem a permissão “Conectar assistentes de IA” (Permissões e funções). Operadores acessam apenas os negócios em que são responsáveis e as conversas deles; gestores e administradores, o que já veem no CRM."
           checked={cfg.allowAllUsers}
           disabled={saving}
           onChange={(v) => onSave({ allowAllUsers: v })}

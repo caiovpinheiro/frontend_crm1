@@ -33,6 +33,8 @@ type ConsentInfo = {
   user: { name: string | null; email: string | null };
   organization: string | null;
   canConnect: boolean;
+  /** "own" = operador: o assistente só vê os negócios e conversas dele. */
+  accessLevel?: "own" | "full";
   cannotConnectReason: string | null;
   scopes: { id: string; label: string; description: string; allowedByOrg: boolean }[];
 };
@@ -225,8 +227,11 @@ function ConsentBody({
           <div className="flex gap-3 rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
             <IconShieldCheck className="size-5 shrink-0 text-primary" />
             <p>
-              Somente leitura: o assistente não altera dados, não envia mensagens e só vê o que você
-              já pode ver no CRM. Você pode revogar o acesso a qualquer momento em Configurações › Assistentes de IA.
+              Somente leitura: o assistente não altera dados e não envia mensagens.{" "}
+              {info.accessLevel === "own"
+                ? "Ele vê apenas os negócios em que você é o responsável e as conversas desses clientes ou atribuídas a você."
+                : "Ele só vê o que você já pode ver no CRM."}{" "}
+              Você pode revogar o acesso a qualquer momento em Configurações › Assistentes de IA.
             </p>
           </div>
 
