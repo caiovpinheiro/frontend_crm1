@@ -28,6 +28,7 @@ import {
   IconMessage2,
   IconMessages,
   IconMoodEmpty,
+  IconClock,
   IconNote,
   IconPackage,
   IconQuestionMark,
@@ -67,6 +68,7 @@ type EventType =
   | "start_survey"
   | "record_knowledge_gap"
   | "no_reply"
+  | "schedule_message"
   | "failure";
 type Status = "ok" | "failed" | "discarded";
 
@@ -120,6 +122,7 @@ const TYPE: Record<EventType, { label: string; icon: React.ComponentType<{ class
   start_survey: { label: "Enviou pesquisa", icon: IconStar, tone: "amber" },
   record_knowledge_gap: { label: "Dúvida sem resposta", icon: IconQuestionMark, tone: "amber" },
   no_reply: { label: "Não respondeu", icon: IconMoodEmpty, tone: "slate" },
+  schedule_message: { label: "Agendou retomada", icon: IconClock, tone: "sky" },
   failure: { label: "Falha técnica", icon: IconAlertTriangle, tone: "rose" },
 };
 

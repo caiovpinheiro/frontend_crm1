@@ -97,6 +97,7 @@ import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone 
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
 import { NoticesStep } from "./notices-step";
+import { AutoSendStep } from "./auto-send-step";
 import { VOICE_DEFAULTS, VoiceStep, looksLikeVoiceKey } from "./voice-step";
 import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
@@ -1637,6 +1638,7 @@ export default function AIAgentV2EditPage() {
                     <StepEntry config={config} onChange={updateConfig} />
                     <StepMedia config={config} onChange={updateConfig} />
                     <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />
+                    <AutoSendStep agentId={id} config={config} catalogs={catalogs} onChange={updateConfig} />
                   </div>
                 )}
                 {section === "equipe" && (
