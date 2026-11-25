@@ -607,6 +607,9 @@ async function fetchCatalogs(): Promise<Catalogs> {
   return parseApiResponse<Catalogs>(res, "Erro ao carregar catálogos.");
 }
 
+/** Prazo de um turno do simulador. */
+const TEST_TURN_TIMEOUT_MS = 90_000;
+
 async function testAgent(
   id: string,
   userMessage: string,
@@ -621,11 +624,14 @@ async function testAgent(
   const body: Record<string, unknown> = { userMessage, history, stage, themeId: themeId ?? null };
   if (model) body.model = model;
   if (contactId) body.contactId = contactId;
+  // Turno completo (modelo com ferramentas, busca nos materiais, checagem):
+  // com Claude e materiais grandes passa dos 12 s padrão do apiFetch, e a
+  // tela mostrava "Servidor não respondeu a tempo" com o turno ainda rodando.
   const res = await apiFetch(`/api/ai-agents-v2/${id}/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }, TEST_TURN_TIMEOUT_MS);
   return parseApiResponse<TestResult>(res, "Erro ao testar agente.");
 }
 
@@ -1097,7 +1103,10 @@ export default function AIAgentV2EditPage() {
       // Chave só vai quando está completa: o salvamento automático não pode
       // gravar uma chave pela metade enquanto a pessoa digita.
       const keyToSend = looksLikeOpenAiApiKey(openaiKey) ? openaiKey.trim() : undefined;
-      const anthropicToSend = looksLikeAnthropicKey(anthropicKey) ? anthropicKey.trim() : undefined;
+      // Anthropic só depois da OpenAI: o motor usa a OpenAI na busca nos
+      // materiais, no áudio e na checagem, mesmo com um modelo Claude.
+      const hasOpenaiForAnthropic = Boolean(agentQuery.data?.hasOwnOpenaiKey) || Boolean(keyToSend);
+      const anthropicToSend = hasOpenaiForAnthropic && looksLikeAnthropicKey(anthropicKey) ? anthropicKey.trim() : undefined;
       const voiceKeyToSend = looksLikeVoiceKey(voiceKey) ? voiceKey.trim() : undefined;
       setSaving(true);
       setSaveError(null);
@@ -2113,12 +2122,15 @@ function AnthropicKeyField({
   hasSavedKey,
   savedHint,
   required,
+  locked = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   hasSavedKey: boolean;
   savedHint: string | null;
   required: boolean;
+  /** Sem chave OpenAI ainda: a da Anthropic espera. */
+  locked?: boolean;
 }) {
   const [editing, setEditing] = React.useState(false);
   const showInput = editing || !hasSavedKey;
@@ -2132,19 +2144,25 @@ function AnthropicKeyField({
           id="ag-anthropic-key"
           type="password"
           autoComplete="off"
-          value={value}
+          value={locked ? "" : value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="sk-ant-…"
+          placeholder={locked ? "Primeiro a chave da OpenAI" : "sk-ant-…"}
+          disabled={locked}
         />
       ) : (
         <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-white px-3 text-sm v2-dark:bg-card">
           <span className="tabular-nums">•••• {savedHint}</span>
-          <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setEditing(true)}>
+          <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setEditing(true)} disabled={locked}>
             Trocar
           </Button>
         </div>
       )}
-      {value.trim() && !looksLikeAnthropicKey(value) && <p className="text-xs text-amber-600">A chave da Anthropic começa com sk-ant-.</p>}
+      {locked && (
+        <p className="text-xs text-muted-foreground">
+          Cole e salve antes a chave da OpenAI: o agente usa a OpenAI na busca nos materiais, no áudio e na checagem das respostas, mesmo com um modelo Claude.
+        </p>
+      )}
+      {!locked && value.trim() && !looksLikeAnthropicKey(value) && <p className="text-xs text-amber-600">A chave da Anthropic começa com sk-ant-.</p>}
       {required && !hasSavedKey && !value.trim() && <p className="text-xs text-destructive">Obrigatória com um modelo Claude.</p>}
     </div>
   );
@@ -2318,7 +2336,7 @@ function StepStart({
         <div className="grid items-end gap-4 md:grid-cols-[1fr_auto]">
           <OpenAiKeyField value={openaiKey} onChange={onKeyChange} hasSavedKey={hasOpenaiKey} savedHint={openaiKeyHint ?? undefined} />
           <span />
-          <AnthropicKeyField value={anthropicKey} onChange={onAnthropicKeyChange} hasSavedKey={hasAnthropicKey} savedHint={anthropicKeyHint} required={modelIsClaude} />
+          <AnthropicKeyField value={anthropicKey} onChange={onAnthropicKeyChange} hasSavedKey={hasAnthropicKey} savedHint={anthropicKeyHint} required={modelIsClaude} locked={!hasOpenai} />
           <Button type="button" variant="ghost" size="sm" onClick={onValidateKey} disabled={validatingKey || !hasKeyForPublish} className="gap-1">
             {validatingKey ? <IconLoader2 className="size-4 animate-spin" /> : <IconCheck className="size-4" />}
             Testar chave
