@@ -1715,7 +1715,7 @@ export default function AIAgentV2EditPage() {
                       <TabsTrigger value="feedback" className={TABS_TRIGGER}>Feedback</TabsTrigger>
                     </TabsList>
                     <TabsContent value="whatsapp">
-                      <TestConversations agentId={id} />
+                      <TestConversations agentId={id} blockApply={dirty || saving} onApplied={reloadAfterRestore} />
                     </TabsContent>
                     <TabsContent value="compare">
                       <CompareHuman agentId={id} />

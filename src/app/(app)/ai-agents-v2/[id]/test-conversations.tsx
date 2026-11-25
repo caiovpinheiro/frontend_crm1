@@ -32,6 +32,7 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 import { BlockHeader, IconChip, Pill, SURFACE, Segmented } from "./ui";
+import { TestCorrections } from "./test-corrections";
 
 type TraceStep = { step: string; detail: string; at: number; data?: Record<string, unknown> };
 
@@ -49,6 +50,8 @@ type Feedback = {
   createdAt: string;
   diagnosis: Diagnosis | null;
   diagnosisError?: string;
+  /** Marcado pelo #corrigir no WhatsApp (sem diagnóstico da tela). */
+  via?: "whatsapp";
 };
 
 type TestTurn = {
@@ -160,7 +163,17 @@ async function sendFeedback(agentId: string, logId: string, comment: string): Pr
   return data.feedback;
 }
 
-export function TestConversations({ agentId }: { agentId: string }) {
+export function TestConversations({
+  agentId,
+  blockApply = false,
+  onApplied = () => {},
+}: {
+  agentId: string;
+  /** Rascunho com alteração não salva: aplicar uma correção agora perderia o que está na tela. */
+  blockApply?: boolean;
+  /** Uma correção entrou no rascunho: a tela recarrega a configuração. */
+  onApplied?: () => void;
+}) {
   const query = useQuery({
     queryKey: ["ai-agents-v2-test-logs", agentId],
     queryFn: () => fetchTestLogs(agentId),
@@ -212,9 +225,17 @@ export function TestConversations({ agentId }: { agentId: string }) {
           <span className="text-xs text-muted-foreground sm:ml-auto">
             Mande <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px] text-foreground ring-1 ring-border v2-dark:bg-card">#reset</code> para
             recomeçar do zero
+            {testNumbers.length > 0 && (
+              <>
+                {" "}· <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px] text-foreground ring-1 ring-border v2-dark:bg-card">#corrigir</code> + o
+                certo para corrigir a resposta anterior
+              </>
+            )}
           </span>
         </div>
       </section>
+
+      <TestCorrections agentId={agentId} blockApply={blockApply} onApplied={onApplied} />
 
       {query.isLoading && <Skeleton className="h-48 rounded-2xl" />}
       {query.isError && (
@@ -503,9 +524,10 @@ function FeedbackView({ feedback }: { feedback: Feedback }) {
   return (
     <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm shadow-sm v2-dark:border-amber-500/30 v2-dark:bg-amber-500/10">
       <p className="text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Você marcou:</span> {feedback.comment}
+        <span className="font-medium text-foreground">{feedback.via === "whatsapp" ? "Corrigido pelo WhatsApp:" : "Você marcou:"}</span>{" "}
+        <span className="whitespace-pre-line">{feedback.comment}</span>
       </p>
-      {!d ? (
+      {!d && feedback.via === "whatsapp" ? null : !d ? (
         <p className="text-xs text-destructive">
           Não foi possível gerar o diagnóstico{feedback.diagnosisError ? `: ${feedback.diagnosisError}` : "."}
         </p>
