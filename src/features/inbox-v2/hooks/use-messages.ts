@@ -59,6 +59,81 @@ function oldestCursor(messages: InboxMessageDto[]): string | null {
   return oldest;
 }
 
+function minIso(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return b < a ? b : a;
+}
+
+/**
+ * `before` do próximo `?history=1`. 1ª fatia: nenhum (o cursor do ticket
+ * atual fazia a API filtrar createdAt e devolver []). Depois: a mensagem
+ * mais antiga dos tickets anteriores já mesclados — não a da lista inteira,
+ * que pode ser de uma conversa ativa antiga e pularia os tickets do meio.
+ */
+export function historyCursor(cur: MessagesResponse): string | null {
+  if (!cur.messages.some(isTicketSeparator)) return null;
+  return cur.historyBefore ?? oldestCursor(cur.messages);
+}
+
+/**
+ * Âncora dos separadores de um bloco `?history=1` (`[sep, msgs…, sep, …,
+ * sepAtual]`), gravada em `timelineAt`:
+ *  - ticket anterior: o mais cedo entre a abertura e a 1ª mensagem dele
+ *    (o divisor nunca fica abaixo da mensagem que abriu o ticket);
+ *  - separador sem mensagens depois dele no bloco (o do ticket atual): logo
+ *    após a última mensagem dos tickets anteriores, sem passar da abertura.
+ *    A 1ª mensagem do ticket atual vem 1–2 s antes da abertura e precisa
+ *    ficar abaixo do "Conversa #N aberta".
+ */
+export function anchorTicketSeparators(block: InboxMessageDto[]): InboxMessageDto[] {
+  let lastReal = -Infinity;
+  for (const m of block) {
+    if (isTicketSeparator(m)) continue;
+    const t = Date.parse(m.createdAt);
+    if (Number.isFinite(t) && t > lastReal) lastReal = t;
+  }
+  return block.map((m, i) => {
+    if (!isTicketSeparator(m)) return m;
+    const own = Date.parse(m.createdAt);
+    let first: number | null = null;
+    for (let j = i + 1; j < block.length; j++) {
+      const n = block[j]!;
+      if (isTicketSeparator(n)) break;
+      const t = Date.parse(n.createdAt);
+      if (Number.isFinite(t)) {
+        first = t;
+        break;
+      }
+    }
+    const bound = first ?? (Number.isFinite(lastReal) ? lastReal + 1 : null);
+    const at = bound === null ? own : Number.isFinite(own) ? Math.min(own, bound) : bound;
+    return Number.isFinite(at) ? { ...m, timelineAt: new Date(at).toISOString() } : m;
+  });
+}
+
+/**
+ * Linha do tempo em ordem cronológica. A página junta o ticket atual com as
+ * conversas ATIVAS do contato, que podem ser mais antigas que os tickets
+ * encerrados do histórico: colar blocos (histórico antes da página) deixava
+ * mensagens de dias atrás abaixo do "Conversa #N aberta".
+ * Estável: mesmo instante mantém a ordem do servidor; separador antes de
+ * mensagem no empate; item sem horário fica junto do anterior. Já em ordem:
+ * devolve o mesmo array.
+ */
+export function sortTimeline(messages: InboxMessageDto[]): InboxMessageDto[] {
+  let prevKey = -Infinity;
+  const keyed = messages.map((m, i) => {
+    const sep = isTicketSeparator(m);
+    const t = Date.parse((sep && m.timelineAt) || m.createdAt);
+    const key = Number.isFinite(t) ? t : prevKey;
+    prevKey = key;
+    return { m, i, key, sep };
+  });
+  keyed.sort((a, b) => a.key - b.key || Number(b.sep) - Number(a.sep) || a.i - b.i);
+  return keyed.every((k, idx) => k.i === idx) ? messages : keyed.map((k) => k.m);
+}
+
 function inferHasMore(page: MessagesResponse, limit: number): boolean {
   if (typeof page.hasMore === "boolean") return page.hasMore;
   const real = page.messages.filter((m) => !isTicketSeparator(m));
@@ -126,6 +201,7 @@ function mergeTail(
     if (!prev?.messages?.length) {
       return {
         ...next,
+        messages: sortTimeline(next.messages),
         hasMore: inferHasMore(next, MESSAGE_PAGE),
         hasOlderTickets: next.hasOlderTickets === true,
         historyLoaded: false,
@@ -141,10 +217,11 @@ function mergeTail(
     });
     return {
       ...next,
-      messages: [...kept, ...next.messages],
+      messages: sortTimeline([...kept, ...next.messages]),
       hasMore: prev.hasMore === true,
       hasOlderTickets: prev.hasOlderTickets === true || next.hasOlderTickets === true,
       historyLoaded: prev.historyLoaded === true,
+      historyBefore: prev.historyBefore ?? null,
     };
   } catch (e) {
     logger.error("mergeTail", "failed", e);
@@ -242,7 +319,7 @@ function mergeOlder(
     const incoming = page.messages.filter((m) => !existing.has(String(m.id)));
     return {
       ...prev,
-      messages: [...incoming, ...prev.messages],
+      messages: sortTimeline([...incoming, ...prev.messages]),
       // Página vazia/duplicada (before ignorado ou fim do ticket) — para
       // de paginar pra o próximo gesto pedir history=1.
       hasMore: incoming.length === 0 ? false : inferHasMore(page, MESSAGE_PAGE),
@@ -253,14 +330,26 @@ function mergeOlder(
   }
 }
 
-function mergeHistory(
+export function mergeHistory(
   prev: MessagesResponse | undefined,
   hist: MessagesResponse,
 ): MessagesResponse {
   try {
-    if (!prev) return { ...hist, hasMore: false, hasOlderTickets: false, historyLoaded: true };
+    const block = anchorTicketSeparators(hist.messages);
+    if (!prev) {
+      return {
+        ...hist,
+        messages: sortTimeline(block),
+        hasMore: false,
+        hasOlderTickets: false,
+        historyLoaded: true,
+        historyBefore: oldestCursor(block),
+      };
+    }
     const existing = new Set(prev.messages.map((m) => String(m.id)));
-    const incoming = hist.messages.filter((m) => !existing.has(String(m.id)));
+    // O separador do ticket atual volta em toda fatia: fica o primeiro (a
+    // âncora dele é a do ticket encerrado mais recente).
+    const incoming = block.filter((m) => !existing.has(String(m.id)));
     // Prefetch/gesto vazio: encerra. Sem isto hasOlder fica true e o
     // spinner "Carregando histórico…" não larga.
     if (incoming.length === 0) {
@@ -273,10 +362,13 @@ function mergeHistory(
     }
     return {
       ...prev,
-      messages: [...incoming, ...prev.messages],
+      // Não é "histórico antes da página": a página pode trazer conversas
+      // ativas do contato mais antigas que estes tickets.
+      messages: sortTimeline([...incoming, ...prev.messages]),
       hasMore: false,
       hasOlderTickets: hist.hasOlderTickets === true,
       historyLoaded: hist.hasOlderTickets !== true,
+      historyBefore: minIso(prev.historyBefore, oldestCursor(incoming)),
     };
   } catch (e) {
     logger.error("mergeHistory", "failed", e);
@@ -367,10 +459,9 @@ export function useMessages(conversationId: string | null) {
       } else {
         // 1ª fatia sem `before` — o cursor do ticket atual fazia a API
         // filtrar createdAt e devolver []. Backend devolve 1 ticket.
-        const alreadyHasHistory = cur.messages.some(isTicketSeparator);
         const hist = await getMessages(conversationId, {
           history: true,
-          before: alreadyHasHistory ? cursor ?? undefined : undefined,
+          before: historyCursor(cur) ?? undefined,
           limit: HISTORY_PAGE,
           budget: HISTORY_PAGE,
         });

@@ -416,6 +416,13 @@ export interface InboxMessageDto {
    *  compartilhado entre agentes). Alimenta a estrela preenchida no
    *  menu contextual e no bubble. */
   favoritedByMe?: boolean;
+  /**
+   * Client-only, só em separador de ticket: instante em que o divisor entra
+   * na ordem da linha do tempo. A abertura do ticket (`createdAt`) costuma
+   * ser 1–2 s depois do horário da 1ª mensagem (timestamp do WhatsApp);
+   * sem a âncora o divisor cairia abaixo dela. Ver `anchorTicketSeparators`.
+   */
+  timelineAt?: string;
   referral?: {
     sourceId?: string;
     sourceType?: string;
@@ -470,6 +477,13 @@ export interface MessagesResponse {
   hasOlderTickets?: boolean;
   /** Client-only: já mesclou o histórico de tickets anteriores. */
   historyLoaded?: boolean;
+  /**
+   * Client-only: mensagem mais antiga dos tickets anteriores já mesclados —
+   * o `before` do próximo `?history=1`. Não é o mais antigo da lista: a
+   * página traz também conversas ATIVAS do contato, que podem ser bem mais
+   * antigas, e usá-las pularia os tickets encerrados entre elas e o atual.
+   */
+  historyBefore?: string | null;
   pinnedNoteId: string | null;
   /** Mensagens fixadas no topo da conversa (banner estilo WhatsApp) —
    *  várias por conversa (máx. 3), diferente de `pinnedNoteId` (só notas).
