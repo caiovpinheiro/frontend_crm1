@@ -18,6 +18,7 @@ const BLACK_GERAL: TemplateRow = {
   status: "APPROVED",
   bodyPreview: "Black Friday chegou!",
   headerFormat: "IMAGE",
+  headerExampleUrl: "https://scontent.whatsapp.net/v/t61/black.jpg",
 };
 
 function renderMapper(onChange: (p: CampaignTemplateComponentsPayload | null) => void) {
@@ -47,10 +48,12 @@ describe("campanha × cabeçalho de mídia", () => {
         version: 1,
         headerMediaSource: "template",
         headerMediaType: "image",
+        headerMediaExampleUrl: "https://scontent.whatsapp.net/v/t61/black.jpg",
       }),
     );
     expect(screen.queryByText("Selecione o campo com a URL da imagem.")).toBeNull();
     expect(screen.queryByTestId("dropdown")).toBeNull();
+    expect(screen.getByAltText("Mídia original do template")).toBeTruthy();
   });
 
   it("opção 'Campo do negócio' volta a pedir o custom field", async () => {

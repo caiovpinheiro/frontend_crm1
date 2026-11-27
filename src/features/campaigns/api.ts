@@ -309,6 +309,7 @@ export async function fetchTemplates(channelId?: string | null): Promise<Templat
       headerFormat?: string | null;
       operatorVariables?: TemplateRow["operatorVariables"];
       buttons?: TemplateRow["buttons"];
+      headerExampleUrl?: string | null;
       status?: string;
     }>
   >(`/api/whatsapp-template-configs/approved${qs}`, "Erro ao carregar templates.");
@@ -332,6 +333,10 @@ export async function fetchTemplates(channelId?: string | null): Promise<Templat
         ? r.operatorVariables
         : null,
       buttons: Array.isArray(r.buttons) ? r.buttons : null,
+      headerExampleUrl:
+        typeof r.headerExampleUrl === "string" && r.headerExampleUrl.trim()
+          ? r.headerExampleUrl.trim()
+          : null,
     });
   }
   return out;
