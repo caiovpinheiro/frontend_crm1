@@ -102,6 +102,9 @@ export function CampaignTemplateVariableMapper({
 
   const [vars, setVars] = useState<TemplateVariableInput[]>([]);
   const [headerMediaToken, setHeaderMediaToken] = useState("");
+  // Padrão: a mídia que já está no template aprovado na Meta. Campo do
+  // negócio só quando cada contato precisa de uma mídia diferente.
+  const [headerMediaSource, setHeaderMediaSource] = useState<"template" | "field">("template");
 
   // Ao trocar de template: reconcilia slots e aplica defaults do operatorVariables.
   useEffect(() => {
@@ -117,6 +120,7 @@ export function CampaignTemplateVariableMapper({
     );
     setVars(next);
     setHeaderMediaToken("");
+    setHeaderMediaSource("template");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template?.name, template?.language, needsMapping]);
 
@@ -135,20 +139,32 @@ export function CampaignTemplateVariableMapper({
     const payload: CampaignTemplateComponentsPayload = {
       version: 1,
       ...(components.length ? { components } : {}),
-      ...(needsHeaderMedia && headerMediaToken.trim()
-        ? {
-            headerMediaUrl: headerMediaToken.trim(),
-            headerMediaType,
-          }
-        : {}),
+      ...(needsHeaderMedia && headerMediaSource === "template"
+        ? { headerMediaSource: "template" as const, headerMediaType }
+        : needsHeaderMedia && headerMediaToken.trim()
+          ? {
+              headerMediaSource: "field" as const,
+              headerMediaUrl: headerMediaToken.trim(),
+              headerMediaType,
+            }
+          : {}),
     };
     onChange(payload);
-  }, [vars, headerMediaToken, needsMapping, needsHeaderMedia, template, onChange]);
+  }, [
+    vars,
+    headerMediaToken,
+    headerMediaSource,
+    needsMapping,
+    needsHeaderMedia,
+    template,
+    onChange,
+  ]);
 
   if (!template || !needsMapping) return null;
 
   const missingText = countMissingTemplateVariables(vars);
-  const missingHeader = needsHeaderMedia && !headerMediaToken.trim();
+  const missingHeader =
+    needsHeaderMedia && headerMediaSource === "field" && !headerMediaToken.trim();
   const mediaLabel =
     String(template.headerFormat ?? "").toUpperCase() === "VIDEO"
       ? "vídeo"
@@ -164,30 +180,76 @@ export function CampaignTemplateVariableMapper({
           Este template tem{" "}
           {needsHeaderMedia ? `cabeçalho de ${mediaLabel}` : ""}
           {needsHeaderMedia && varSlots.length > 0 ? " e " : ""}
-          {varSlots.length > 0 ? "variáveis no texto ou no link do botão" : ""}. Mapeie cada uma
-          para um campo do negócio — o valor de cada contato é preenchido no
-          envio.
+          {varSlots.length > 0 ? "variáveis no texto ou no link do botão" : ""}.{" "}
+          {varSlots.length > 0
+            ? "Mapeie cada variável para um campo do negócio — o valor de cada contato é preenchido no envio."
+            : ""}
         </p>
       </div>
 
       {needsHeaderMedia ? (
         <div>
           <span className={formLabelClass}>
-            URL da {mediaLabel} (header)
+            {mediaLabel.charAt(0).toUpperCase() + mediaLabel.slice(1)} do cabeçalho
           </span>
-          <DropdownGlass
-            options={fieldOptions}
-            value={headerMediaToken || undefined}
-            onValueChange={setHeaderMediaToken}
-            placeholder="Campo com a URL da mídia…"
-            triggerClassName="w-full"
-            searchable
-            searchPlaceholder="Buscar campo…"
-          />
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Use um custom field do negócio que contenha a URL HTTPS da{" "}
-            {mediaLabel} de cada lead.
-          </p>
+          <div
+            role="radiogroup"
+            aria-label={`Origem da ${mediaLabel} do cabeçalho`}
+            className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2"
+          >
+            {(
+              [
+                {
+                  value: "template",
+                  title: "Mídia original do template",
+                  hint: `A ${mediaLabel} cadastrada na Meta — a mesma para todos.`,
+                },
+                {
+                  value: "field",
+                  title: "Campo do negócio",
+                  hint: `Uma ${mediaLabel} por contato, vinda de um custom field.`,
+                },
+              ] as const
+            ).map((opt) => {
+              const active = headerMediaSource === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setHeaderMediaSource(opt.value)}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                    active
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-background hover:bg-muted/50"
+                  }`}
+                >
+                  <span className="block text-[12.5px] font-medium text-foreground">
+                    {opt.title}
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">{opt.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+          {headerMediaSource === "field" ? (
+            <div className="mt-2">
+              <DropdownGlass
+                options={fieldOptions}
+                value={headerMediaToken || undefined}
+                onValueChange={setHeaderMediaToken}
+                placeholder="Campo com a URL da mídia…"
+                triggerClassName="w-full"
+                searchable
+                searchPlaceholder="Buscar campo…"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Use um custom field do negócio que contenha a URL HTTPS da{" "}
+                {mediaLabel} de cada lead.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

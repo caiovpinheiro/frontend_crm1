@@ -220,7 +220,9 @@ export default function NewCampaignClientPage() {
     const needsMedia =
       hf === "IMAGE" || hf === "VIDEO" || hf === "DOCUMENT";
     const missingMedia =
-      needsMedia && !(templateComponents?.headerMediaUrl ?? "").trim();
+      needsMedia &&
+      templateComponents?.headerMediaSource !== "template" &&
+      !(templateComponents?.headerMediaUrl ?? "").trim();
     return missingVars > 0 || missingMedia;
   }, [type, selectedTemplate, templateComponents]);
 
