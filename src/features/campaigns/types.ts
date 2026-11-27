@@ -176,6 +176,11 @@ export interface CampaignTemplateComponentsPayload {
   headerMediaUrl?: string | null;
   /** image | video | document — espelha headerFormat do template. */
   headerMediaType?: "image" | "video" | "document" | null;
+  /**
+   * `template` = mídia original cadastrada no template aprovado na Meta (a
+   * mesma para todos); `field` = `headerMediaUrl` (campo do negócio).
+   */
+  headerMediaSource?: "template" | "field";
 }
 
 export interface CreateCampaignBody {
