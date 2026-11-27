@@ -392,6 +392,8 @@ export interface WhatsappTemplate {
   headerText?: string;
   /** Metadados das variáveis do corpo (rótulos/exemplos) para validação no envio. */
   operatorVariables?: OperatorVariableMeta[] | null;
+  /** Botões na ordem da seção BUTTONS (tipo, rótulo e URL, quando houver). */
+  buttons?: { type?: string | null; text?: string | null; url?: string | null }[] | null;
 }
 
 /**
@@ -412,6 +414,7 @@ interface AgentEnabledTemplateRaw {
   hasButtons?: boolean;
   hasVariables?: boolean;
   operatorVariables?: OperatorVariableMeta[] | null;
+  buttons?: { type?: string | null; text?: string | null; url?: string | null }[] | null;
 }
 
 /** GET /api/whatsapp-template-configs/agent-enabled — opcional `channelId` (WABA do canal). */
@@ -439,6 +442,7 @@ export async function listAgentEnabledTemplates(
     hasButtons: row.hasButtons,
     hasVariables: row.hasVariables,
     operatorVariables: Array.isArray(row.operatorVariables) ? row.operatorVariables : null,
+    buttons: Array.isArray(row.buttons) ? row.buttons : null,
   }));
 }
 

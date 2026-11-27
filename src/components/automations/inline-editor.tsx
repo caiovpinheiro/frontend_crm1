@@ -57,6 +57,9 @@ import {
   templateVariableValue,
   templateVariablesFromConfig,
   templateVariablesOf,
+  templateSlotId,
+  templateUrlButtons,
+  renderTemplateButtonUrl,
   unsupportedTemplateTokens,
 } from "./template-variables"
 import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components"
@@ -1550,7 +1553,7 @@ function TemplatePreview({
   const detail = getTemplateDetail(detailsMap, templateName, str(config.languageCode))
 
   const varSlots = useMemo(
-    () => templateVariableSlots(detail?.bodyPreview, detail?.headerPreview),
+    () => templateVariableSlots(detail?.bodyPreview, detail?.headerPreview, detail?.buttonDefs),
     [detail],
   )
   const vars = useMemo(
@@ -1618,6 +1621,7 @@ function TemplatePreview({
 
   const headerMediaMissing = needsHeaderMedia && str(config.headerMediaUrl) === ""
   const missingVars = countMissingTemplateVariables(vars)
+  const urlButtons = templateUrlButtons(detail.buttonDefs)
 
   return (
     <>
@@ -1642,11 +1646,15 @@ function TemplatePreview({
           </p>
           <div className="cfg-list">
             {varSlots.map((slot) => (
-              <div className="cfg-field" key={`${slot.component}-${slot.key}`}>
+              <div className="cfg-field" key={templateSlotId(slot)}>
                 <span className="cfg-sublabel">{templateVariableLabel(slot)}</span>
                 <VariableInput
                   value={templateVariableValue(vars, slot)}
-                  placeholder="Texto ou { para variáveis"
+                  placeholder={
+                    slot.component === "button"
+                      ? "Ex.: {{dealCustomFields.codigo_da_prova}}"
+                      : "Texto ou { para variáveis"
+                  }
                   onChange={(v) => setVar(slot, v)}
                 />
               </div>
@@ -1675,6 +1683,13 @@ function TemplatePreview({
             <p className="cfg-tpl-body">
               {renderTemplatePreview(detail.bodyPreview, templateVariablesOf(vars, "body"))}
             </p>
+            {urlButtons.map((b) => (
+              <p className="cfg-tpl-url-btn" key={b.index}>
+                <strong>🔗 {b.text || `Botão ${b.index + 1}`}</strong>
+                <br />
+                <span>{renderTemplateButtonUrl(b, vars)}</span>
+              </p>
+            ))}
           </div>
           {detail.quickReplies.length > 0 && (
             <p className="cfg-hint">

@@ -224,7 +224,7 @@ type RawTemplateDetail = RawTemplate & {
   bodyPreview?: string
   headerPreview?: string
   footerPreview?: string
-  buttons?: { type?: string; text?: string }[]
+  buttons?: { type?: string; text?: string; url?: string | null }[]
   headerFormat?: string | null
 }
 
@@ -347,6 +347,11 @@ export type TemplateDetail = {
   headerFormat?: string | null
   language?: string
   buttons: { title: string; kind: TemplateButtonKind }[]
+  /**
+   * Botões crus na ordem da seção BUTTONS (a posição é o `index` do envio).
+   * Fonte dos campos de botão URL dinâmico (`https://x/{{1}}`).
+   */
+  buttonDefs?: { type: string; text: string; url: string | null }[]
 }
 
 export function getTemplateDetail(
@@ -402,6 +407,11 @@ function detailFromApproved(t: RawTemplateDetail): TemplateDetail | null {
     headerFormat: t.headerFormat ?? null,
     language,
     buttons,
+    buttonDefs: (t.buttons ?? []).map((b) => ({
+      type: String(b?.type ?? "").toUpperCase(),
+      text: (b?.text ?? "").trim(),
+      url: typeof b?.url === "string" ? b.url : null,
+    })),
   }
 }
 

@@ -162,6 +162,8 @@ export interface TemplateRow {
     example?: string;
     crmField?: string;
   }[] | null;
+  /** Botões na ordem da seção BUTTONS (URL com `{{1}}` vira campo). */
+  buttons?: { type?: string | null; text?: string | null; url?: string | null }[] | null;
 }
 
 /**
