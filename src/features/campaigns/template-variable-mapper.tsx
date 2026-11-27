@@ -140,7 +140,13 @@ export function CampaignTemplateVariableMapper({
       version: 1,
       ...(components.length ? { components } : {}),
       ...(needsHeaderMedia && headerMediaSource === "template"
-        ? { headerMediaSource: "template" as const, headerMediaType }
+        ? {
+            headerMediaSource: "template" as const,
+            headerMediaType,
+            ...(template.headerExampleUrl
+              ? { headerMediaExampleUrl: template.headerExampleUrl }
+              : {}),
+          }
         : needsHeaderMedia && headerMediaToken.trim()
           ? {
               headerMediaSource: "field" as const,
@@ -233,6 +239,26 @@ export function CampaignTemplateVariableMapper({
               );
             })}
           </div>
+          {headerMediaSource === "template" && template.headerExampleUrl ? (
+            <div className="mt-2 flex items-center gap-2">
+              {String(template.headerFormat ?? "").toUpperCase() === "IMAGE" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={template.headerExampleUrl}
+                  alt="Mídia original do template"
+                  className="h-14 w-14 rounded-md border border-border object-cover"
+                />
+              ) : null}
+              <a
+                href={template.headerExampleUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-primary underline-offset-2 hover:underline"
+              >
+                Ver a {mediaLabel} original do template
+              </a>
+            </div>
+          ) : null}
           {headerMediaSource === "field" ? (
             <div className="mt-2">
               <DropdownGlass

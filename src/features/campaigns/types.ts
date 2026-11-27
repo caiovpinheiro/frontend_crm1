@@ -162,6 +162,8 @@ export interface TemplateRow {
     example?: string;
     crmField?: string;
   }[] | null;
+  /** Mídia original do cabeçalho cadastrada na Meta (exemplo do HEADER). */
+  headerExampleUrl?: string | null;
   /** Botões na ordem da seção BUTTONS (URL com `{{1}}` vira campo). */
   buttons?: { type?: string | null; text?: string | null; url?: string | null }[] | null;
 }
@@ -181,6 +183,8 @@ export interface CampaignTemplateComponentsPayload {
    * mesma para todos); `field` = `headerMediaUrl` (campo do negócio).
    */
   headerMediaSource?: "template" | "field";
+  /** URL da mídia original (catálogo) — fallback do worker se a Graph falhar. */
+  headerMediaExampleUrl?: string;
 }
 
 export interface CreateCampaignBody {
