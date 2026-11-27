@@ -35,7 +35,14 @@ import {
 import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channels";
 import { buildTemplateComponents } from "@/lib/meta-whatsapp/build-template-components";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
-import { chatTemplateSlots } from "@/components/automations/template-variables";
+import {
+  chatTemplateSlots,
+  renderTemplateButtonUrl,
+  templateButtonSlotLabel,
+  templateSlotId,
+  templateUrlButtons,
+  type TemplateButtonInfo,
+} from "@/components/automations/template-variables";
 
 import { ChannelPickModal } from "./channel-pick-modal";
 import {
@@ -63,6 +70,11 @@ export interface PendingTemplate {
   language?: string | null;
   /** Metadados das variáveis (rótulos/exemplos). */
   operatorVariables?: OperatorVariableMeta[] | null;
+  /**
+   * Botões na ordem da seção BUTTONS. Botão URL com `{{1}}` na URL vira campo
+   * (final da URL); a posição é o `index` do componente no envio.
+   */
+  buttons?: TemplateButtonInfo[] | null;
 }
 
 /** Normaliza um `WhatsappTemplate` (picker) em `PendingTemplate`. */
@@ -76,6 +88,7 @@ export function whatsappTemplateToPending(tpl: WhatsappTemplate): PendingTemplat
     category: tpl.category ?? null,
     language: tpl.language ?? null,
     operatorVariables: tpl.operatorVariables ?? null,
+    buttons: tpl.buttons ?? null,
   };
 }
 
@@ -91,6 +104,7 @@ export function slashTemplateToPending(item: {
   bodyPreview: string;
   headerPreview?: string | null;
   operatorVariables?: OperatorVariableMeta[] | null;
+  buttons?: TemplateButtonInfo[] | null;
 }): PendingTemplate {
   return {
     name: item.name,
@@ -99,6 +113,7 @@ export function slashTemplateToPending(item: {
     headerText: item.headerPreview ?? "",
     metaTemplateId: item.id,
     operatorVariables: item.operatorVariables ?? null,
+    ...(item.buttons?.length ? { buttons: item.buttons } : {}),
   };
 }
 
@@ -252,7 +267,13 @@ export function TemplateComposePanel({
   }, [needsChannelPick]);
 
   const slots = useMemo(
-    () => chatTemplateSlots(template.content, template.headerText, template.operatorVariables),
+    () =>
+      chatTemplateSlots(
+        template.content,
+        template.headerText,
+        template.operatorVariables,
+        template.buttons,
+      ),
     [template],
   );
 
@@ -261,7 +282,7 @@ export function TemplateComposePanel({
     setVars((prev) => {
       const next: Record<string, string> = {};
       for (const slot of slots) {
-        const id = slotId(slot.component, slot.key);
+        const id = templateSlotId(slot);
         next[id] = prev[id] ?? "";
       }
       return next;
@@ -277,19 +298,25 @@ export function TemplateComposePanel({
     [template.content, vars],
   );
 
-  const allFilled = slots.every((slot) => vars[slotId(slot.component, slot.key)]?.trim().length);
+  const allFilled = slots.every((slot) => vars[templateSlotId(slot)]?.trim().length);
+
+  const urlButtons = useMemo(() => templateUrlButtons(template.buttons), [template.buttons]);
+  const filledVars = useMemo(
+    () =>
+      slots.map((slot) => ({
+        component: slot.component,
+        key: slot.key,
+        value: vars[templateSlotId(slot)] ?? "",
+        ...(slot.component === "button" ? { buttonIndex: slot.buttonIndex ?? 0 } : {}),
+      })),
+    [slots, vars],
+  );
 
   const sendMutation = useMutation({
     mutationFn: (channelOverride?: string | null) => {
       const channelId = channelOverride ?? effectiveChannelId;
       const components = slots.length
-        ? buildTemplateComponents(
-            slots.map((slot) => ({
-              component: slot.component,
-              key: slot.key,
-              value: vars[slotId(slot.component, slot.key)] ?? "",
-            })),
-          )
+        ? buildTemplateComponents(filledVars)
         : undefined;
       // `handleSendClick` já validou o JSON; aqui só monta o payload
       // (o caminho "reenviar após escolher canal" também passa por aqui).
@@ -437,6 +464,19 @@ export function TemplateComposePanel({
               <p className="font-semibold">{renderedHeader}</p>
             ) : null}
             <p>{renderedPreview || template.content}</p>
+            {urlButtons.map((b) => (
+              <p
+                key={b.index}
+                className="mt-1.5 border-t border-[var(--glass-border)]/60 pt-1.5 text-center text-[11.5px]"
+              >
+                <span className="font-semibold text-[var(--brand-primary)]">
+                  🔗 {b.text || `Botão ${b.index + 1}`}
+                </span>
+                <span className="block break-all text-[10.5px] text-[var(--text-muted)]">
+                  {renderTemplateButtonUrl(b, filledVars)}
+                </span>
+              </p>
+            ))}
           </div>
 
           {slots.length > 0 ? (
@@ -445,7 +485,23 @@ export function TemplateComposePanel({
                 Preencha e valide as variáveis
               </p>
               {slots.map((slot) => {
-                const id = slotId(slot.component, slot.key);
+                const id = templateSlotId(slot);
+                if (slot.component === "button") {
+                  return (
+                    <label key={id} className="flex flex-col gap-1">
+                      <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                        {templateButtonSlotLabel(slot)}
+                      </span>
+                      <input
+                        type="text"
+                        value={vars[id] ?? ""}
+                        onChange={(e) => setVars((prev) => ({ ...prev, [id]: e.target.value }))}
+                        placeholder="Final da URL (ex.: código da prova)"
+                        className={fieldClass}
+                      />
+                    </label>
+                  );
+                }
                 const meta = template.operatorVariables?.find(
                   (v) =>
                     (v.component === "header" ? "header" : "body") === slot.component &&

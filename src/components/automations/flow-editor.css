@@ -1064,6 +1064,20 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* Botão URL no preview: rótulo + URL final já com o sufixo preenchido. */
+.ds-flow .cfg-tpl-url-btn {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--color-success) 25%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  text-align: center;
+  word-break: break-all;
+}
+.ds-flow .cfg-tpl-url-btn span {
+  color: var(--text-secondary, var(--text-primary));
+}
 /* Botões: coluna, largura total, um por linha — cada um é uma resposta
    (quick-reply) que vira uma ação/ramo no fluxo. */
 .ds-flow .cfg-tpl-btns {

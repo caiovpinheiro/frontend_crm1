@@ -209,6 +209,7 @@ export default function NewCampaignClientPage() {
     const slots = templateVariableSlots(
       selectedTemplate.bodyPreview,
       selectedTemplate.headerPreview,
+      selectedTemplate.buttons,
     );
     const vars = templateVariablesFromConfig(
       slots,

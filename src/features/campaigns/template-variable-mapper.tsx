@@ -16,7 +16,9 @@ import {
   applyOperatorVariableDefaults,
   buildTemplateComponents,
   countMissingTemplateVariables,
+  renderTemplateButtonUrl,
   setTemplateVariableValue,
+  templateSlotId,
   templateVariableLabel,
   templateVariableSlots,
   templateVariableValue,
@@ -65,7 +67,7 @@ function buildFieldOptions(fields: CustomFieldRow[]): FieldOption[] {
 export function templateNeedsVariableMapping(tpl: TemplateRow | null | undefined): boolean {
   if (!tpl) return false;
   if (isHeaderMedia(tpl.headerFormat)) return true;
-  const slots = templateVariableSlots(tpl.bodyPreview, tpl.headerPreview);
+  const slots = templateVariableSlots(tpl.bodyPreview, tpl.headerPreview, tpl.buttons);
   return slots.length > 0;
 }
 
@@ -80,7 +82,7 @@ export function CampaignTemplateVariableMapper({
   const varSlots = useMemo(
     () =>
       template
-        ? templateVariableSlots(template.bodyPreview, template.headerPreview)
+        ? templateVariableSlots(template.bodyPreview, template.headerPreview, template.buttons)
         : [],
     [template],
   );
@@ -162,7 +164,7 @@ export function CampaignTemplateVariableMapper({
           Este template tem{" "}
           {needsHeaderMedia ? `cabeçalho de ${mediaLabel}` : ""}
           {needsHeaderMedia && varSlots.length > 0 ? " e " : ""}
-          {varSlots.length > 0 ? "variáveis no texto" : ""}. Mapeie cada uma
+          {varSlots.length > 0 ? "variáveis no texto ou no link do botão" : ""}. Mapeie cada uma
           para um campo do negócio — o valor de cada contato é preenchido no
           envio.
         </p>
@@ -190,7 +192,7 @@ export function CampaignTemplateVariableMapper({
       ) : null}
 
       {varSlots.map((slot) => (
-        <div key={`${slot.component}-${slot.key}`}>
+        <div key={templateSlotId(slot)}>
           <span className={formLabelClass}>{templateVariableLabel(slot)}</span>
           <DropdownGlass
             options={fieldOptions}
@@ -203,6 +205,15 @@ export function CampaignTemplateVariableMapper({
             searchable
             searchPlaceholder="Buscar campo…"
           />
+          {slot.component === "button" && slot.buttonUrl ? (
+            <p className="mt-1 break-all text-[11px] text-muted-foreground">
+              Link enviado:{" "}
+              {renderTemplateButtonUrl(
+                { index: slot.buttonIndex ?? 0, url: slot.buttonUrl },
+                vars,
+              )}
+            </p>
+          ) : null}
         </div>
       ))}
 

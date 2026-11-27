@@ -16,6 +16,7 @@
 import {
   buildTemplateComponents,
   extractMetaPlaceholderKeys,
+  renderTemplatePreview,
   extractUnsupportedPlaceholderTokens,
   isMetaPlaceholderKey,
   templateVariablesFromSendComponents,
@@ -26,14 +27,98 @@ import {
   type OperatorVariableMeta,
 } from "@/lib/meta-whatsapp/operator-template-variables";
 
-/** Um campo da tela: o placeholder `key` dentro de `component`. */
+/**
+ * Um campo da tela: o placeholder `key` dentro de `component`. Em botão,
+ * `buttonIndex` é a posição do botão na seção BUTTONS do template (o `index`
+ * que a Meta espera no envio) e `buttonText`/`buttonUrl` servem ao rótulo.
+ */
 export type TemplateVariableSlot = {
-  component: "body" | "header";
+  component: "body" | "header" | "button";
   key: string;
+  buttonIndex?: number;
+  buttonText?: string;
+  buttonUrl?: string;
 };
 
-function slotId(component: string, key: string): string {
-  return `${component}::${key}`;
+/** Botão do template como o catálogo devolve (ordem da seção BUTTONS). */
+export type TemplateButtonInfo = {
+  type?: string | null;
+  text?: string | null;
+  url?: string | null;
+};
+
+function slotId(component: string, key: string, buttonIndex?: number | null): string {
+  return component === "button"
+    ? `button:${buttonIndex ?? 0}::${key}`
+    : `${component}::${key}`;
+}
+
+function varSlotId(v: TemplateVariableInput): string {
+  return slotId(v.component ?? "body", String(v.key ?? "").trim(), v.buttonIndex);
+}
+
+/** Id estável do slot — chave de estado em telas que guardam valores por campo. */
+export function templateSlotId(slot: TemplateVariableSlot): string {
+  return slotId(slot.component, slot.key, slot.buttonIndex);
+}
+
+/** Botão URL com sufixo dinâmico (`https://x/{{1}}`), com o índice da Meta. */
+export type TemplateUrlButton = { index: number; text: string; url: string; dynamic: boolean };
+
+/**
+ * Botões URL do template, com o índice na ordem da seção BUTTONS (inclui
+ * quick reply/Flow na contagem, como a Meta). Usado no preview.
+ */
+export function templateUrlButtons(
+  buttons: TemplateButtonInfo[] | null | undefined,
+): TemplateUrlButton[] {
+  const out: TemplateUrlButton[] = [];
+  (buttons ?? []).forEach((b, index) => {
+    if (String(b?.type ?? "").toUpperCase() !== "URL") return;
+    const url = String(b?.url ?? "").trim();
+    if (!url) return;
+    out.push({
+      index,
+      text: String(b?.text ?? "").trim(),
+      url,
+      dynamic: extractMetaPlaceholderKeys(url).length > 0,
+    });
+  });
+  return out;
+}
+
+/**
+ * Um slot por `{{n}}` na URL de cada botão URL dinâmico. Quick reply, Flow,
+ * telefone e URL fixa não têm parâmetro de envio, então não geram campo.
+ */
+export function templateButtonSlots(
+  buttons: TemplateButtonInfo[] | null | undefined,
+): TemplateVariableSlot[] {
+  const slots: TemplateVariableSlot[] = [];
+  for (const b of templateUrlButtons(buttons)) {
+    if (!b.dynamic) continue;
+    for (const key of extractMetaPlaceholderKeys(b.url)) {
+      slots.push({
+        component: "button",
+        key,
+        buttonIndex: b.index,
+        buttonText: b.text,
+        buttonUrl: b.url,
+      });
+    }
+  }
+  return slots;
+}
+
+/** URL final do botão, com o sufixo preenchido (placeholder vazio fica `{{1}}`). */
+export function renderTemplateButtonUrl(
+  button: Pick<TemplateUrlButton, "index" | "url">,
+  vars: TemplateVariableInput[],
+): string {
+  const own = templateVariablesOf(vars, "button", button.index).filter((v) =>
+    (v.value ?? "").trim(),
+  );
+  return renderTemplatePreview(button.url, own);
 }
 
 /**
@@ -55,8 +140,9 @@ export function chatTemplateSlots(
   bodyText: string | null | undefined,
   headerText: string | null | undefined,
   operatorVariables: OperatorVariableMeta[] | null | undefined,
+  buttons?: TemplateButtonInfo[] | null,
 ): TemplateVariableSlot[] {
-  const slots = templateVariableSlots(bodyText, headerText);
+  const slots = templateVariableSlots(bodyText, headerText, buttons);
   const have = new Set(slots.map((s) => `${s.component}::${s.key}`));
   const headerFromConfig: TemplateVariableSlot[] = [];
   for (const v of operatorVariables ?? []) {
@@ -74,6 +160,7 @@ export function chatTemplateSlots(
 export function templateVariableSlots(
   bodyText: string | null | undefined,
   headerText?: string | null,
+  buttons?: TemplateButtonInfo[] | null,
 ): TemplateVariableSlot[] {
   const slots: TemplateVariableSlot[] = [];
   for (const key of extractMetaPlaceholderKeys(headerText ?? "")) {
@@ -82,6 +169,7 @@ export function templateVariableSlots(
   for (const key of extractMetaPlaceholderKeys(bodyText ?? "")) {
     slots.push({ component: "body", key });
   }
+  slots.push(...templateButtonSlots(buttons));
   return slots;
 }
 
@@ -116,15 +204,13 @@ export function reconcileTemplateVariables(
   previous: TemplateVariableInput[] | null | undefined,
 ): TemplateVariableInput[] {
   const byId = new Map(
-    (previous ?? []).map((v) => [
-      slotId(v.component ?? "body", String(v.key ?? "").trim()),
-      v.value == null ? "" : String(v.value),
-    ]),
+    (previous ?? []).map((v) => [varSlotId(v), v.value == null ? "" : String(v.value)]),
   );
   return slots.map((s) => ({
     component: s.component,
     key: s.key,
-    value: byId.get(slotId(s.component, s.key)) ?? "",
+    value: byId.get(templateSlotId(s)) ?? "",
+    ...(s.component === "button" ? { buttonIndex: s.buttonIndex ?? 0 } : {}),
   }));
 }
 
@@ -143,6 +229,8 @@ export function applyOperatorVariableDefaults(
   if (!operatorVariables?.length) return vars;
   return vars.map((v) => {
     if ((v.value ?? "").trim()) return v;
+    // Mapeamento padrão da criação só cobre cabeçalho e corpo.
+    if (v.component === "button") return v;
     const component = v.component === "header" ? "header" : "body";
     const crmField = operatorVariableCrmField(
       operatorVariables,
@@ -170,37 +258,58 @@ export function setTemplateVariableValue(
   slot: TemplateVariableSlot,
   value: string,
 ): TemplateVariableInput[] {
-  return vars.map((v) =>
-    (v.component ?? "body") === slot.component && v.key === slot.key ? { ...v, value } : v,
-  );
+  const id = templateSlotId(slot);
+  return vars.map((v) => (varSlotId(v) === id ? { ...v, value } : v));
 }
 
 export function templateVariableValue(
   vars: TemplateVariableInput[],
   slot: TemplateVariableSlot,
 ): string {
-  const hit = vars.find(
-    (v) => (v.component ?? "body") === slot.component && v.key === slot.key,
-  );
+  const id = templateSlotId(slot);
+  const hit = vars.find((v) => varSlotId(v) === id);
   return hit?.value ?? "";
 }
 
 /**
- * Recorta as variáveis de um componente. Cabeçalho e corpo têm numeração
- * independente na Meta (os dois podem ter `{{1}}`), então o preview de cada um
- * precisa ser renderizado só com as suas.
+ * Recorta as variáveis de um componente. Cabeçalho, corpo e cada botão têm
+ * numeração independente na Meta (todos podem ter `{{1}}`), então o preview de
+ * cada um precisa ser renderizado só com as suas.
  */
 export function templateVariablesOf(
   vars: TemplateVariableInput[],
-  component: "body" | "header",
+  component: "body" | "header" | "button",
+  buttonIndex?: number,
 ): TemplateVariableInput[] {
-  return vars.filter((v) => (v.component ?? "body") === component);
+  return vars.filter(
+    (v) =>
+      (v.component ?? "body") === component &&
+      (component !== "button" || buttonIndex == null || (v.buttonIndex ?? 0) === buttonIndex),
+  );
 }
 
 /** Rótulo do campo: `{{1}}` posicional ou o nome, em templates NAMED. */
 export function templateVariableLabel(slot: TemplateVariableSlot): string {
+  if (slot.component === "button") return templateButtonSlotLabel(slot);
   const where = slot.component === "header" ? "Cabeçalho" : "Variável";
   return `${where} {{${slot.key}}}`;
+}
+
+/**
+ * `Botão 'Acessar prova' — final da URL (https://prova.exemplo.com.br/…)`.
+ * O que vem antes do `{{n}}` é fixo no template aprovado; o operador só
+ * preenche o resto.
+ */
+export function templateButtonSlotLabel(slot: TemplateVariableSlot): string {
+  const name = slot.buttonText?.trim()
+    ? `Botão '${slot.buttonText.trim()}'`
+    : `Botão ${(slot.buttonIndex ?? 0) + 1}`;
+  const url = slot.buttonUrl?.trim() ?? "";
+  const placeholders = url.match(/\{\{[^}]+\}\}/g) ?? [];
+  const what = placeholders.length > 1 ? `trecho {{${slot.key}}} da URL` : "final da URL";
+  if (!url) return `${name} — ${what}`;
+  const base = url.replace(/\{\{[^}]+\}\}/g, "…");
+  return `${name} — ${what} (${base})`;
 }
 
 export function countMissingTemplateVariables(vars: TemplateVariableInput[]): number {
